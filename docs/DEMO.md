@@ -91,7 +91,9 @@ Cevaplar 15 saniyeyi geçmeyecek şekilde yazıldı. İlk cümle her zaman doğr
 Üstelerse üç ayrım: **ne zaman tasarlanıyor** (n8n tasarım zamanı, biz çalışma zamanı) · **kimin izni var** (n8n'de kimlik akışa verilir ve akış onunla ne yaparsa yapar; bizde her araç risk seviyesiyle kayıtlı — oku otomatik, yaz onay, sil yasak) · **sonra ne kanıtlayabiliyorsun** (araç, parametre, süre, onaylayan, token, dolar).
 
 **"n8n'de de AI Agent node var"** — en keskin versiyonu, hazırlıklı ol:
-> Doğru, ve o node araçlarıyla sonuna kadar koşar. Bizim iddiamız ajan çalıştırmak değil, **ajanı durdurabilmek**. Demoda gördünüz: sistem uydurduğu bir kayıt anahtarıyla Jira'ya yazmaya kalktı, kendi kendini durdurdu ve önce aramaya gitti.
+> Doğru, ve o node araçlarıyla sonuna kadar koşar. Bizim iddiamız ajan çalıştırmak değil, **ajanı durdurabilmek**. Az önce gördüğünüz onay kapısı bunun bir örneği; ikincisi ekranda görünmedi ama sistemin içinde: model bir kayıt anahtarını uydurduğunda yazma adımı sağlayıcıya hiç gitmiyor, plana önce o kaydı bulan bir arama adımı ekleniyor. İsterseniz canlı gösterebilirim.
+
+> **Not:** Bu cevap "demoda gördünüz" diye başlıyordu; §1'in akışında öyle bir an yok. Söylemediğin şeyi gösterdim demek, jürinin sorabileceği tek soruyla çöker. Göstermek istersen §1'e 20 saniyelik bir sahne eklemek gerekir: hedef cümlesinde kayıt anahtarı geçmeyen bir yazma isteği ver ("bu hatayı kapat"), plan onarımı ekranda olsun.
 
 Bitirirken tamamlayıcı ol, jüri bunu sever: *"n8n kullanan bir ekip Relay'i onun üstüne koyar — n8n gecelik boru hattını çalıştırır, Relay gün içinde çıkan işi yapar ve kimin neyi neden onayladığını kaydeder."*
 **Asla deme:** "n8n'i değiştiririz" (400+ entegrasyon, zamanlayıcı, retry altyapısı — o savaş kaybedilir) · "bizde de node editörü olacak" (ürünün tezinin tersi).
