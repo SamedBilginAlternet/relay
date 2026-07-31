@@ -23,7 +23,8 @@ import java.util.Optional;
 public class ConnectionService {
 
     public static final String MASK_MARKER = "****";
-    private static final List<String> KNOWN_PROVIDERS = List.of("jira", "slack");
+    // github: fine-grained PAT. google: OAuth, filled in by /api/oauth/google/callback.
+    private static final List<String> KNOWN_PROVIDERS = List.of("jira", "slack", "github", "google");
 
     private final ConnectionRepository connections;
     private final ToolRegistry tools;
@@ -88,7 +89,7 @@ public class ConnectionService {
                 .orElseThrow(() -> new IllegalArgumentException("no read tool registered for " + provider));
 
         Connection connection = connections.findByProvider(provider).orElse(null);
-        ToolResult result = probe.execute(probeParams(probe), connection);
+        ToolResult result = probe.execute(probeParams(probe, connection), connection);
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("provider", provider);
@@ -106,13 +107,13 @@ public class ConnectionService {
         return n.contains("search") || n.contains("list");
     }
 
-    private com.fasterxml.jackson.databind.JsonNode probeParams(Tool probe) {
+    private com.fasterxml.jackson.databind.JsonNode probeParams(Tool probe, Connection connection) {
         var params = Json.object();
         if (probe.schema().has("required")) {
             for (var required : probe.schema().get("required")) {
                 String field = required.asText();
                 if (field.toLowerCase().contains("jql")) {
-                    params.put(field, "order by updated desc");
+                    params.put(field, probeJql(connection));
                 } else if (field.toLowerCase().contains("issuekey")) {
                     params.put(field, "RELAY-1");
                 } else {
@@ -121,6 +122,21 @@ public class ConnectionService {
             }
         }
         return params;
+    }
+
+    /**
+     * Jira Cloud rejects an unbounded JQL on {@code /search/jql} with HTTP 400
+     * ("Burada sınırsız JQL'lere izin verilmez"), so a bare {@code order by updated desc}
+     * probe fails even with perfect credentials. Bound it: by the configured project when
+     * there is one, otherwise by the harmless global restriction.
+     */
+    private static String probeJql(Connection connection) {
+        String project = connection == null ? null : connection.config().get("defaultProject");
+        return project == null || project.isBlank()
+                // `project is not EMPTY` is the documented harmless bound: it restricts
+                // nothing in practice but satisfies the validator on every Jira flavour.
+                ? "project is not EMPTY ORDER BY updated DESC"
+                : "project = \"" + project.trim() + "\" ORDER BY updated DESC";
     }
 
     /** Provider list with masked config — safe for the API. */

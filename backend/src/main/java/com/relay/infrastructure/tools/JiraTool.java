@@ -48,6 +48,36 @@ public abstract class JiraTool extends AbstractTool {
         return value != null && !value.isBlank();
     }
 
+    /**
+     * Guarantees the query is <em>bounded</em>.
+     *
+     * <p>{@code /search/jql} answers HTTP 400 ("Unbounded JQL queries are not allowed here")
+     * to anything without a restricting clause, and the planner is free to emit exactly that
+     * — {@code ORDER BY updated DESC} on its own is a plausible plan and a guaranteed failure
+     * mid-run. {@code project is not EMPTY} restricts nothing in practice but always satisfies
+     * the validator, so we AND it in front of whatever came in.
+     */
+    protected static String bound(String jql) {
+        String query = jql == null ? "" : jql.trim();
+        int orderAt = lastOrderBy(query);
+        String where = orderAt < 0 ? query : query.substring(0, orderAt).trim();
+        String order = orderAt < 0 ? "" : " " + query.substring(orderAt).trim();
+        return where.isEmpty()
+                ? "project is not EMPTY" + order
+                : "project is not EMPTY AND (" + where + ")" + order;
+    }
+
+    /** Index of the trailing {@code order by}, or -1 when the query has none. */
+    private static int lastOrderBy(String query) {
+        String lower = query.toLowerCase();
+        int at = lower.lastIndexOf("order by");
+        // Inside parentheses it would belong to a subquery, not to this query's tail.
+        if (at < 0 || query.substring(at).contains(")")) {
+            return -1;
+        }
+        return at;
+    }
+
     /** Atlassian Document Format wrapper for a plain-text comment body. */
     protected static ObjectNode adf(String text) {
         ObjectNode doc = Json.object();
@@ -104,7 +134,7 @@ public abstract class JiraTool extends AbstractTool {
 
         @Override
         protected JsonNode call(JsonNode params, Connection connection) throws Exception {
-            String jql = params.path("jql").asText();
+            String jql = bound(params.path("jql").asText());
             int max = params.path("maxResults").asInt(10);
             // /rest/api/3/search was REMOVED by Atlassian (HTTP 410, CHANGE-2046).
             // The replacement is /rest/api/3/search/jql, which takes the same query
@@ -112,6 +142,134 @@ public abstract class JiraTool extends AbstractTool {
             String url = base(connection) + "/rest/api/3/search/jql?jql=" + HttpJson.encode(jql)
                     + "&maxResults=" + max + "&fields=summary,status,assignee,priority";
             return HttpJson.send("GET", url, headers(connection), null);
+        }
+    }
+
+    // ------------------------------------------------------------ listMyIssues
+
+    @Component
+    public static class ListMyIssues extends JiraTool {
+
+        public ListMyIssues(@Value("${app.tools.mode:replay}") String mode, FixtureStore fixtures) {
+            super(ToolsMode.parse(mode), fixtures);
+        }
+
+        @Override
+        public String name() {
+            return "jira.listMyIssues";
+        }
+
+        @Override
+        public String description() {
+            return "List the open Jira issues assigned to me (assignee = currentUser() AND status != Done). "
+                    + "This is the 'work on my plate' section of the daily brief.";
+        }
+
+        @Override
+        public RiskLevel risk() {
+            return RiskLevel.READ;
+        }
+
+        @Override
+        public JsonNode schema() {
+            ObjectNode schema = Json.object();
+            schema.put("type", "object");
+            schema.putArray("required");
+            ObjectNode max = schema.putObject("properties").putObject("maxResults");
+            max.put("type", "integer");
+            max.put("minimum", 1);
+            max.put("maximum", 50);
+            max.put("description", "How many issues to return (default 15)");
+            return schema;
+        }
+
+        @Override
+        protected JsonNode call(JsonNode params, Connection connection) throws Exception {
+            int max = params.path("maxResults").asInt(15);
+            String jql = "assignee = currentUser() AND status != Done ORDER BY updated DESC";
+            // /rest/api/3/search is gone (HTTP 410, CHANGE-2046) — /search/jql replaced it.
+            String url = base(connection) + "/rest/api/3/search/jql?jql=" + HttpJson.encode(jql)
+                    + "&maxResults=" + max + "&fields=summary,status,assignee,priority,updated,issuetype";
+            return HttpJson.send("GET", url, headers(connection), null);
+        }
+    }
+
+    // ------------------------------------------------------------ createIssue
+
+    @Component
+    public static class CreateIssue extends JiraTool {
+
+        public CreateIssue(@Value("${app.tools.mode:replay}") String mode, FixtureStore fixtures) {
+            super(ToolsMode.parse(mode), fixtures);
+        }
+
+        @Override
+        public String name() {
+            return "jira.createIssue";
+        }
+
+        @Override
+        public String description() {
+            return "Create a new Jira issue in a project (bug, task, story…). "
+                    + "The main action of the daily brief. Requires approval by default.";
+        }
+
+        @Override
+        public RiskLevel risk() {
+            return RiskLevel.WRITE;
+        }
+
+        @Override
+        public JsonNode schema() {
+            ObjectNode schema = Json.object();
+            schema.put("type", "object");
+            schema.putArray("required").add("projectKey").add("summary");
+            ObjectNode props = schema.putObject("properties");
+            ObjectNode project = props.putObject("projectKey");
+            project.put("type", "string");
+            project.put("description", "Project key the issue belongs to, e.g. RELAY or KAN");
+            ObjectNode type = props.putObject("issueType");
+            type.put("type", "string");
+            type.put("description", "Issue type name — Bug, Task, Story… (default Task)");
+            ObjectNode summary = props.putObject("summary");
+            summary.put("type", "string");
+            summary.put("minLength", 3);
+            summary.put("description", "One line title of the issue");
+            ObjectNode description = props.putObject("description");
+            description.put("type", "string");
+            description.put("description", "Body text (plain text — converted to ADF)");
+            ObjectNode priority = props.putObject("priority");
+            priority.put("type", "string");
+            priority.put("description", "Priority name, e.g. Highest / High / Medium — omit for the project default");
+            return schema;
+        }
+
+        @Override
+        protected JsonNode call(JsonNode params, Connection connection) throws Exception {
+            ObjectNode fields = Json.object();
+            fields.putObject("project").put("key", params.path("projectKey").asText().trim().toUpperCase());
+            fields.putObject("issuetype").put("name",
+                    params.path("issueType").asText("").isBlank() ? "Task" : params.path("issueType").asText());
+            fields.put("summary", params.path("summary").asText());
+            if (params.hasNonNull("description") && !params.path("description").asText().isBlank()) {
+                fields.set("description", adf(params.path("description").asText()));
+            }
+            if (params.hasNonNull("priority") && !params.path("priority").asText().isBlank()) {
+                fields.putObject("priority").put("name", params.path("priority").asText());
+            }
+            ObjectNode body = Json.object();
+            body.set("fields", fields);
+
+            JsonNode response = HttpJson.send("POST", base(connection) + "/rest/api/3/issue",
+                    headers(connection), body);
+
+            ObjectNode out = Json.object();
+            out.put("id", response.path("id").asText(""));
+            out.put("issueKey", response.path("key").asText(""));
+            out.put("summary", params.path("summary").asText());
+            out.put("url", base(connection) + "/browse/" + response.path("key").asText(""));
+            out.put("created", true);
+            return out;
         }
     }
 
