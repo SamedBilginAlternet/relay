@@ -163,4 +163,37 @@ class PlaceholderGateTest {
         assertThat(com.relay.application.text.Placeholder.unresolved("{{steps[3].channel}}")).isTrue();
         assertThat(com.relay.application.text.Placeholder.unresolved("#all-samed")).isFalse();
     }
+
+    /**
+     * The model does not only leave placeholders — it invents plausible ones. A live run
+     * tried #genel, then a channel id, then #general: three inventions, three
+     * channel_not_found, while #all-samed sat configured on the connection.
+     */
+    @Test
+    void an_invented_channel_is_replaced_by_the_configured_one() {
+        var connections = slackConnection("#all-samed");
+        ToolAgent agent = agentFor(List.of(new SlackTool.PostMessage("replay", FIXTURES)), connections);
+        Run run = runWith("slack.postMessage", Map.of(
+                "channel", "#genel", "text", "KAN-4 tamamlandı."));
+
+        StepOutcome outcome = agent.execute(run, run.steps().get(0));
+
+        assertThat(outcome.ok()).isTrue();
+        assertThat(run.steps().get(0).params()).containsEntry("channel", "#all-samed");
+    }
+
+    /** A channel the user actually asked for is left alone. */
+    @Test
+    void a_channel_named_in_the_goal_survives() {
+        var connections = slackConnection("#all-samed");
+        ToolAgent agent = agentFor(List.of(new SlackTool.PostMessage("replay", FIXTURES)), connections);
+        Run run = Run.create("Sonucu #dev-sprint kanalına yaz",
+                java.time.Instant.parse("2026-07-31T09:00:00Z"), 1.0);
+        run.replaceSteps(List.of(Step.create(run.id(), 1, "Adım", AgentRole.COORDINATOR,
+                "slack.postMessage", Map.of("channel", "#dev-sprint", "text", "KAN-4 tamamlandı."))));
+
+        agent.execute(run, run.steps().get(0));
+
+        assertThat(run.steps().get(0).params()).containsEntry("channel", "#dev-sprint");
+    }
 }

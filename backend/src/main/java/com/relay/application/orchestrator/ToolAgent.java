@@ -281,6 +281,54 @@ public class ToolAgent {
     }
 
     /**
+     * Fields that name <em>where</em> a write lands. Wrong ones are not dangerous the way a
+     * wrong issue key is, but they are not harmless either: a run kept posting to {@code
+     * #genel}, then {@code C046F7R6UE9}, then {@code #general} — three plausible inventions,
+     * three {@code channel_not_found}s — while {@code #all-samed} sat configured on the
+     * connection. Unlike a record key, an address has a safe answer to fall back to.
+     */
+    private static final java.util.Set<String> ADDRESS_FIELDS = java.util.Set.of("channel", "channelid");
+
+    /**
+     * Replaces an address the model invented with the one the user configured.
+     *
+     * <p>Blanking the field and letting the tool re-apply its own defaults keeps the
+     * knowledge of "what is the default channel" inside the Slack tool, where it belongs;
+     * this method only decides that the current value cannot be trusted.
+     *
+     * @return the corrected parameters, or {@code null} when nothing needed correcting
+     */
+    private JsonNode groundAddresses(Run run, Step step, Tool tool, JsonNode params, Connection connection) {
+        if (!params.isObject()) {
+            return null;
+        }
+        String haystack = (run.goal() + " " + Json.preview(previousResults(run, step), 4000)
+                + " " + (connection == null ? "" : String.join(" ", connection.config().values())))
+                .toLowerCase();
+
+        ObjectNode corrected = ((ObjectNode) params).deepCopy();
+        boolean changed = false;
+        var fields = params.fields();
+        while (fields.hasNext()) {
+            var field = fields.next();
+            if (!ADDRESS_FIELDS.contains(field.getKey().toLowerCase()) || !field.getValue().isTextual()) {
+                continue;
+            }
+            String value = field.getValue().asText().trim();
+            if (value.isEmpty() || haystack.contains(value.toLowerCase())) {
+                continue;
+            }
+            corrected.put(field.getKey(), "");
+            changed = true;
+        }
+        if (!changed) {
+            return null;
+        }
+        JsonNode resolved = tool.withDefaults(corrected, connection);
+        return resolved.path("channel").asText("").isBlank() ? null : resolved;
+    }
+
+    /**
      * Fields naming a <em>container</em> to write into rather than a record to change:
      * a project to create an issue in, a channel to post to, a repository to comment under.
      * Those come from connection defaults or from the user's own setup, so demanding that
@@ -392,8 +440,18 @@ public class ToolAgent {
         }
         // Applied again in case the model overwrote a resolved value with a placeholder.
         // Defaults land here rather than at call time so the parameters a human approves are
-        // the parameters that get sent.
-        return new ParamOutcome(true, tool.withDefaults(candidate, connection), null, tokens, cost);
+        // the parameters that get sent — which is also why the address check belongs here:
+        // a channel silently corrected after approval would be a different message than the
+        // one shown.
+        JsonNode finalised = tool.withDefaults(candidate, connection);
+        JsonNode grounded = groundAddresses(run, step, tool, finalised, connection);
+        if (grounded != null) {
+            journal.say(run, step.id(), AgentRole.toolAgent(tool.name()), AgentRole.COORDINATOR,
+                    "Adres doğrulanamadı (" + finalised.path("channel").asText("") + "),"
+                            + " bağlantıdaki varsayılana çevrildi: " + grounded.path("channel").asText(""));
+            finalised = grounded;
+        }
+        return new ParamOutcome(true, finalised, null, tokens, cost);
     }
 
     /** Config keys that describe *where* to work. Never a credential — see {@link #settings}. */
