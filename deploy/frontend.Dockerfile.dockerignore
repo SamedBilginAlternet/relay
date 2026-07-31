@@ -1,0 +1,43 @@
+# ---------------------------------------------------------------------------
+# Build-context filter for deploy/frontend.Dockerfile
+#
+# BuildKit looks for "<dockerfile-path>.dockerignore" next to the Dockerfile and
+# prefers it over the context-root .dockerignore. That is why this file lives in
+# deploy/ and is named after the Dockerfile it belongs to.
+# Requires BuildKit (default for `docker compose` v2+ / `docker buildx build`).
+#
+# Rule: ignore everything, then re-add only what the frontend build needs.
+# deploy/nginx.conf is re-added because the runtime stage COPYs it.
+# ---------------------------------------------------------------------------
+*
+
+!frontend/
+!deploy/nginx.conf
+
+# ---- never ship installed deps or build output into the context ------------
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.vite/
+frontend/coverage/
+frontend/.turbo/
+frontend/playwright-report/
+frontend/test-results/
+frontend/dev-dist/
+
+# ---- secrets / env ---------------------------------------------------------
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+
+# ---- vcs / editor / os -----------------------------------------------------
+.git/
+.gitignore
+.github/
+.vscode/
+.idea/
+**/.DS_Store
+**/*.log
+**/bin/
+**/obj/

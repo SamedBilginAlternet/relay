@@ -1,0 +1,43 @@
+# ---------------------------------------------------------------------------
+# Build-context filter for deploy/backend.Dockerfile
+#
+# BuildKit looks for "<dockerfile-path>.dockerignore" next to the Dockerfile and
+# prefers it over the context-root .dockerignore. That is why this file lives in
+# deploy/ and is named after the Dockerfile it belongs to.
+# Requires BuildKit (default for `docker compose` v2+ / `docker buildx build`).
+#
+# Rule: ignore everything, then re-add only what the backend build needs.
+# ---------------------------------------------------------------------------
+*
+
+!backend/
+
+# ---- never ship build output or local state into the context ---------------
+backend/**/bin/
+backend/**/obj/
+backend/**/.vs/
+backend/**/TestResults/
+backend/**/*.user
+backend/**/appsettings.Development.json
+backend/**/appsettings.Local.json
+backend/**/*.db
+backend/**/*.db-shm
+backend/**/*.db-wal
+
+# ---- secrets / env ---------------------------------------------------------
+**/.env
+**/.env.*
+**/*.pem
+**/*.pfx
+**/*.key
+
+# ---- vcs / editor / os -----------------------------------------------------
+.git/
+.gitignore
+.github/
+.vscode/
+.idea/
+**/.DS_Store
+**/*.log
+**/node_modules/
+**/dist/

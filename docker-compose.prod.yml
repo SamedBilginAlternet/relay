@@ -1,0 +1,254 @@
+# ---------------------------------------------------------------------------
+# Rung — PRODUCTION stack.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# *** SHARED EDGE RULE — READ BEFORE CHANGING ANY `ports:` LINE ***
+#
+# This VPS already runs ANOTHER project's Caddy as the single process bound to
+# :80 and :443. Nothing else may bind those ports, and the Coolify proxy stays
+# OFF. A new project is added by:
+#     (a) publishing its containers to a free host port, and
+#     (b) adding a Caddy site block that reverse-proxies the domain to them.
+#
+# *** DO NOT BIND TO 127.0.0.1 ON THIS BOX ***
+# n11's Caddy runs INSIDE A CONTAINER and reaches services via
+# `host.docker.internal:<port>`, which resolves to the HOST GATEWAY address,
+# not to loopback. A `127.0.0.1:<port>:...` mapping is unreachable from there
+# and Caddy answers 502. This is not theoretical — it is how the other project
+# on this box (olaylar-arsivi) is deployed. Publish on all interfaces.
+#
+# Accepted trade-off: the port is then reachable directly at
+# http://187.124.7.138:<WEB_PORT> with NO TLS. Do not put anything on those
+# ports that must not be seen in the clear.
+#
+# Host ports — VERIFY they are free before deploying, do not assume.
+# 8081 (Faruk), 8082 (KPSS Atlas), 8083 (olaylar-arsivi) are already taken:
+#     for p in $(seq 8084 8099); do ss -tln | grep -q ":$p " || { echo "FREE: $p"; break; }; done
+#     WEB_PORT=8084 -> web:80
+#     API_PORT=8085 -> api:8080
+# Postgres is NOT published at all — internal network only.
+#
+# *** NEVER USE `${VAR:?message}` IN THIS FILE ***
+# Coolify parses that syntax like `${VAR:-default}` and substitutes the ERROR
+# MESSAGE AS THE VALUE. A missing POSTGRES_PASSWORD would not fail the deploy —
+# the database would come up with a password that is written in plain text in
+# this repository. Validation belongs in the container entrypoint, not here.
+#
+# DEPLOYED VIA COOLIFY — see DEPLOY.md §4B. Consequences baked into this file:
+#   * No `container_name:` anywhere. Coolify names containers itself; hardcoded
+#     names collide on redeploy and when the same repo is deployed twice.
+#   * Volume and network carry an explicit `name:` so the database survives a
+#     Coolify resource being recreated. Do not remove them.
+#   * Do NOT set an FQDN/domain on this resource in the Coolify UI. That makes
+#     Coolify emit proxy labels and try to serve :80/:443 — which is exactly
+#     what the shared edge rule forbids. The domain belongs to Caddy only.
+#   * Coolify injects its UI environment variables; `.env` on disk is only used
+#     by the manual `docker compose` path.
+#
+# Caddy site block: deploy/Caddyfile.snippet
+# Runbook:          deploy/DEPLOY.md
+# ---------------------------------------------------------------------------
+name: ${COMPOSE_PROJECT_NAME:-rung}
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-restart: &restart unless-stopped
+
+services:
+  # ------------------------------------------------------------------- db ---
+  db:
+    image: postgres:16-alpine
+    restart: *restart
+    # NO `ports:` — deliberate. The database is reachable only from the
+    # `rung` bridge network, i.e. only from api/migrator.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rung}
+      # NOT `${POSTGRES_PASSWORD:?...}` — see the header. Coolify would turn the
+      # error message into the actual password. Validated in the api entrypoint.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-rung}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      TZ: ${TZ:-Etc/UTC}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    shm_size: ${POSTGRES_SHM_SIZE:-256mb}
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-100}
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}
+    healthcheck:
+      # `pg_isready` and `psql -h 127.0.0.1` are BOTH false positives here.
+      # The postgres image builds pg_hba.conf as:
+      #     host all all 127.0.0.1/32  trust          <- initdb default
+      #     host all all all           scram-sha-256  <- entrypoint appends
+      # First match wins, so any loopback connection is accepted WITHOUT a
+      # password and the check reports healthy no matter what you pass.
+      # `-h db` resolves to the container's network address, so it falls through
+      # to the scram-sha-256 rule and the password is actually verified.
+      # This matters because POSTGRES_PASSWORD is only honoured on an EMPTY data
+      # directory: change it later and the volume keeps the old one — the db
+      # looks healthy while the api dies on authentication.
+      # `$$` is left for the container shell, so the password never lands in
+      # `docker inspect`.
+      test:
+        [
+          "CMD-SHELL",
+          "PGPASSWORD=$$POSTGRES_PASSWORD psql -h db -U $$POSTGRES_USER -d $$POSTGRES_DB -c 'SELECT 1' >/dev/null 2>&1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    networks: [rung]
+
+  # ------------------------------------------------------------------ api ---
+  api:
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+      target: runtime
+      args:
+        DOTNET_VERSION: ${DOTNET_VERSION:-10.0}
+        APP_VERSION: ${APP_VERSION:-0.1.0}
+    image: ${IMAGE_PREFIX:-rung}-api:${APP_VERSION:-latest}
+    restart: *restart
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ASPNETCORE_URLS: http://+:8080
+      # Behind Caddy: trust the forwarded scheme/host so SignalR builds wss://
+      # URLs and generated links use https.
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      ConnectionStrings__Default: ${ConnectionStrings__Default:-Host=db;Port=5432;Database=${POSTGRES_DB:-rung};Username=${POSTGRES_USER:-rung};Password=${POSTGRES_PASSWORD}}
+      Cors__AllowedOrigins: ${Cors__AllowedOrigins:-https://${APP_DOMAIN:-localhost}}
+      Generation__Provider: ${GENERATION_PROVIDER:-stub}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TZ: ${TZ:-Etc/UTC}
+    ports:
+      # Caddy reverse-proxies /api/* and /hub/* here.
+      # NOT 127.0.0.1 — n11's Caddy is a container and reaches this via
+      # host.docker.internal, which is the host gateway, not loopback.
+      - "${API_PORT:-8085}:8080"
+    healthcheck:
+      # Plain GET on purpose: busybox wget has no --tries, and its --spider
+      # sends HEAD, which a Minimal-API GET endpoint answers with 405.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    stop_grace_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    networks: [rung]
+
+  # ------------------------------------------------------------------ web ---
+  web:
+    build:
+      context: .
+      dockerfile: deploy/frontend.Dockerfile
+      target: runtime
+      args:
+        NODE_VERSION: ${NODE_VERSION:-22}
+        # Empty = same-origin. In production the browser talks to
+        # https://${APP_DOMAIN}/api/... and Caddy routes it to the api service,
+        # so the SPA must NOT hardcode a host.
+        # `api` olmazsa SPA mock fixture ile yayina cikar.
+        VITE_CARD_SOURCE: ${VITE_CARD_SOURCE:-api}
+        VITE_SCROLL_STRATEGY: ${VITE_SCROLL_STRATEGY:-spring}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL-}
+        VITE_APP_VERSION: ${APP_VERSION:-0.1.0}
+    image: ${IMAGE_PREFIX:-rung}-web:${APP_VERSION:-latest}
+    restart: *restart
+    depends_on:
+      # service_started, NOT service_healthy: the SPA is a static bundle and
+      # must still render (and fall back to MockCardSource) when the API is
+      # down. Gating the shell on API health turns an API outage into a
+      # site-wide 502.
+      api:
+        condition: service_started
+    ports:
+      # loopback ONLY — Caddy reverse-proxies the domain root here.
+      # NOT 127.0.0.1 — see the header. host.docker.internal != loopback.
+      - "${WEB_PORT:-8084}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    stop_grace_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    networks: [rung]
+
+  # ------------------------------------------------------- migrator (opt) ---
+  # One-shot EF Core migration runner — NOT started by `up`.
+  #   docker compose -f docker-compose.prod.yml --profile migrate run --rm migrator
+  # Uses the SDK-based `migrator` stage, so it is a separate (large) image that
+  # is only built when the profile is requested.
+  migrator:
+    profiles: ["migrate"]
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+      target: migrator
+      args:
+        DOTNET_VERSION: ${DOTNET_VERSION:-10.0}
+    image: ${IMAGE_PREFIX:-rung}-migrator:${APP_VERSION:-latest}
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__Default: ${ConnectionStrings__Default:-Host=db;Port=5432;Database=${POSTGRES_DB:-rung};Username=${POSTGRES_USER:-rung};Password=${POSTGRES_PASSWORD}}
+    logging: *default-logging
+    networks: [rung]
+
+  # -------------------------------------------------------- backup (opt) ---
+  # One-shot logical backup to ./backups on the host.
+  #   docker compose -f docker-compose.prod.yml --profile backup run --rm backup
+  backup:
+    profiles: ["backup"]
+    image: postgres:16-alpine
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ${BACKUP_DIR:-./backups}:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    # Single line on purpose: a folded scalar would inject a newline and split
+    # the shell command in two.
+    # (must stay a single-element LIST: a plain string would be word-split and
+    # only the first word would reach `sh -c`)
+    command:
+      - "pg_dump -h db -U ${POSTGRES_USER:-rung} -d ${POSTGRES_DB:-rung} -Fc -f /backups/rung-$$(date +%Y%m%d-%H%M%S).dump && ls -lh /backups | tail -n 5"
+    networks: [rung]
+
+volumes:
+  db-data:
+    name: ${COMPOSE_PROJECT_NAME:-rung}-db-data
+
+networks:
+  rung:
+    name: ${COMPOSE_PROJECT_NAME:-rung}-net
+    driver: bridge

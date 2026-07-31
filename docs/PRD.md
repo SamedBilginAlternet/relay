@@ -35,6 +35,24 @@ Mevcut AI asistanlarının ikisinden biri oluyor:
 
 ---
 
+## 3b. Tek asistan değil — **ekip**
+
+Mindra'nın asıl fikri bu ve biz de onu alıyoruz: hedefi tarif edersin, sistem **doğru uzman ajanlardan bir kadro kurar**, rolleri dağıtır, aralarında koordine eder ve işi teslim eder.
+
+| Rol | Sorumluluk |
+|---|---|
+| **Koordinatör** | Hedefi okur, kadroyu kurar, adımları dağıtır, sonucu birleştirir |
+| **Araç uzmanı** (araç başına bir tane) | Yalnızca kendi aracını bilir: Jira uzmanı Jira'yı, Slack uzmanı Slack'i |
+| **Doğrulayıcı** | Teslimden önce sonucu hedefe karşı denetler; tutmuyorsa geri gönderir |
+
+Ajanlar arası her mesaj zaman çizelgesinde görünür — kim kime ne dedi, hangi işi devretti.
+
+## 3c. Maliyet ve yönetişim
+
+**Gerçek zamanlı maliyet:** her adımda harcanan token ve tahmini ücret anlık görünür; akışın toplamı üstte durur. Bir ajan bütçeyi aşarsa durur ve sorar.
+
+**Yönetişim:** her araç için politika — `otomatik` / `onay iste` / `yasak`. Okuma otomatik, yazma onaylı, silme yasak varsayılanı. Politika ihlali denenirse adım reddedilir ve iz kaydına yazılır.
+
 ## 4. Çekirdek döngü
 
 ```
@@ -77,6 +95,10 @@ Mevcut AI asistanlarının ikisinden biri oluyor:
 | F-06 | Slack aracı | Kanala mesaj at, thread'e cevap ver |
 | F-07 | Akış yeniden çalıştırma | Aynı akış tek tıkla tekrar koşar |
 | F-08 | Bağlantı ayarları | Token'lar arayüzden girilir, şifrelenmiş saklanır |
+| F-09 | **Ajan kadrosu** | Koordinatör + araç uzmanları + doğrulayıcı; ajanlar arası mesajlar görünür |
+| F-10 | **Gerçek zamanlı maliyet** | Adım başına token + tahmini ücret, akış toplamı, bütçe sınırı |
+| F-11 | **Araç politikası** | Araç başına otomatik/onaylı/yasak; ihlal iz kaydına yazılır |
+| F-12 | **Araç kayıt defteri** | Yeni araç eklemek tek bir sınıf — "3000+ entegrasyon" iddiasının gerçek uzantı noktası |
 
 ### Zaman kalırsa
 

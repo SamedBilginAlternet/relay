@@ -1,0 +1,87 @@
+# ===========================================================================
+# Rung — Caddy site block
+# ===========================================================================
+#
+# NEREYE EKLENECEK  *** DROPLET'İ DÜZENLEMEYİN ***
+# ------------------------------------------------
+# Caddyfile CI ile yönetiliyor: n11 deploy'u onu `/opt/n11/Caddyfile`'a
+# kopyalıyor, yani sunucuda elle yapılan düzenleme ilk deploy'da SİLİNİR.
+#
+# Düzenlenecek gerçek dosya, n11 reposunda:
+#     infra/digitalocean/Caddyfile
+#
+# Bloğu dosyanın sonundaki diğer proje bloklarının yanına ekleyin
+# (faruktekstil / kpssatlas / olay ile aynı bölüm), commit'leyin, n11'i
+# deploy edin. Caddy TLS'i Let's Encrypt ile kendi alır.
+#
+# NEDEN host.docker.internal, NEDEN 127.0.0.1 DEĞİL
+# --------------------------------------------------
+# Caddy bu kutuda bir KONTEYNER içinde çalışıyor ve `extra_hosts: host-gateway`
+# ile host'a ulaşıyor. `127.0.0.1` yazarsanız Caddy'nin KENDİ loopback'ini
+# gösterir, host'unkini değil — sonuç 502. Aynı sebeple Rung'un compose
+# dosyası portları `127.0.0.1:` ile DEĞİL, tüm arayüzlere yayımlıyor.
+#
+# COOLIFY TARAFI
+# --------------
+#   * Server -> Proxy: None/stopped. Açılırsa 80/443 için n11'in Caddy'siyle
+#     kavga eder ve KUTUDAKİ HER SİTEYİ düşürür.
+#   * Resource -> Domains/FQDN: BOŞ bırakın.
+#   * SERVICE_FQDN_WEB / SERVICE_URL_WEB TANIMLAMAYIN — bunlar Coolify'ın
+#     sihirli değişkenleri; verildiğinde Coolify servise domain atayıp kendi
+#     proxy'sine yönlendirme etiketleri ekler.
+#   Domain'i yalnızca aşağıdaki blok bilir.
+#
+# PORTLAR
+# -------
+# 8081 = Faruk, 8082 = KPSS Atlas, 8083 = Olaylar Arşivi.
+# Rung sıradaki ikisini alıyor: 8084 (web) ve 8085 (api).
+# Deploy etmeden ÖNCE boş olduklarını doğrulayın, varsaymayın:
+#     for p in $(seq 8084 8099); do ss -tln | grep -q ":$p " || echo "BOS: $p"; done
+# Değiştirirseniz .env'deki WEB_PORT/API_PORT ile bu blok AYNI olmalı.
+#
+# --------------------------- BURADAN KOPYALA -------------------------------
+
+# Rung (Coolify ile yonetilir, web 8084 / api 8085)
+rung.samedbilgin.com {
+    # SignalR hub'i once gelmeli. `encode` BILEREK yok: SSE/long-polling
+    # fallback'i sikistirmak frame'leri buffer'lar ve baglanti donmus gorunur.
+    # Elle `header_up Connection/Upgrade` EKLEMEYIN — Caddy hop-by-hop
+    # header'lari kendi yonetir, ezmek handshake'i bozmanin klasik yoludur.
+    handle /hub/* {
+        reverse_proxy host.docker.internal:8085 {
+            transport http {
+                versions 1.1
+            }
+            flush_interval -1
+        }
+    }
+
+    handle /api/* {
+        encode zstd gzip
+        reverse_proxy host.docker.internal:8085
+    }
+
+    handle {
+        encode zstd gzip
+        reverse_proxy host.docker.internal:8084
+    }
+
+    log {
+        output stdout
+        format console
+    }
+}
+
+# ---------------------------- BURAYA KADAR ---------------------------------
+#
+# DIKKAT: `log {` suslu parantezi KENDI SATIRINDA olmali.
+# `log { output stdout` tek satirda yazilirsa Caddy "Unexpected next token" verir.
+#
+# DOGRULAMA (n11 deploy'undan sonra)
+# ----------------------------------
+#   curl -sS https://rung.samedbilgin.com/api/health
+#   curl -sSI https://rung.samedbilgin.com/ | head -n1
+#   curl -sSI -H "Connection: Upgrade" -H "Upgrade: websocket" \
+#        -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+#        https://rung.samedbilgin.com/hub/generation
+#        # beklenen: 101 veya SignalR'dan 400. 502 gelirse port/host yanlis.
