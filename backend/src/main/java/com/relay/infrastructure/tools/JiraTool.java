@@ -6,8 +6,11 @@ import com.relay.application.json.Json;
 import com.relay.domain.Connection;
 import com.relay.domain.RiskLevel;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -76,6 +79,75 @@ public abstract class JiraTool extends AbstractTool {
             return -1;
         }
         return at;
+    }
+
+    /**
+     * Finds the transition that gets an issue to {@code target}.
+     *
+     * <p>The model says "Done" but a Turkish board offers "Bitti", and a board in any
+     * language names its transitions however its admin felt that day. Exact match first,
+     * then the same meaning, then a prefix — anything looser would pick a wrong transition,
+     * and moving an issue to the wrong column is worse than refusing.
+     *
+     * @return the transition id, or {@code null} when nothing matches
+     */
+    static String matchTransition(JsonNode transitions, String target) {
+        String wanted = normalise(target);
+        String wantedGroup = synonymGroup(wanted);
+
+        for (int pass = 0; pass < 3; pass++) {
+            for (JsonNode transition : transitions) {
+                String name = normalise(transition.path("name").asText(""));
+                String toName = normalise(transition.path("to").path("name").asText(""));
+                boolean hit = switch (pass) {
+                    case 0 -> name.equals(wanted) || toName.equals(wanted);
+                    case 1 -> wantedGroup != null
+                            && (wantedGroup.equals(synonymGroup(name)) || wantedGroup.equals(synonymGroup(toName)));
+                    default -> !wanted.isEmpty()
+                            && (name.startsWith(wanted) || toName.startsWith(wanted));
+                };
+                if (hit) {
+                    return transition.path("id").asText();
+                }
+            }
+        }
+        return null;
+    }
+
+    /** What the board actually offers right now — shown to the user when nothing matched. */
+    private static String names(JsonNode transitions) {
+        List<String> out = new ArrayList<>();
+        for (JsonNode transition : transitions) {
+            String to = transition.path("to").path("name").asText("");
+            out.add(to.isBlank() ? transition.path("name").asText("") : to);
+        }
+        return out.isEmpty() ? "(hiçbiri)" : String.join(", ", out);
+    }
+
+    /** Lowercase without Turkish-specific casing traps, punctuation or spacing. */
+    private static String normalise(String value) {
+        if (value == null) {
+            return "";
+        }
+        String lower = value.trim().toLowerCase(Locale.ROOT)
+                .replace('ı', 'i').replace('İ', 'i').replace('ş', 's').replace('ğ', 'g')
+                .replace('ü', 'u').replace('ö', 'o').replace('ç', 'c');
+        return lower.replaceAll("[^a-z0-9]", "");
+    }
+
+    /** Status names that mean the same thing across languages and board conventions. */
+    private static final Map<String, String> SYNONYMS = Map.ofEntries(
+            Map.entry("done", "done"), Map.entry("bitti", "done"), Map.entry("tamamlandi", "done"),
+            Map.entry("tamam", "done"), Map.entry("closed", "done"), Map.entry("kapali", "done"),
+            Map.entry("kapandi", "done"), Map.entry("resolved", "done"), Map.entry("cozuldu", "done"),
+            Map.entry("complete", "done"), Map.entry("completed", "done"),
+            Map.entry("inprogress", "progress"), Map.entry("devamediyor", "progress"),
+            Map.entry("yapiliyor", "progress"), Map.entry("basladi", "progress"),
+            Map.entry("todo", "todo"), Map.entry("yapilacak", "todo"), Map.entry("acik", "todo"),
+            Map.entry("open", "todo"), Map.entry("backlog", "todo"));
+
+    private static String synonymGroup(String normalised) {
+        return SYNONYMS.get(normalised);
     }
 
     /** Atlassian Document Format wrapper for a plain-text comment body. */
@@ -373,18 +445,11 @@ public abstract class JiraTool extends AbstractTool {
             if (params.hasNonNull("status")) {
                 String target = params.path("status").asText();
                 JsonNode transitions = HttpJson.send("GET", issueUrl + "/transitions", headers(connection), null);
-                String transitionId = null;
-                for (JsonNode transition : transitions.path("transitions")) {
-                    String name = transition.path("name").asText("");
-                    String toName = transition.path("to").path("name").asText("");
-                    if (name.equalsIgnoreCase(target) || toName.equalsIgnoreCase(target)) {
-                        transitionId = transition.path("id").asText();
-                        break;
-                    }
-                }
+                String transitionId = matchTransition(transitions.path("transitions"), target);
                 if (transitionId == null) {
                     throw new HttpJson.ToolCallException(
-                            "no transition to '" + target + "' available on " + issueKey);
+                            issueKey + " için '" + target + "' geçişi yok. Bu kayıtta şu an mümkün olanlar: "
+                                    + names(transitions.path("transitions")));
                 }
                 ObjectNode body = Json.object();
                 body.putObject("transition").put("id", transitionId);
