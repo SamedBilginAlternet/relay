@@ -101,6 +101,26 @@ class MailQueryTranslatorTest {
         assertThat(translation.query()).startsWith("from:ayse@alterteam.dev");
     }
 
+    /**
+     * "Şundan mail gelmiş mi" is the question this endpoint exists for. Live, the fallback
+     * searched for the string "Atlassiandan" and reported nothing found while an Atlassian
+     * mail was sitting in the inbox.
+     */
+    @Test
+    void theTurkishAblativeSuffixNamesTheSenderRatherThanTheSearchTerm() {
+        MailQueryTranslator translator = new MailQueryTranslator(new StubLlmClient(null));
+
+        assertThat(translator.translate("Atlassian'dan mail gelmiş mi?").query())
+                .isEqualTo("from:Atlassian newer_than:90d");
+        assertThat(translator.translate("Ayşe'den bir şey var mı?").query())
+                .startsWith("from:Ayşe");
+        assertThat(translator.translate("Migros'tan kampanya maili geldi mi?").query())
+                .startsWith("from:Migros");
+        // A sender the question names beats the topic rules — it is the narrower search.
+        assertThat(translator.translate("Trendyol'dan kargo maili geldi mi?").query())
+                .startsWith("from:Trendyol");
+    }
+
     @Test
     void anUnknownTopicIsSearchedWithTheQuestionsOwnWords() {
         MailQueryTranslator.Translation translation = new MailQueryTranslator(new StubLlmClient(null))

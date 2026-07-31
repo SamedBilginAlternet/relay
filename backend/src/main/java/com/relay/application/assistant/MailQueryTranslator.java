@@ -44,6 +44,13 @@ public class MailQueryTranslator {
 
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
     private static final Pattern EMAIL = Pattern.compile("[\\w.+-]+@[\\w-]+\\.[\\w.-]+");
+    /**
+     * "Atlassian'dan", "Ayşe'den", "Migros'tan" — Turkish marks the sender of a mail with the
+     * ablative suffix after an apostrophe, and "şundan mail gelmiş mi" is the question this
+     * whole endpoint exists for.
+     */
+    private static final Pattern SENDER = Pattern.compile(
+            "(\\p{L}[\\p{L}\\p{N}._-]{2,})['’’](?:d|t)[ae]n\\b");
 
     public static final String SOURCE_LLM = "llm";
     public static final String SOURCE_HEURISTIC = "heuristic";
@@ -209,6 +216,14 @@ public class MailQueryTranslator {
                     + " adresinden gelen mailleri aradım.", SOURCE_HEURISTIC, tokens, costUsd);
         }
 
+        Matcher sender = SENDER.matcher(question);
+        if (sender.find()) {
+            String name = sender.group(1);
+            return new Translation("from:" + name + " newer_than:90d",
+                    "Son 90 günde " + name + " adından gelen mailleri aradım.",
+                    SOURCE_HEURISTIC, tokens, costUsd);
+        }
+
         for (Rule rule : RULES) {
             for (String keyword : rule.keywords()) {
                 if (folded.contains(keyword)) {
@@ -230,7 +245,9 @@ public class MailQueryTranslator {
     private static String keywords(String question) {
         StringBuilder out = new StringBuilder();
         for (String word : WHITESPACE.split(question.trim())) {
-            String bare = word.replaceAll("[^\\p{L}\\p{N}]", "");
+            // A Turkish suffix is not part of the word being searched for:
+            // "Atlassian'dan" is a mail from Atlassian, not the string "Atlassiandan".
+            String bare = word.split("['’’]")[0].replaceAll("[^\\p{L}\\p{N}]", "");
             if (bare.length() < 3 || STOP_WORDS.contains(fold(bare))) {
                 continue;
             }
