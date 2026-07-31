@@ -60,7 +60,9 @@ app:
   brief:
     # Per-tool ceiling for the parallel fan-out; a slow provider never blocks the screen.
     tool-timeout-seconds: ${BRIEF_TOOL_TIMEOUT_SECONDS:8}
-    cache-seconds: ${BRIEF_CACHE_SECONDS:60}
+    # Every miss costs one classification call; on a free-tier key that budget is the
+    # scarcest thing we have. Refresh is always available on the screen.
+    cache-seconds: ${BRIEF_CACHE_SECONDS:180}
     timezone: ${BRIEF_TIMEZONE:Europe/Istanbul}
     # Fallback project for a jira.createIssue suggestion when no Jira issue is in the brief.
     default-project-key: ${BRIEF_DEFAULT_PROJECT_KEY:RELAY}

@@ -129,7 +129,7 @@ public class ApplicationConfig {
                                      LlmClient llm, Clock clock,
                                      ExecutorService briefExecutor,
                                      @Value("${app.brief.tool-timeout-seconds:8}") long timeoutSeconds,
-                                     @Value("${app.brief.cache-seconds:60}") long cacheSeconds,
+                                     @Value("${app.brief.cache-seconds:180}") long cacheSeconds,
                                      @Value("${app.brief.timezone:Europe/Istanbul}") String timezone,
                                      @Value("${app.brief.default-project-key:RELAY}") String projectKey) {
         return new BriefService(tools, connections, insights, digests, llm, clock, briefExecutor,

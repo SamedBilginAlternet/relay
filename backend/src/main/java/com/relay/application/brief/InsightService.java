@@ -138,6 +138,20 @@ public class InsightService {
         return new Insight(insight.itemId(), "fyi", "low", insight.summary(), List.of());
     }
 
+    /** Fields a suggested action can actually use as parameters. */
+    private static final java.util.Set<String> REF_FIELDS = java.util.Set.of(
+            "issueKey", "repo", "number", "messageId", "threadId", "channel", "from", "bulk");
+
+    private static Map<String, Object> actionRef(Map<String, Object> ref) {
+        Map<String, Object> kept = new LinkedHashMap<>();
+        ref.forEach((key, value) -> {
+            if (REF_FIELDS.contains(key)) {
+                kept.put(key, value);
+            }
+        });
+        return kept;
+    }
+
     // ---- llm --------------------------------------------------------------
 
     private LlmRequest request(List<BriefItem> items, String projectKey) {
@@ -150,7 +164,10 @@ public class InsightService {
                     .append(" | kind=").append(item.kind())
                     .append(" | title=").append(item.title())
                     .append(" | detail=").append(item.subtitle())
-                    .append(" | ref=").append(Json.write(item.ref()))
+                    // Only the handles an action needs. The full ref carries mail snippets
+                    // and provider payloads; sending fifteen of those blew through the
+                    // per-minute token budget and dropped the whole layer to heuristics.
+                    .append(" | ref=").append(Json.write(actionRef(item.ref())))
                     .append('\n');
         }
         user.append("\nTOOLS YOU MAY SUGGEST (use the exact name, nothing else exists):\n");
