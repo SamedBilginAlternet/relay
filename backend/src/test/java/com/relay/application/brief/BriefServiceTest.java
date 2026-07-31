@@ -2,6 +2,7 @@ package com.relay.application.brief;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.relay.application.port.LlmClient;
 import com.relay.application.port.Tool;
 import com.relay.application.port.ToolRegistry;
 import com.relay.infrastructure.llm.StubLlmClient;
@@ -28,9 +29,12 @@ class BriefServiceTest {
 
     private BriefService serviceWith(List<Tool> tools, TestDoubles.FixedClock clock) {
         ToolRegistry registry = new ToolRegistryImpl(tools);
-        StubLlmClient llm = new StubLlmClient(registry);
+        return serviceWith(registry, clock, new StubLlmClient(registry));
+    }
+
+    private BriefService serviceWith(ToolRegistry registry, TestDoubles.FixedClock clock, LlmClient llm) {
         return new BriefService(registry, new TestDoubles.InMemoryConnectionRepository(),
-                new InsightService(llm, registry), llm, clock, Runnable::run,
+                new InsightService(llm, registry), new DigestService(llm), llm, clock, Runnable::run,
                 Duration.ofSeconds(8), Duration.ofSeconds(60), "Europe/Istanbul", "RELAY");
     }
 
@@ -175,6 +179,66 @@ class BriefServiceTest {
 
         clock.advance(Duration.ofSeconds(61));
         assertThat(service.brief().get("cached")).isEqualTo(false);
+    }
+
+    /**
+     * The stub cannot write a daily summary — it writes filler. Live, that filler
+     * ("Adımlar yürütüldü; ayrıntılar zaman çizelgesinde") went out as if it were an
+     * insight. Degraded, the field is simply not there.
+     */
+    @Test
+    void noDigestIsWrittenWhileTheModelIsDegraded() {
+        Map<String, Object> brief = serviceWith(everything(), new TestDoubles.FixedClock()).brief();
+
+        assertThat(brief).doesNotContainKey("digest");
+        // Everything the frontend already renders is untouched.
+        assertThat(brief).containsKeys("date", "priority", "inbox", "work", "code", "calendar");
+        assertThat(priority(brief)).isNotEmpty();
+    }
+
+    @Test
+    void digestCarriesASummaryAnOrderAndAdviceWithoutTouchingTheOldFields() {
+        ToolRegistry registry = new ToolRegistryImpl(everything());
+        TestDoubles.ScriptedLlmClient llm = new TestDoubles.ScriptedLlmClient(Map.of(
+                "insight", "{\"insights\":[]}",
+                "digest", """
+                        {"summary":"Bugün 4 Jira işi ve 3 GitHub kaydı seni bekliyor; ikisi review istiyor.",
+                         "priorities":[
+                           {"itemId":"jira:KAN-42","why":"Blocked ve sprint sonuna iki gün kaldı."},
+                           {"itemId":"jira:MADE-UP","why":"Bu iş hiç gönderilmedi."}],
+                         "advice":"Sabahın ilk saatini KAN-42'nin engelini kaldırmaya ayır."}"""));
+
+        Map<String, Object> brief = serviceWith(registry, new TestDoubles.FixedClock(), llm).brief();
+        Map<String, Object> digest = asMap(brief.get("digest"));
+
+        assertThat(digest.keySet()).containsExactlyInAnyOrder("summary", "priorities", "advice");
+        assertThat(digest.get("summary")).asString().contains("Jira");
+        assertThat(digest.get("advice")).asString().isNotBlank();
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> priorities = (List<Map<String, Object>>) digest.get("priorities");
+        // An id the model invented never reaches the screen.
+        assertThat(priorities).extracting(row -> row.get("itemId")).containsExactly("jira:KAN-42");
+        assertThat(priorities.get(0).get("why")).asString().isNotBlank();
+
+        // The contract the frontend is built on is exactly as it was.
+        assertThat(brief).containsKeys("date", "localDate", "priority", "inbox", "work", "code", "calendar");
+        for (String name : SECTIONS) {
+            assertThat(section(brief, name).keySet()).as(name).contains("status", "reason", "items");
+        }
+        assertThat(asMap(brief.get("llm")).get("tokens")).isEqualTo(300L);
+    }
+
+    @Test
+    void aDigestWithoutASummaryIsDroppedRatherThanShownEmpty() {
+        ToolRegistry registry = new ToolRegistryImpl(everything());
+        TestDoubles.ScriptedLlmClient llm = new TestDoubles.ScriptedLlmClient(Map.of(
+                "insight", "{\"insights\":[]}",
+                "digest", "{\"summary\":\"  \",\"advice\":\"Bir şeyler yap.\"}"));
+
+        Map<String, Object> brief = serviceWith(registry, new TestDoubles.FixedClock(), llm).brief();
+
+        assertThat(brief).doesNotContainKey("digest");
     }
 
     @Test

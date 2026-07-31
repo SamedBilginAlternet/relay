@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -58,6 +59,7 @@ public class BriefService {
     private final ToolRegistry tools;
     private final ConnectionRepository connections;
     private final InsightService insights;
+    private final DigestService digests;
     private final LlmClient llm;
     private final Clock clock;
     private final Executor executor;
@@ -69,11 +71,13 @@ public class BriefService {
     private final AtomicReference<Cached> cache = new AtomicReference<>();
 
     public BriefService(ToolRegistry tools, ConnectionRepository connections, InsightService insights,
-                        LlmClient llm, Clock clock, Executor executor, Duration toolTimeout,
-                        Duration cacheTtl, String timezone, String defaultProjectKey) {
+                        DigestService digests, LlmClient llm, Clock clock, Executor executor,
+                        Duration toolTimeout, Duration cacheTtl, String timezone,
+                        String defaultProjectKey) {
         this.tools = tools;
         this.connections = connections;
         this.insights = insights;
+        this.digests = digests;
         this.llm = llm;
         this.clock = clock;
         this.executor = executor;
@@ -157,12 +161,18 @@ public class BriefService {
 
         InsightService.Result insight = insights.analyze(analysed, projectKeyFrom(workItems));
 
+        // The day as a whole: one paragraph, an order and one piece of advice. Absent
+        // whenever the model cannot write it — see DigestService.
+        List<BriefItem> forDigest = new ArrayList<>(analysed);
+        forDigest.addAll(calendarItems);
+        Optional<DigestService.Digest> digest = digests.digest(forDigest, insight.insights());
+
         Map<String, Object> llmInfo = new LinkedHashMap<>();
         llmInfo.put("provider", llm.name());
         llmInfo.put("degraded", llm.degraded());
         llmInfo.put("source", insight.source());
-        llmInfo.put("tokens", insight.tokens());
-        llmInfo.put("costUsd", insight.costUsd());
+        llmInfo.put("tokens", insight.tokens() + digest.map(DigestService.Digest::tokens).orElse(0L));
+        llmInfo.put("costUsd", insight.costUsd() + digest.map(DigestService.Digest::costUsd).orElse(0.0));
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("date", now.toString());
@@ -173,6 +183,9 @@ public class BriefService {
         body.put("cachedAt", null);
         body.put("ttlSeconds", cacheTtl.toSeconds());
         body.put("llm", llmInfo);
+        // Additive: the key is simply absent when there is no digest, so a client that does
+        // not know about it renders exactly what it rendered before.
+        digest.ifPresent(value -> body.put("digest", value.view()));
         body.put("priority", priorityCards(analysed, insight));
         body.put("inbox", section(inboxResult, inboxItems, "gmail"));
         body.put("work", section(workResult, workItems, "jira"));
@@ -223,7 +236,7 @@ public class BriefService {
      * Provider errors are shown to the user verbatim, so they are translated here and
      * never passed through: a raw message can carry a URL, a request body or a token.
      */
-    static String failureReason(String provider, String raw) {
+    public static String failureReason(String provider, String raw) {
         String message = raw == null ? "" : raw;
         Matcher matcher = HTTP_STATUS.matcher(message);
         if (matcher.find()) {

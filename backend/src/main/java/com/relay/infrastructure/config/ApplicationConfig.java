@@ -1,6 +1,7 @@
 package com.relay.infrastructure.config;
 
 import com.relay.application.brief.BriefService;
+import com.relay.application.brief.DigestService;
 import com.relay.application.brief.InsightService;
 import com.relay.application.connection.ConnectionService;
 import com.relay.application.cost.CostMeter;
@@ -116,14 +117,20 @@ public class ApplicationConfig {
     }
 
     @Bean
+    public DigestService digestService(LlmClient llm) {
+        return new DigestService(llm);
+    }
+
+    @Bean
     public BriefService briefService(ToolRegistry tools, ConnectionRepository connections,
-                                     InsightService insights, LlmClient llm, Clock clock,
+                                     InsightService insights, DigestService digests,
+                                     LlmClient llm, Clock clock,
                                      ExecutorService briefExecutor,
                                      @Value("${app.brief.tool-timeout-seconds:8}") long timeoutSeconds,
                                      @Value("${app.brief.cache-seconds:60}") long cacheSeconds,
                                      @Value("${app.brief.timezone:Europe/Istanbul}") String timezone,
                                      @Value("${app.brief.default-project-key:RELAY}") String projectKey) {
-        return new BriefService(tools, connections, insights, llm, clock, briefExecutor,
+        return new BriefService(tools, connections, insights, digests, llm, clock, briefExecutor,
                 Duration.ofSeconds(timeoutSeconds), Duration.ofSeconds(cacheSeconds), timezone, projectKey);
     }
 

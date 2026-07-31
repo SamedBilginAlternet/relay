@@ -139,6 +139,47 @@ public final class TestDoubles {
         }
     }
 
+    /**
+     * An LLM with a different canned answer per {@code LlmPurpose} — needed once a single
+     * request (the brief) makes more than one call and each expects its own shape.
+     */
+    public static class ScriptedLlmClient implements com.relay.application.port.LlmClient {
+        private final Map<String, String> byPurpose;
+        private final boolean degraded;
+        public final List<com.relay.application.port.LlmRequest> requests = new ArrayList<>();
+
+        public ScriptedLlmClient(Map<String, String> byPurpose) {
+            this(byPurpose, false);
+        }
+
+        public ScriptedLlmClient(Map<String, String> byPurpose, boolean degraded) {
+            this.byPurpose = byPurpose;
+            this.degraded = degraded;
+        }
+
+        @Override
+        public com.relay.application.port.LlmResponse complete(
+                com.relay.application.port.LlmRequest request) {
+            requests.add(request);
+            String content = byPurpose.getOrDefault(request.purpose(), "");
+            return new com.relay.application.port.LlmResponse(content, 100, 50, 0.0002, "scripted", false);
+        }
+
+        @Override
+        public String name() {
+            return "scripted";
+        }
+
+        @Override
+        public boolean degraded() {
+            return degraded;
+        }
+
+        public List<com.relay.application.port.LlmRequest> of(String purpose) {
+            return requests.stream().filter(r -> purpose.equals(r.purpose())).toList();
+        }
+    }
+
     /** A tool that always fails — the "provider is down" case. */
     public static class FailingTool implements com.relay.application.port.Tool {
         private final String name;
