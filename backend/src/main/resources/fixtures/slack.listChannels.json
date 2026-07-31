@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "channels": [
+    { "id": "C01ENGINEER", "name": "engineering", "num_members": 24, "is_private": false },
+    { "id": "C02SPRINTRM", "name": "sprint-room", "num_members": 11, "is_private": false },
+    { "id": "C03GENERALX", "name": "general", "num_members": 58, "is_private": false }
+  ]
+}

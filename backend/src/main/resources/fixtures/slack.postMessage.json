@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "channel": "{{channel}}",
+  "ts": "1785500000.000200",
+  "message": {
+    "text": "{{text}}",
+    "username": "Relay",
+    "bot_id": "B0RELAYBOT"
+  }
+}

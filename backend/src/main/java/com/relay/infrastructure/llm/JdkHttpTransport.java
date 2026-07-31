@@ -1,0 +1,40 @@
+package com.relay.infrastructure.llm;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+
+/** Plain JDK HTTP client. No secrets are ever logged here. */
+public class JdkHttpTransport implements HttpTransport {
+
+    private final HttpClient client;
+    private final Duration timeout;
+
+    public JdkHttpTransport(Duration timeout) {
+        this.timeout = timeout;
+        this.client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+    }
+
+    @Override
+    public Reply post(String url, String apiKey, String jsonBody) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(timeout)
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            return new Reply(response.statusCode(), response.body());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return new Reply(599, "interrupted");
+        } catch (Exception e) {
+            return new Reply(599, "transport error: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
+    }
+}

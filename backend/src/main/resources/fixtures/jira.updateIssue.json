@@ -1,0 +1,7 @@
+{
+  "issueKey": "{{issueKey}}",
+  "status": "{{status}}",
+  "transitionId": "31",
+  "updated": true,
+  "self": "https://example.atlassian.net/rest/api/3/issue/{{issueKey}}"
+}

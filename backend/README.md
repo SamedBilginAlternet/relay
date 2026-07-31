@@ -1,0 +1,180 @@
+# Relay — Backend
+
+Java 21 · Spring Boot 3.4 · PostgreSQL + Flyway · SSE · Gradle wrapper
+
+The backend plans a workflow from a goal, walks it with an agent crew (planner →
+coordinator → tool agents → verifier), enforces a per-tool policy, meters cost and
+streams every transition over SSE.
+
+> **It always runs.** With no Groq keys it uses the deterministic `StubLlmClient`, and with
+> no Jira/Slack credentials the tools answer from recorded fixtures (`TOOLS_MODE=replay`).
+> No accounts, no network, no excuses on demo day.
+
+---
+
+## 1. Run it
+
+```bash
+export JAVA_HOME=~/jdk21
+export PATH=$JAVA_HOME/bin:$PATH
+
+# a Postgres has to exist somewhere
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/relay
+export SPRING_DATASOURCE_USERNAME=relay
+export SPRING_DATASOURCE_PASSWORD=relay
+export APP_ENCRYPTION_KEY=$(openssl rand -base64 32)
+
+./gradlew bootRun            # http://localhost:8080
+```
+
+Build and test:
+
+```bash
+./gradlew build              # compile + tests + jar
+./gradlew test               # tests only (no database needed)
+java -jar build/libs/relay-backend-0.1.0.jar
+```
+
+Flyway applies `src/main/resources/db/migration/V1__init.sql` at startup; Hibernate is on
+`ddl-auto: validate`, so schema drift fails loudly instead of silently.
+
+---
+
+## 2. Environment variables
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/relay` | In Docker the service is `db`: `jdbc:postgresql://db:5432/relay` |
+| `SPRING_DATASOURCE_USERNAME` | `relay` | |
+| `SPRING_DATASOURCE_PASSWORD` | `relay` | |
+| `APP_ENCRYPTION_KEY` | dev fallback | AES-GCM key for `Connection.config`. **Set it everywhere real.** Any string or a 32-byte base64 blob |
+| `GROQ_API_KEYS` | *(empty)* | Comma separated. Empty ⇒ stub LLM |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | |
+| `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | |
+| `GROQ_PRICE_INPUT` / `GROQ_PRICE_OUTPUT` | `0.59` / `0.79` | USD per million tokens, used by the cost meter |
+| `TOOLS_MODE` | `replay` | `live` \| `replay` |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:4173` | Comma separated |
+| `DEFAULT_BUDGET_USD` | `0.50` | Used when `POST /api/runs` omits `budgetUsd` |
+
+Server port is `8080`. No secret is committed anywhere in this repo.
+
+---
+
+## 3. Switching stub ↔ groq
+
+```bash
+# stub (default): deterministic, offline, $0.00 cost reported because nothing was billed
+unset GROQ_API_KEYS
+
+# groq: keys are used round-robin
+export GROQ_API_KEYS=gsk_aaa...,gsk_bbb...,gsk_ccc...
+```
+
+A `429`/quota answer parks that key for 60s and rotates to the next one. When every key is
+cooling down the call falls back to the stub and `GET /api/health` says so:
+
+```json
+{ "llm": { "provider": "stub", "degraded": true, "keysTotal": 3, "keysAvailable": 0,
+           "keys": ["gsk_****aaaa"], "lastError": "all groq keys exhausted (groq HTTP 429)" } }
+```
+
+Keys are only ever printed masked.
+
+## 4. Switching live ↔ replay
+
+```bash
+export TOOLS_MODE=replay   # recorded fixtures, no network (default)
+export TOOLS_MODE=live     # real Jira/Slack calls
+```
+
+In `live` mode a provider with **no connection configured** still falls back to its fixture
+(`mode: "replay (no connection)"` in the step result) instead of failing the run.
+
+Fixtures live in `src/main/resources/fixtures/<tool>.json`. `{{param}}` placeholders are
+substituted from the actual call, so a replayed `slack.postMessage` echoes the real text the
+agent composed. Recording a new one is just dropping a JSON file next to the others.
+
+Credentials (entered through `PUT /api/connections`, stored AES-GCM encrypted):
+
+| Provider | Config keys |
+|---|---|
+| `jira` | `baseUrl` (`https://x.atlassian.net`), `email`, `apiToken` |
+| `slack` | `botToken` (`xoxb-…`) |
+
+Tokens are never logged and always masked in responses (`xoxb-****4d21`). Re-saving a masked
+value keeps the stored secret.
+
+---
+
+## 5. API
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/health` | `{status, version, llm, tools}` |
+| `POST` | `/api/runs` | `{goal, budgetUsd?}` → `202 {runId, status}`; work continues off-thread |
+| `GET` | `/api/runs/{id}` | Full state: run + steps + messages |
+| `GET` | `/api/runs/{id}/stream` | **SSE**, replays the backlog on subscribe |
+| `POST` | `/api/runs/{id}/steps/{stepId}/approve` | |
+| `POST` | `/api/runs/{id}/steps/{stepId}/reject` | `{reason}` — the reason is delivered to the agent |
+| `POST` | `/api/runs/{id}/rerun` | Same goal, new run |
+| `GET` | `/api/runs?page=0&size=20` | History, newest first |
+| `GET`/`PUT` | `/api/connections` | Masked on the way out |
+| `POST` | `/api/connections/{provider}/test` | Calls that provider's cheapest READ tool |
+| `GET`/`PUT` | `/api/policies` | `PUT` takes a list of `{toolName, mode}` |
+| `GET` | `/api/tools` | Registry + JSON schemas |
+
+SSE event names: `run.planned`, `step.started`, `step.awaiting`, `step.finished`,
+`agent.message`, `run.cost`, `run.finished`. All ids are UUID strings, all fields camelCase.
+
+---
+
+## 6. Layout
+
+```
+domain/            Run, Step, AgentMessage, Connection, ToolPolicy + enums — plain Java, zero framework imports
+application/
+  port/            LlmClient, Tool, ToolRegistry, RunRepository, ConnectionRepository,
+                   PolicyRepository, EventPublisher, Clock
+  orchestrator/    Planner, Coordinator, ToolAgent, Verifier, RunService, AgentJournal
+  policy/          PolicyEngine (auto | ask | forbidden)
+  cost/            CostMeter
+  connection/      ConnectionService, Masking
+  json/            Json, SchemaValidator
+  view/            Views — the single source of the wire shape (REST and SSE share it)
+infrastructure/
+  llm/             GroqLlmClient (key rotation), StubLlmClient, RoutingLlmClient, ApiKeyPool
+  tools/           JiraTool, SlackTool, ToolRegistryImpl, FixtureStore, AbstractTool
+  persistence/     JPA entities + repository adapters
+  crypto/          AesGcmCipher
+  sse/             SseEventPublisher
+  config/          Spring wiring (the application layer carries no Spring annotations)
+api/               REST controllers + SSE. No business logic.
+```
+
+Dependencies point inwards: `api → application → domain`, with `infrastructure` plugged into
+the ports from `infrastructure/config`. Adding an integration means adding one `Tool`
+`@Component` — nothing in the orchestrator changes.
+
+## 7. Policy and cost
+
+Defaults come from the tool's risk: `READ → auto`, `WRITE → ask`, `DESTRUCTIVE → forbidden`.
+An override in `/api/policies` wins. A forbidden attempt is rejected, written to the
+timeline as a `policy` agent message and recorded on the step (`rejectReason`).
+
+Every LLM call is metered on the step and on the run. When the run total passes `budgetUsd`
+the coordinator parks the next step, emits a `cost` agent message and waits; approving that
+step raises the ceiling for the rest of the run.
+
+The verifier checks each result against the goal and can send a step back at most twice
+(`Step.MAX_RETRIES`); after that the step fails.
+
+## 8. Tests
+
+```bash
+./gradlew test    # 35 tests, no database and no network required
+```
+
+Covers the policy decisions, cost accumulation and budget stop, Groq key rotation
+(mock 429 → next key → cooldown → stub fallback), tool schema validation and replay, and a
+full orchestrator run on the stub LLM with replayed tools including approval, rejection,
+forbidden policy and the budget pause.

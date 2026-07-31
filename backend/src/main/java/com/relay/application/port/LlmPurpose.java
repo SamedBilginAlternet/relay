@@ -1,0 +1,13 @@
+package com.relay.application.port;
+
+/** Why the orchestrator is calling the model. */
+public final class LlmPurpose {
+
+    public static final String PLAN = "plan";
+    public static final String TOOL_PARAMS = "tool_params";
+    public static final String VERIFY = "verify";
+    public static final String SUMMARIZE = "summarize";
+
+    private LlmPurpose() {
+    }
+}

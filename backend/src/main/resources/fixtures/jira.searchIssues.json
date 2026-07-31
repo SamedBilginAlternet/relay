@@ -1,0 +1,33 @@
+{
+  "total": 3,
+  "jql": "{{jql}}",
+  "issues": [
+    {
+      "key": "RELAY-14",
+      "fields": {
+        "summary": "Ödeme servisi staging'de 502 dönüyor",
+        "status": { "name": "Blocked" },
+        "priority": { "name": "Highest" },
+        "assignee": { "displayName": "Deniz Arslan" }
+      }
+    },
+    {
+      "key": "RELAY-21",
+      "fields": {
+        "summary": "SSO login sonrası yönlendirme kayboluyor",
+        "status": { "name": "In Progress" },
+        "priority": { "name": "High" },
+        "assignee": { "displayName": "Samed Bilgin" }
+      }
+    },
+    {
+      "key": "RELAY-33",
+      "fields": {
+        "summary": "Rapor ekranı 12 sn'de yükleniyor",
+        "status": { "name": "Blocked" },
+        "priority": { "name": "Medium" },
+        "assignee": { "displayName": "Elif Kaya" }
+      }
+    }
+  ]
+}

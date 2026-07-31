@@ -1,0 +1,17 @@
+{
+  "key": "{{issueKey}}",
+  "fields": {
+    "summary": "Ödeme servisi staging'de 502 dönüyor",
+    "description": "Staging ortamında /payments/charge çağrısı 502 dönüyor. Gateway timeout şüphesi var.",
+    "status": { "name": "Blocked" },
+    "priority": { "name": "Highest" },
+    "assignee": { "displayName": "Deniz Arslan" },
+    "labels": ["blocker", "payments"],
+    "comment": {
+      "total": 1,
+      "comments": [
+        { "author": { "displayName": "Elif Kaya" }, "body": "Gateway ekibine ticket açıldı." }
+      ]
+    }
+  }
+}
