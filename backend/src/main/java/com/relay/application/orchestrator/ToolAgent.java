@@ -225,6 +225,29 @@ public class ToolAgent {
 
     // ---- parameters -------------------------------------------------------
 
+    /** What one out-of-band parameter refresh cost. */
+    public record ParamRefresh(boolean ok, long tokens, double costUsd) {
+    }
+
+    /**
+     * Re-derives a step's parameters without calling the tool.
+     *
+     * <p>Used when a write is going back to the approval gate after the provider rejected
+     * it: the human must see the parameters that will actually be sent, not the ones that
+     * already failed.
+     */
+    public ParamRefresh refreshParams(Run run, Step step) {
+        Tool tool = tools.find(step.toolName()).orElse(null);
+        if (tool == null) {
+            return new ParamRefresh(false, 0, 0);
+        }
+        ParamOutcome outcome = finaliseParams(run, step, tool);
+        if (outcome.valid()) {
+            step.params(Json.toMap(outcome.params()));
+        }
+        return new ParamRefresh(outcome.valid(), outcome.tokens(), outcome.costUsd());
+    }
+
     private record ParamOutcome(boolean valid, JsonNode params, String error, long tokens, double costUsd) {
     }
 
@@ -239,7 +262,9 @@ public class ToolAgent {
         JsonNode candidate = draft;
 
         SchemaValidator.Result draftCheck = SchemaValidator.validate(tool.schema(), draft);
-        if (!draftCheck.valid()) {
+        // A previous attempt that the provider rejected has to be reconsidered even when the
+        // draft is schema-valid: the schema was never the problem, the values were.
+        if (!draftCheck.valid() || step.lastProviderError() != null) {
             // Only spend a model call when the draft is not already good enough.
             LlmRequest request = LlmRequest.of(
                     LlmPurpose.TOOL_PARAMS,
@@ -251,6 +276,10 @@ public class ToolAgent {
                             + "\n\nPARAM SCHEMA:\n" + tool.schema().toString()
                             + "\n\nDRAFT PARAMS:\n" + draft
                             + "\n\nPREVIOUS RESULTS:\n" + Json.preview(previousResults(run, step), 2000)
+                            + (step.lastProviderError() == null ? ""
+                                    : "\n\nThe last attempt was rejected by the provider: " + step.lastProviderError()
+                                            + "\nFix the parameters accordingly — the provider's message"
+                                            + " usually names the allowed values.")
                             + "\n\nProblems with the draft: " + draftCheck.message(),
                     tool.schema(),
                     Map.of("tool", tool.name(),

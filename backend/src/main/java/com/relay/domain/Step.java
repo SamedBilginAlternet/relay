@@ -25,6 +25,12 @@ public class Step {
     private String rejectReason;
     private Object result;
     private String error;
+    /**
+     * The provider's own rejection from the previous attempt. Survives {@link #markRunning}
+     * — unlike {@link #error} — because the specialist needs it while producing the next
+     * set of parameters.
+     */
+    private String lastProviderError;
     private Instant startedAt;
     private Instant finishedAt;
     private long tokens;
@@ -78,6 +84,7 @@ public class Step {
         this.status = StepStatus.DONE;
         this.result = result;
         this.finishedAt = now;
+        this.lastProviderError = null;
     }
 
     public void markFailed(String error, Instant now) {
@@ -184,6 +191,14 @@ public class Step {
 
     public void result(Object result) {
         this.result = result;
+    }
+
+    public String lastProviderError() {
+        return lastProviderError;
+    }
+
+    public void lastProviderError(String lastProviderError) {
+        this.lastProviderError = lastProviderError;
     }
 
     public String error() {

@@ -176,6 +176,10 @@ public class Coordinator {
                     && insertLookupBefore(run, step)) {
                 return;
             }
+            if (!step.retriesExhausted()) {
+                retryWithProviderFeedback(run, step, outcome.error());
+                return;
+            }
             step.markFailed(outcome.error(), clock.now());
             journal.say(run, step.id(), AgentRole.COORDINATOR, AgentRole.USER,
                     "Adım " + step.ordinal() + " başarısız: " + outcome.error());
@@ -206,6 +210,36 @@ public class Coordinator {
         journal.say(run, step.id(), AgentRole.VERIFIER, AgentRole.COORDINATOR,
                 "Adım " + step.ordinal() + " doğrulandı: " + verdict.reason());
         publishStepFinished(run, step);
+    }
+
+    /**
+     * Feeds a provider's rejection back into the step instead of ending the run on it.
+     *
+     * <p>Providers answer with the fix inside the error — "'Blocked' geçişi yok, mümkün
+     * olanlar: Yapılacaklar, Devam Ediyor, İncelemede, Tamam". Failing there wastes an
+     * answer the specialist could have used.
+     *
+     * <p>A write does not simply re-run: its parameters are about to change, and the human
+     * approved the old ones. So the decision is cleared and the step goes back through the
+     * approval gate — the promise is that no write executes on parameters nobody saw.
+     */
+    private void retryWithProviderFeedback(Run run, Step step, String error) {
+        boolean write = policyEngine.evaluate(step.toolName()).ask();
+        step.lastProviderError(error);
+        step.sendBack();
+        if (write) {
+            step.decision(null);
+            // Derive the corrected parameters now, so the approval screen shows what will
+            // actually be sent rather than the values that just bounced.
+            ToolAgent.ParamRefresh refresh = toolAgent.refreshParams(run, step);
+            costMeter.record(run, step, refresh.tokens(), refresh.costUsd());
+        }
+        journal.say(run, step.id(), AgentRole.COORDINATOR, step.role(),
+                "Araç hatayı gerekçesiyle döndürdü: " + error
+                        + (write ? " Parametreler yeniden üretilip tekrar onayına gelecek."
+                                 : " Parametreler hataya göre yeniden üretiliyor."));
+        runs.save(run);
+        publishCost(run);
     }
 
     /**
