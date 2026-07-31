@@ -11,11 +11,31 @@ public final class Masking {
     private static final Set<String> SECRET_KEYS = Set.of(
             "apitoken", "token", "bottoken", "password", "secret", "apikey", "key");
 
+    /**
+     * Names that end a secret. Google's OAuth connection stores {@code refreshToken} and
+     * {@code accessToken}, neither of which is in the exact-name list — so
+     * {@code GET /api/connections} handed both back in full, a live refresh token in a
+     * response the UI renders. Suffixes catch the next provider's spelling too.
+     */
+    private static final Set<String> SECRET_SUFFIXES = Set.of(
+            "token", "secret", "password", "apikey", "credential", "credentials");
+
     private Masking() {
     }
 
+    /**
+     * Note what is deliberately <em>not</em> secret: {@code projectKey} ends in "key" and is
+     * an identifier the user needs to read back. Only the bare name {@code key} is masked.
+     */
     public static boolean isSecret(String key) {
-        return key != null && SECRET_KEYS.contains(key.toLowerCase(Locale.ROOT).replace("_", ""));
+        if (key == null) {
+            return false;
+        }
+        String normalised = key.toLowerCase(Locale.ROOT).replace("_", "").replace("-", "");
+        if (SECRET_KEYS.contains(normalised)) {
+            return true;
+        }
+        return SECRET_SUFFIXES.stream().anyMatch(normalised::endsWith);
     }
 
     /** {@code xoxb-2f9a…4d21} -> {@code xoxb-****4d21} */
