@@ -65,6 +65,7 @@ export function ChatScreen() {
 
   return (
     <>
+      <h1 className="sr-only">Sohbet — çalışan akış</h1>
       <button
         type="button"
         className="mobile-bar"

@@ -48,7 +48,7 @@ export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = fal
         {phase === 'error' && (
           <div className="notice notice--danger">
             <TriangleAlert size={16} aria-hidden />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
               <span>{error ?? 'Bir şeyler ters gitti.'}</span>
               {onRetry && (
                 <button type="button" className="btn btn--outline btn--sm" onClick={onRetry}>

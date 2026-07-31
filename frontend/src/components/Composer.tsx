@@ -10,16 +10,32 @@ type Props = {
   value?: string;
 };
 
+const PLACEHOLDER_LONG =
+  'Ne yapmamı istersin? Örn: “Blocker etiketli Jira işlerini bul, durumlarını güncelle, ekibe Slack’ten özet at.”';
+/** A 3-line placeholder gets clipped in a 1-row textarea on small phones. */
+const PLACEHOLDER_SHORT = 'Ne yapmamı istersin?';
+
 export function Composer({
   onSubmit,
   busy = false,
-  placeholder = 'Ne yapmamı istersin? Örn: “Blocker etiketli Jira işlerini bul, durumlarını güncelle, ekibe Slack’ten özet at.”',
+  placeholder,
   variant = 'inline',
   autoFocus = false,
   value,
 }: Props) {
   const [text, setText] = useState(value ?? '');
   const ref = useRef<HTMLTextAreaElement>(null);
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 560px)').matches,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 560px)');
+    const onChange = () => setNarrow(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   useEffect(() => {
     if (value !== undefined) setText(value);
@@ -62,7 +78,7 @@ export function Composer({
             submit();
           }
         }}
-        placeholder={placeholder}
+        placeholder={placeholder ?? (narrow ? PLACEHOLDER_SHORT : PLACEHOLDER_LONG)}
         aria-label="Yapılmasını istediğin iş"
         disabled={busy}
       />

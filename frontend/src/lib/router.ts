@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 export type Route =
+  | { name: 'today' }
   | { name: 'chat' }
   | { name: 'history' }
   | { name: 'history-detail'; runId: string }
@@ -13,7 +14,9 @@ export function parseHash(hash: string): Route {
     return parts[1] ? { name: 'history-detail', runId: decodeURIComponent(parts[1]) } : { name: 'history' };
   }
   if (parts[0] === 'connections') return { name: 'connections' };
-  return { name: 'chat' };
+  // `#/sohbet` is the engine; `chat` stays as an alias so old links keep working.
+  if (parts[0] === 'sohbet' || parts[0] === 'chat') return { name: 'chat' };
+  return { name: 'today' };
 }
 
 export function useHashRoute(): [Route, (hash: string) => void] {

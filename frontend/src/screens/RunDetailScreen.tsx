@@ -36,7 +36,7 @@ export function RunDetailScreen({ runId, onBack, onNavigate }: Props) {
   const rerun = async () => {
     try {
       const res = await getRunSource().rerun(runId);
-      onNavigate('#/');
+      onNavigate('#/sohbet');
       await openRun(res.runId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Akış tekrar başlatılamadı.');
@@ -61,9 +61,17 @@ export function RunDetailScreen({ runId, onBack, onNavigate }: Props) {
         </button>
         <div style={{ minWidth: 0, flex: '1 1 260px' }}>
           <p className="t-caption">Denetim izi · {formatDateTime(run?.createdAt ?? null)}</p>
-          <p style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <h1
+            style={{
+              fontSize: 15,
+              fontWeight: 500,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {run?.goal ?? (loading ? 'Yükleniyor…' : 'Akış')}
-          </p>
+          </h1>
         </div>
         {run && <StatusPill status={run.status} />}
         {run && (

@@ -37,6 +37,13 @@ export function formatDateTime(iso: string | null): string {
   });
 }
 
+/** "31 Temmuz" — the Bugün header date. Falls back to today. */
+export function formatDayMonth(iso: string | null): string {
+  const d = iso ? new Date(iso) : new Date();
+  const safe = Number.isNaN(d.getTime()) ? new Date() : d;
+  return safe.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
+}
+
 export function formatRelative(iso: string | null): string {
   if (!iso) return '—';
   const t = Date.parse(iso);

@@ -7,7 +7,10 @@
   --border: #e5e7eb;
   --fg: #111111;
   --fg-muted: #444444;
-  --fg-faint: #9ca3af;
+  /* DESIGN.md lists #9CA3AF here, but that is 2.85:1 on white — it fails
+     WCAG AA for text. Raised to #6B7280 (4.83:1) per issue #12; the visual
+     role (tertiary / placeholder) is unchanged. */
+  --fg-faint: #6b7280;
 
   --accent: #6d28d9;
   --accent-soft: #f3eefd;
@@ -85,10 +88,51 @@ textarea {
   color: inherit;
 }
 
+/* NOTE: no `border-radius` here — setting it would square off pill buttons
+   the moment they receive focus. The outline already follows the element's
+   own radius. */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 6px;
+}
+
+/* Visible only to screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  transform: translateY(-200%);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 160ms ease-out;
+}
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+.main:focus {
+  outline: none;
 }
 
 ::selection {
@@ -242,8 +286,10 @@ textarea {
 .header {
   display: flex;
   align-items: center;
-  gap: var(--s-16);
-  height: var(--header-h);
+  flex-wrap: wrap;
+  row-gap: 0;
+  column-gap: var(--s-16);
+  min-height: var(--header-h);
   padding: 0 var(--s-16);
   border-bottom: 1px solid var(--border);
   background: var(--bg);
@@ -254,6 +300,7 @@ textarea {
 .brand {
   display: flex;
   align-items: center;
+  min-height: 44px;
   gap: 10px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -282,6 +329,7 @@ textarea {
   display: flex;
   gap: 4px;
   margin-left: var(--s-8);
+  min-width: 0;
 }
 .nav__item {
   display: inline-flex;
@@ -1154,6 +1202,11 @@ textarea {
 .run-card:active {
   transform: scale(0.995);
 }
+/* the trailing chevron/status must never be squeezed into a sliver */
+.run-card > svg,
+.run-card > .status-pill {
+  flex: 0 0 auto;
+}
 .run-card__main {
   flex: 1 1 auto;
   min-width: 0;
@@ -1385,9 +1438,6 @@ textarea {
   .mobile-only {
     display: block;
   }
-  .nav__label {
-    display: none;
-  }
   .nav__item {
     padding: 8px 12px;
   }
@@ -1398,6 +1448,379 @@ textarea {
   .msg-agent,
   .a2a {
     max-width: 100%;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Header — narrow viewports                                           */
+/* Issue #12: nav labels used to disappear here, leaving unlabeled     */
+/* icon buttons. Labels now ALWAYS stay; the strip wraps to its own    */
+/* row, and below 430px the decorative icon is dropped instead.        */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 640px) {
+  .header {
+    padding: 0 var(--s-12);
+    padding-bottom: 6px;
+  }
+  .header__right {
+    order: 2;
+  }
+  .nav {
+    order: 3;
+    flex: 1 0 100%;
+    margin-left: 0;
+    padding-top: 2px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+  .nav__item {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 430px) {
+  .brand {
+    font-size: 16px;
+  }
+  .nav__item {
+    padding: 8px 10px;
+    gap: 0;
+  }
+  /* the icon is decoration; the label is the accessible name — drop the icon */
+  .nav__item > svg {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Bugün — daily brief (docs/BRIEF.md §2)                              */
+/* ------------------------------------------------------------------ */
+
+.brief-head {
+  align-items: center;
+}
+.brief-head__dot {
+  color: var(--fg-faint);
+}
+.brief-head__date {
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+
+.brief-priority {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+}
+.brief-priority__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-12);
+  flex-wrap: wrap;
+}
+.brief-priority__head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+}
+
+.insight-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+}
+
+.insight {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--s-16);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+/* urgency is a left edge + a labelled chip — never colour alone */
+.insight--high {
+  box-shadow: inset 3px 0 0 0 var(--danger), var(--shadow);
+  border-color: rgba(220, 38, 38, 0.28);
+}
+.insight--normal {
+  box-shadow: inset 3px 0 0 0 var(--accent-line), var(--shadow);
+}
+.insight--low {
+  box-shadow: inset 3px 0 0 0 var(--border), var(--shadow);
+}
+
+.insight__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-12);
+}
+.insight__source {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-btn);
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.insight__who {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.insight__title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--fg);
+}
+.insight__from {
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.urgency {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.urgency--high {
+  color: var(--danger);
+  border-color: rgba(220, 38, 38, 0.35);
+  background: #fef2f2;
+}
+.urgency--normal {
+  color: var(--fg-muted);
+}
+.urgency--low {
+  color: var(--fg-muted);
+}
+
+.insight__summary {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--fg);
+}
+.insight__arrow {
+  flex: 0 0 auto;
+  margin-top: 4px;
+  color: var(--accent);
+}
+
+.insight__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+  align-items: center;
+  padding-top: 2px;
+}
+.action-pill {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+.action-pill:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.brief-dismissed {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-subtle);
+}
+
+.brief-grid {
+  display: grid;
+  gap: var(--s-12);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.brief-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+  padding: var(--s-16);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.brief-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+.brief-card__icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--fg-muted);
+}
+.brief-card__title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.brief-card__count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.brief-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+.brief-card__quiet {
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.brief-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.brief-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+.brief-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.brief-row__dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+}
+.brief-row__dot--warn {
+  background: var(--warn);
+}
+.brief-row__dot--danger {
+  background: var(--danger);
+}
+.brief-row__dot--success {
+  background: var(--success);
+}
+.brief-row__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.brief-row__title {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--fg);
+}
+.brief-row__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.brief-row__link:hover {
+  color: var(--accent);
+}
+.brief-row__sub {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.brief-row__meta {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.brief-card__state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-8);
+  padding: var(--s-12);
+  border-radius: var(--r-card);
+  border: 1px dashed var(--border);
+  background: var(--bg-subtle);
+}
+.brief-card__state--error {
+  border-style: solid;
+  border-color: rgba(220, 38, 38, 0.35);
+  background: #fef2f2;
+}
+.brief-card__state-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.brief-card__state--error .brief-card__state-title {
+  color: #b91c1c;
+}
+
+@media (max-width: 720px) {
+  .brief-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

@@ -1,4 +1,5 @@
-import { History, MessageSquare, Plug } from 'lucide-react';
+import { History, MessageSquare, Plug, Sun } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { RUN_SOURCE_KIND } from '../data';
 import type { Route } from '../lib/router';
 
@@ -7,8 +8,9 @@ type Props = {
   onNavigate: (hash: string) => void;
 };
 
-const ITEMS: { hash: string; label: string; match: Route['name'][]; Icon: typeof MessageSquare }[] = [
-  { hash: '#/', label: 'Sohbet', match: ['chat'], Icon: MessageSquare },
+const ITEMS: { hash: string; label: string; match: Route['name'][]; Icon: LucideIcon }[] = [
+  { hash: '#/', label: 'Bugün', match: ['today'], Icon: Sun },
+  { hash: '#/sohbet', label: 'Sohbet', match: ['chat'], Icon: MessageSquare },
   { hash: '#/history', label: 'Geçmiş', match: ['history', 'history-detail'], Icon: History },
   { hash: '#/connections', label: 'Bağlantılar', match: ['connections'], Icon: Plug },
 ];
@@ -25,11 +27,16 @@ export function AppHeader({ route, onNavigate }: Props) {
             <circle cx="47" cy="20" r="7" fill="currentColor" />
           </svg>
         </span>
-        <span aria-hidden>
+        <span className="brand__word" aria-hidden>
           <span className="brand__r">r</span>elay
         </span>
       </button>
 
+      {/*
+        Labels are ALWAYS rendered — an icon-only nav is an accessibility
+        failure (issue #12). On narrow viewports the strip wraps to its own
+        row and scrolls horizontally instead of dropping the text.
+      */}
       <nav className="nav" aria-label="Ana gezinme">
         {ITEMS.map((item) => {
           const active = item.match.includes(route.name);

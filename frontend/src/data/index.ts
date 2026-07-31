@@ -1,4 +1,7 @@
+import { ApiBriefSource } from './ApiBriefSource';
 import { ApiRunSource } from './ApiRunSource';
+import type { BriefSource } from './BriefSource';
+import { MockBriefSource } from './MockBriefSource';
 import { MockRunSource } from './MockRunSource';
 import type { RunSource } from './RunSource';
 
@@ -20,4 +23,18 @@ export function getRunSource(): RunSource {
   return instance;
 }
 
+let briefInstance: BriefSource | null = null;
+
+export function getBriefSource(): BriefSource {
+  if (!briefInstance) {
+    briefInstance =
+      RUN_SOURCE_KIND === 'api'
+        ? new ApiBriefSource(API_BASE_URL)
+        : // the mock brief hands its suggestions to the same mock engine
+          new MockBriefSource(getRunSource());
+  }
+  return briefInstance;
+}
+
 export type { RunSource, RunStreamHandlers, StreamStatus, Unsubscribe } from './RunSource';
+export type { BriefSource } from './BriefSource';
