@@ -99,8 +99,14 @@ public abstract class SlackTool extends AbstractTool {
         @Override
         protected JsonNode call(JsonNode params, Connection connection) throws Exception {
             int limit = params.path("limit").asInt(50);
+            // Asking for private channels demands groups:read, and Slack refuses the whole
+            // call when that scope is missing — so a workspace that only granted the public
+            // scopes could not list anything at all. Private channels are opt-in now.
+            String types = "true".equalsIgnoreCase(connection.get("includePrivate"))
+                    ? "public_channel,private_channel"
+                    : "public_channel";
             String url = "https://slack.com/api/conversations.list?exclude_archived=true&limit=" + limit
-                    + "&types=public_channel,private_channel";
+                    + "&types=" + types;
             return checked(HttpJson.send("GET", url, headers(connection), null));
         }
     }
