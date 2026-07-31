@@ -14,6 +14,30 @@ Bu cümle açılışta bir kez, kapanışta bir kez geçer. Başka hiçbir yerde
 
 ---
 
+## 0.5. v2 açılışı — Bugün ekranı
+
+> **Durum:** Bugün ekranı (`BRIEF.md`) canlıya alınıyor. Aşağıdaki ilk 30 saniye, §1'in
+> 0:00–0:30 aralığının **yerine** geçer; gerisi (onay kapısı, red gerekçesi, Slack, denetim izi)
+> aynen kalır. §1'in saniye tablosu ekran canlıda QA'dan geçtikten sonra yeniden zamanlanacak.
+
+Neden değişiyor: boş bir sohbet kutusuyla açılmak "peki ne yazacağım" sorusunu jüriye de sordurur.
+Bugün ekranı ürünün iddiasını ilk saniyede gösterir — **sistem işi getiriyor, kullanıcı "yap" diyor.**
+
+| Zaman | Sen ne yapıyorsun | Ekranda ne oluyor |
+|---|---|---|
+| **0:00–0:12** | Açılış cümlesinin ilk yarısı. Hiçbir şeye dokunma. | Uygulama **Bugün** ekranında açık: üstte ÖNCELİKLİ kartları, altta Gelen kutusu · Üstümdeki işler · Kod · Takvim. |
+| **0:12–0:22** | *"Bunları ben yazmadım — Relay sabah bunları topladı ve okudu."* Bir insight kartını göster. | Kart: gelen mail + **"Bu bir hata bildirimi gibi görünüyor"** + eylem pilleri: `Jira ticket aç` · `Slack'e bildir` · `Yoksay`. |
+| **0:22–0:30** | *"Ve öneri, eylem değil. Ben basmadan hiçbir şey çalışmıyor."* **Jira ticket aç**'a bas. | Akış başlar; ekran §1'deki plan görünümüne geçer — aynı plan, aynı onay kapısı. |
+
+Bu üç satırın tek işi, §1'in **1:05'teki onay anına** kullanıcıyı 30 saniye erken getirmek.
+Kartların içeriği anlatılmaz, gösterilir; okumaya kalkarsan zaman gider.
+
+**Sigorta:** Bir entegrasyon (Gmail/GitHub) o an cevap vermezse ekran boşalmaz — o kutu
+"bağla" haline döner, diğer bölümler gelir. Jüri sorarsa: *"Kısmi başarı döndürüyoruz;
+tek bir sağlayıcı düşünce brifing çökmüyor."* Hiçbiri gelmezse `TOOLS_MODE=replay` ile aç (§4).
+
+---
+
 ## 1. Üç dakikalık demo akışı — saniye saniye
 
 **Sahne kurulumu (demo başlamadan):** Tarayıcıda Relay Sohbet ekranı açık, konuşma boş, sağdaki akış paneli boş. İkinci sekmede Slack `#genel` kanalı açık (samedco workspace). Üçüncü sekmede Jira KAN panosu açık. Zoom %110, tam ekran (F11). Demo hedef cümlesi panoya kopyalanmış durumda (yazarken heyecandan yazım hatası yapmamak için — ama mümkünse canlı yaz, daha samimi durur).
