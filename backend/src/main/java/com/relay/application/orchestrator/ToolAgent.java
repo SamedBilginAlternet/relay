@@ -364,6 +364,7 @@ public class ToolAgent {
                             + "\n\nSTEP: " + step.title()
                             + "\n\nTOOL: " + tool.name() + " — " + tool.description()
                             + "\n\nPARAM SCHEMA:\n" + tool.schema().toString()
+                            + settings(connections.findByProvider(tool.provider()).orElse(null))
                             + "\n\nDRAFT PARAMS:\n" + draft
                             + "\n\nPREVIOUS RESULTS:\n" + Json.preview(previousResults(run, step), 2000)
                             + (step.lastProviderError() == null ? ""
@@ -393,6 +394,35 @@ public class ToolAgent {
         // Defaults land here rather than at call time so the parameters a human approves are
         // the parameters that get sent.
         return new ParamOutcome(true, tool.withDefaults(candidate, connection), null, tokens, cost);
+    }
+
+    /** Config keys that describe *where* to work. Never a credential — see {@link #settings}. */
+    private static final java.util.Set<String> SETTING_FIELDS = java.util.Set.of(
+            "defaultchannel", "projectkey", "defaultproject", "login", "baseurl", "repo");
+
+    /**
+     * The user's own configuration, handed to the specialist.
+     *
+     * <p>Live, a run posted to {@code #general} while {@code #all-samed} sat configured on
+     * the connection: the model had no way to know, so it guessed a channel that does not
+     * exist and Slack answered {@code channel_not_found}. Defaults only cover a blank or
+     * placeholder value — a confident wrong guess slips past them.
+     *
+     * <p>Strictly allow-listed: tokens and secrets never enter a prompt, so this reads from
+     * a fixed set of field names rather than filtering by what looks sensitive.
+     */
+    private static String settings(Connection connection) {
+        if (connection == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        connection.config().forEach((key, value) -> {
+            if (SETTING_FIELDS.contains(key.toLowerCase()) && value != null && !value.isBlank()) {
+                sb.append("- ").append(key).append(" = ").append(value.trim()).append('\n');
+            }
+        });
+        return sb.length() == 0 ? ""
+                : "\n\nUSER SETTINGS for this provider — prefer these over your own guess:\n" + sb;
     }
 
     /** Model output wins, draft fills the gaps. */
