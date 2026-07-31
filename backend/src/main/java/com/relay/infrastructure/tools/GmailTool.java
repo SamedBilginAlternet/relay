@@ -48,6 +48,30 @@ public abstract class GmailTool extends GoogleTool {
         return millis <= 0 ? "" : Instant.ofEpochMilli(millis).toString();
     }
 
+    /** Gmail's own tabs. Anything Google filed away from Primary is a mailing, not a request. */
+    private static final String[] BULK_LABELS = {
+        "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS", "CATEGORY_SOCIAL"};
+
+    /**
+     * Is this a mailing rather than a person writing to this user?
+     *
+     * <p>{@code List-Unsubscribe} is the definitive signal but not a universal one — live,
+     * a DEV Community digest arrived without it and came back classified as a high-urgency
+     * bug report, because its subject contained the word "bugs". Gmail had already filed it
+     * under a category tab; that verdict is free and we were ignoring it.
+     */
+    private static boolean isBulk(JsonNode message) {
+        if (!header(message, "List-Unsubscribe").isBlank() || !header(message, "Precedence").isBlank()) {
+            return true;
+        }
+        for (String label : BULK_LABELS) {
+            if (hasLabel(message, label)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     protected static boolean hasLabel(JsonNode message, String label) {
         for (JsonNode id : message.path("labelIds")) {
             if (label.equals(id.asText())) {
@@ -103,8 +127,7 @@ public abstract class GmailTool extends GoogleTool {
                     item.put("snippet", message.path("snippet").asText(""));
                     item.put("receivedAt", isoDate(message));
                     item.put("unread", hasLabel(message, "UNREAD"));
-                    item.put("bulk", !header(message, "List-Unsubscribe").isBlank()
-                            || !header(message, "Precedence").isBlank());
+                    item.put("bulk", isBulk(message));
                 }
             }
         }
