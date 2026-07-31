@@ -119,6 +119,8 @@ export class ApiBriefSource implements BriefSource {
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl}${path}`, {
+        // /api/brief is behind the session cookie like everything else.
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
         ...init,
       });

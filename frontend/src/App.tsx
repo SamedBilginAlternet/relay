@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AppHeader } from './components/AppHeader';
 import { useHashRoute } from './lib/router';
+import { AuthGate } from './screens/AuthGate';
 import { ChatScreen } from './screens/ChatScreen';
 import { ConnectionsScreen } from './screens/ConnectionsScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
@@ -22,24 +23,28 @@ export default function App() {
   }, [route.name]);
 
   return (
-    <div className="app">
-      <a className="skip-link" href="#main">
-        İçeriğe geç
-      </a>
-      <AppHeader route={route} onNavigate={navigate} />
-      <main className="main" id="main" ref={mainRef} tabIndex={-1}>
-        {route.name === 'today' && <TodayScreen onNavigate={navigate} />}
-        {route.name === 'chat' && <ChatScreen />}
-        {route.name === 'history' && <HistoryScreen onOpen={(id) => navigate(`#/history/${id}`)} />}
-        {route.name === 'history-detail' && (
-          <RunDetailScreen
-            runId={route.runId}
-            onBack={() => navigate('#/history')}
-            onNavigate={navigate}
-          />
-        )}
-        {route.name === 'connections' && <ConnectionsScreen />}
-      </main>
-    </div>
+    // Nothing below renders until the session is known: signed out lands on #/giris,
+    // a first-time account lands in the onboarding tour.
+    <AuthGate route={route} onNavigate={navigate}>
+      <div className="app">
+        <a className="skip-link" href="#main">
+          İçeriğe geç
+        </a>
+        <AppHeader route={route} onNavigate={navigate} />
+        <main className="main" id="main" ref={mainRef} tabIndex={-1}>
+          {route.name === 'today' && <TodayScreen onNavigate={navigate} />}
+          {route.name === 'chat' && <ChatScreen />}
+          {route.name === 'history' && <HistoryScreen onOpen={(id) => navigate(`#/history/${id}`)} />}
+          {route.name === 'history-detail' && (
+            <RunDetailScreen
+              runId={route.runId}
+              onBack={() => navigate('#/history')}
+              onNavigate={navigate}
+            />
+          )}
+          {route.name === 'connections' && <ConnectionsScreen />}
+        </main>
+      </div>
+    </AuthGate>
   );
 }

@@ -5,7 +5,10 @@ export type Route =
   | { name: 'chat' }
   | { name: 'history' }
   | { name: 'history-detail'; runId: string }
-  | { name: 'connections' };
+  | { name: 'connections' }
+  | { name: 'login' }
+  | { name: 'register' }
+  | { name: 'onboarding' };
 
 export function parseHash(hash: string): Route {
   const clean = hash.replace(/^#\/?/, '').split('?')[0] ?? '';
@@ -14,6 +17,9 @@ export function parseHash(hash: string): Route {
     return parts[1] ? { name: 'history-detail', runId: decodeURIComponent(parts[1]) } : { name: 'history' };
   }
   if (parts[0] === 'connections') return { name: 'connections' };
+  if (parts[0] === 'giris') return { name: 'login' };
+  if (parts[0] === 'kayit') return { name: 'register' };
+  if (parts[0] === 'onboarding') return { name: 'onboarding' };
   // `#/sohbet` is the engine; `chat` stays as an alias so old links keep working.
   if (parts[0] === 'sohbet' || parts[0] === 'chat') return { name: 'chat' };
   return { name: 'today' };

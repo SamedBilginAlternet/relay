@@ -39,6 +39,9 @@ export class ApiRunSource implements RunSource {
     let res: Response;
     try {
       res = await fetch(this.url(path), {
+        // Every /api call is behind the session cookie now; `include` keeps it
+        // attached even when the SPA and the API sit on different origins.
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
         ...init,
       });
@@ -175,7 +178,11 @@ export class ApiRunSource implements RunSource {
     const connect = () => {
       if (closed) return;
       handlers.onStatus(hadDrop ? 'reconnecting' : 'connecting');
-      const es = new EventSource(this.url(`/runs/${encodeURIComponent(runId)}/stream`));
+      // EventSource cannot send headers — the session HAS to travel as a cookie, and
+      // cross-origin it only does so with withCredentials.
+      const es = new EventSource(this.url(`/runs/${encodeURIComponent(runId)}/stream`), {
+        withCredentials: true,
+      });
       source = es;
 
       es.onopen = () => {
