@@ -1,0 +1,36 @@
+{
+  "total": 3,
+  "query": "{{query}}",
+  "messages": [
+    {
+      "id": "18f2d10455ce8801",
+      "threadId": "18f2d10455ce8801",
+      "from": "Trendyol <kargo@trendyol.com>",
+      "subject": "Siparişin kargoya verildi — 7891234560",
+      "snippet": "Siparişin Aras Kargo'ya teslim edildi. Takip numarası 7891234560, tahmini teslimat 1 Ağustos.",
+      "receivedAt": "2026-07-30T11:20:00Z",
+      "unread": true,
+      "bulk": false
+    },
+    {
+      "id": "18f2be8812cd4407",
+      "threadId": "18f2be8812cd4407",
+      "from": "Aras Kargo <bilgi@araskargo.com.tr>",
+      "subject": "Gönderiniz dağıtıma çıktı",
+      "snippet": "7891234560 numaralı gönderiniz bugün dağıtıma çıkmıştır. Adreste bulunamazsanız şubeden teslim alabilirsiniz.",
+      "receivedAt": "2026-07-31T05:05:00Z",
+      "unread": true,
+      "bulk": false
+    },
+    {
+      "id": "18f2a4770bb31122",
+      "threadId": "18f2a4770bb31122",
+      "from": "Hepsiburada <siparis@hepsiburada.com>",
+      "subject": "Siparişiniz teslim edildi",
+      "snippet": "28 Temmuz tarihli siparişiniz kapıcıya teslim edilmiştir. Değerlendirmenizi bekliyoruz.",
+      "receivedAt": "2026-07-28T14:47:00Z",
+      "unread": false,
+      "bulk": true
+    }
+  ]
+}

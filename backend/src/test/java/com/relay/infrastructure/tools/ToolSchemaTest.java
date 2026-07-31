@@ -31,6 +31,7 @@ class ToolSchemaTest {
                 new JiraTool.CreateIssue("replay", FIXTURES),
                 new GmailTool.ListToday("replay", FIXTURES, null),
                 new GmailTool.GetMessage("replay", FIXTURES, null),
+                new GmailTool.Search("replay", FIXTURES, null),
                 new CalendarTool.ListToday("replay", FIXTURES, null, "Europe/Istanbul"));
     }
 
@@ -151,6 +152,17 @@ class ToolSchemaTest {
         assertThat(message.ok()).isTrue();
         assertThat(message.data().path("id").asText()).isEqualTo("18f2c9a10b3d4e01");
         assertThat(message.data().path("body").asText()).isNotBlank();
+
+        ObjectNode search = Json.object();
+        search.put("query", "from:trendyol newer_than:7d");
+        ToolResult found = new GmailTool.Search("replay", FIXTURES, null).execute(search, null);
+        assertThat(found.ok()).isTrue();
+        assertThat(found.data().path("messages")).isNotEmpty();
+        // The replayed answer echoes the query it was asked for.
+        assertThat(found.data().path("query").asText()).isEqualTo("from:trendyol newer_than:7d");
+        // A search without a query is a search over the whole mailbox — rejected at the gate.
+        assertThat(new GmailTool.Search("replay", FIXTURES, null).execute(Json.object(), null).ok())
+                .isFalse();
 
         ToolResult events = new CalendarTool.ListToday("replay", FIXTURES, null, "Europe/Istanbul")
                 .execute(Json.object(), null);

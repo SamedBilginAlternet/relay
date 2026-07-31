@@ -57,6 +57,62 @@ public abstract class GmailTool extends GoogleTool {
         return false;
     }
 
+    /**
+     * List + hydrate: Gmail's list endpoint returns ids only, so the metadata reads fan out
+     * over virtual threads and come back as one flat, normalised array.
+     *
+     * <p>Shared by {@code gmail.listToday} and {@code gmail.search} — the only difference
+     * between them is the query, and a second copy of this loop would be a second place to
+     * forget the {@code List-Unsubscribe} header that keeps newsletters out of the work lane.
+     */
+    protected static ObjectNode listMessages(String query, int max, Map<String, String> headers)
+            throws Exception {
+        JsonNode list = HttpJson.send("GET", API + "/messages?maxResults=" + max
+                + "&q=" + HttpJson.encode(query), headers, null);
+
+        List<String> ids = new ArrayList<>();
+        for (JsonNode message : list.path("messages")) {
+            ids.add(message.path("id").asText());
+        }
+
+        ObjectNode out = Json.object();
+        ArrayNode messages = out.putArray("messages");
+        if (!ids.isEmpty()) {
+            // One HTTP round trip per message — virtual threads keep it inside the
+            // brief's 8s budget instead of 15 sequential calls.
+            try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
+                List<Future<JsonNode>> futures = new ArrayList<>();
+                for (String id : ids) {
+                    futures.add(pool.submit(() -> HttpJson.send("GET", API + "/messages/" + id
+                            + "?format=metadata&metadataHeaders=From&metadataHeaders=To"
+                            + "&metadataHeaders=Subject&metadataHeaders=Date"
+                            // The one header that separates a person writing to you from a
+                            // mailing that went to thousands. Bulk mail carries it by law
+                            // in most jurisdictions, and guessing from the subject line
+                            // gets newsletters classified as bug reports.
+                            + "&metadataHeaders=List-Unsubscribe"
+                            + "&metadataHeaders=Precedence", headers, null)));
+                }
+                for (Future<JsonNode> future : futures) {
+                    JsonNode message = future.get();
+                    ObjectNode item = messages.addObject();
+                    item.put("id", message.path("id").asText(""));
+                    item.put("threadId", message.path("threadId").asText(""));
+                    item.put("from", header(message, "From"));
+                    item.put("subject", header(message, "Subject"));
+                    item.put("snippet", message.path("snippet").asText(""));
+                    item.put("receivedAt", isoDate(message));
+                    item.put("unread", hasLabel(message, "UNREAD"));
+                    item.put("bulk", !header(message, "List-Unsubscribe").isBlank()
+                            || !header(message, "Precedence").isBlank());
+                }
+            }
+        }
+        out.put("total", messages.size());
+        out.put("query", query);
+        return out;
+    }
+
     /** Walks the MIME tree and returns the first text/plain body, decoded. */
     protected static String plainText(JsonNode payload) {
         String mime = payload.path("mimeType").asText("");
@@ -134,52 +190,67 @@ public abstract class GmailTool extends GoogleTool {
             if (query.isBlank()) {
                 query = "newer_than:1d -in:chats";
             }
-            Map<String, String> headers = headers(connection);
+            return listMessages(query, max, headers(connection));
+        }
+    }
 
-            JsonNode list = HttpJson.send("GET", API + "/messages?maxResults=" + max
-                    + "&q=" + HttpJson.encode(query), headers, null);
+    // ------------------------------------------------------------- search
 
-            List<String> ids = new ArrayList<>();
-            for (JsonNode message : list.path("messages")) {
-                ids.add(message.path("id").asText());
-            }
+    /**
+     * Free-form Gmail search — the tool behind "şundan mail gelmiş mi?".
+     *
+     * <p>{@code query} is Gmail's own search syntax and arrives from
+     * {@code MailQueryTranslator}, which turns a Turkish question into it. Read-only by
+     * construction: the API call is a GET against the search endpoint and nothing else.
+     */
+    @Component
+    public static class Search extends GmailTool {
 
-            ObjectNode out = Json.object();
-            ArrayNode messages = out.putArray("messages");
-            if (!ids.isEmpty()) {
-                // One HTTP round trip per message — virtual threads keep it inside the
-                // brief's 8s budget instead of 15 sequential calls.
-                try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
-                    List<Future<JsonNode>> futures = new ArrayList<>();
-                    for (String id : ids) {
-                        futures.add(pool.submit(() -> HttpJson.send("GET", API + "/messages/" + id
-                                + "?format=metadata&metadataHeaders=From&metadataHeaders=To"
-                                + "&metadataHeaders=Subject&metadataHeaders=Date"
-                                // The one header that separates a person writing to you from a
-                                // mailing that went to thousands. Bulk mail carries it by law
-                                // in most jurisdictions, and guessing from the subject line
-                                // gets newsletters classified as bug reports.
-                                + "&metadataHeaders=List-Unsubscribe"
-                                + "&metadataHeaders=Precedence", headers, null)));
-                    }
-                    for (Future<JsonNode> future : futures) {
-                        JsonNode message = future.get();
-                        ObjectNode item = messages.addObject();
-                        item.put("id", message.path("id").asText(""));
-                        item.put("threadId", message.path("threadId").asText(""));
-                        item.put("from", header(message, "From"));
-                        item.put("subject", header(message, "Subject"));
-                        item.put("snippet", message.path("snippet").asText(""));
-                        item.put("receivedAt", isoDate(message));
-                        item.put("unread", hasLabel(message, "UNREAD"));
-                        item.put("bulk", !header(message, "List-Unsubscribe").isBlank()
-                                || !header(message, "Precedence").isBlank());
-                    }
-                }
-            }
-            out.put("total", messages.size());
-            out.put("query", query);
-            return out;
+        public Search(@Value("${app.tools.mode:replay}") String mode, FixtureStore fixtures,
+                      GoogleOAuth oauth) {
+            super(ToolsMode.parse(mode), fixtures, oauth);
+        }
+
+        @Override
+        public String name() {
+            return "gmail.search";
+        }
+
+        @Override
+        public String description() {
+            return "Search Gmail with the provider's own query syntax "
+                    + "(e.g. \"from:trendyol newer_than:7d\", \"subject:(kargo OR teslimat)\") "
+                    + "and return matching messages with sender, subject, snippet and date. "
+                    + "Use it to answer questions about what did or did not arrive by mail.";
+        }
+
+        @Override
+        public RiskLevel risk() {
+            return RiskLevel.READ;
+        }
+
+        @Override
+        public JsonNode schema() {
+            ObjectNode schema = Json.object();
+            schema.put("type", "object");
+            schema.putArray("required").add("query");
+            ObjectNode props = schema.putObject("properties");
+            ObjectNode query = props.putObject("query");
+            query.put("type", "string");
+            query.put("minLength", 2);
+            query.put("description", "Gmail search query, e.g. \"from:(aras OR yurtici) newer_than:30d\"");
+            ObjectNode max = props.putObject("maxResults");
+            max.put("type", "integer");
+            max.put("minimum", 1);
+            max.put("maximum", 50);
+            max.put("description", "How many messages to return (default 15)");
+            return schema;
+        }
+
+        @Override
+        protected JsonNode call(JsonNode params, Connection connection) throws Exception {
+            int max = Math.min(50, Math.max(1, params.path("maxResults").asInt(15)));
+            return listMessages(params.path("query").asText().trim(), max, headers(connection));
         }
     }
 
