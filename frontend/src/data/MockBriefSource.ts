@@ -16,19 +16,23 @@ function at(hour: number, minute = 0): string {
 function buildBrief(): Brief {
   return {
     date: new Date().toISOString(),
+    /* `priorities[].itemId` is the *card* id — the backend keys both off the same
+       BriefItem, so the mock has to as well or the reasons match nothing. The third
+       card is deliberately left out: the model writes at most five reasons and skips
+       what it cannot justify, and that row has to stay readable without one. */
     digest: {
-    summary:
-      'Bugün iki şey seni bekliyor: ödeme servisindeki staging hatası ve iki gündür review bekleyen PR. Gerisi bilgilendirme.',
-    priorities: [
-      { itemId: 'gmail:1', why: 'Release bloke; en eski bekleyen konu bu.' },
-      { itemId: 'github-pr:acme/pay#12', why: 'İki gündür sende, CI yeşil.' },
-    ],
-    advice: 'Önce hata kaydını aç, sonra PR review — ikisi de aynı servisi ilgilendiriyor.',
-  },
+      summary:
+        'Bugün iki şey seni bekliyor: ödeme servisindeki staging hatası ve iki gündür review bekleyen PR. Gerisi bilgilendirme.',
+      priorities: [
+        { itemId: 'gmail:1', why: 'Release bloke; en eski bekleyen konu bu.' },
+        { itemId: 'github-pr:acme/payment-svc#128', why: 'İki gündür sende, CI yeşil.' },
+      ],
+      advice: 'Önce hata kaydını aç, sonra PR review — ikisi de aynı servisi ilgilendiriyor.',
+    },
 
     priority: [
       {
-        id: 'card-payment-staging',
+        id: 'gmail:1',
         source: 'gmail',
         title: 'Ödeme servisi staging’de patlıyor',
         from: 'Ayşe Demir',
@@ -60,7 +64,7 @@ function buildBrief(): Brief {
         ],
       },
       {
-        id: 'card-pr-128',
+        id: 'github-pr:acme/payment-svc#128',
         source: 'github',
         title: 'PR #128 — “retry/backoff for payment client”',
         from: 'Mert Kaya',
@@ -86,7 +90,7 @@ function buildBrief(): Brief {
         ],
       },
       {
-        id: 'card-kan-42',
+        id: 'jira:KAN-42',
         source: 'jira',
         title: 'KAN-42 iki gündür “Blocked”',
         from: 'Jira · sana atanmış',

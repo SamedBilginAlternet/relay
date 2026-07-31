@@ -112,6 +112,23 @@ export function TodayScreen({ onNavigate }: Props) {
   );
 
   /*
+    The digest orders the day and says why; the cards are keyed by the same
+    item id (`gmail:…`, `jira:KAN-4`, `github-pr:owner/repo#12`), so the reason
+    can ride along with the thing it is about. Plenty of cards will not have
+    one — the model writes at most five and skips what it cannot justify — and
+    those rows stay exactly as they are today. An empty slot or a dash would be
+    a worse answer than no answer.
+  */
+  const whyById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const entry of brief?.digest?.priorities ?? []) {
+      const why = entry.why?.trim();
+      if (entry.itemId && why && !map.has(entry.itemId)) map.set(entry.itemId, why);
+    }
+    return map;
+  }, [brief?.digest]);
+
+  /*
     The big slot has to earn itself. A low-urgency FYI with nothing to run is
     not "what to do next" — blowing it up to a hero card just teaches people
     that the biggest thing on the screen means nothing. On a quiet day every
@@ -268,6 +285,7 @@ export function TodayScreen({ onNavigate }: Props) {
                   key={focus.id}
                   card={focus}
                   index={0}
+                  why={whyById.get(focus.id) ?? null}
                   busyTool={busy?.cardId === focus.id ? busy.tool : null}
                   onAction={(c, a) => void runAction(c, a)}
                   onDismiss={(id) => setDismissed((cur) => [...cur, id])}
@@ -282,6 +300,7 @@ export function TodayScreen({ onNavigate }: Props) {
                         key={card.id}
                         card={card}
                         index={focus ? i + 1 : i}
+                        why={whyById.get(card.id) ?? null}
                         busyTool={busy?.cardId === card.id ? busy.tool : null}
                         onAction={(c, a) => void runAction(c, a)}
                         onDismiss={(id) => setDismissed((cur) => [...cur, id])}

@@ -1714,6 +1714,23 @@ a.btn {
   font-size: 13px;
   color: var(--fg-muted);
 }
+/* Why this one is first. Deliberately NOT styled like `.digest__advice` above
+   it — same page, same voice, but this one is bound to a card, so it lives
+   inside the card's indent and stays subordinate to the title. */
+.focus__why {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-left: 44px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+.focus__why > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--accent);
+}
 .focus__summary {
   margin-left: 44px;
   font-size: 14px;
@@ -1850,6 +1867,29 @@ a.btn {
 .prow__from > svg {
   flex: 0 0 auto;
 }
+/* The ordering reason takes the sender's slot rather than a line of its own:
+   the screen was just cut from 2680px to 844px and a second line per row would
+   hand a third of that back. Same 48px row, better answer in it. */
+.prow__why {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 38%;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.prow__why > svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+.prow__why-text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .prow__hint {
   flex: 0 0 auto;
   display: inline-flex;
@@ -1869,6 +1909,13 @@ a.btn {
   flex-direction: column;
   gap: 10px;
   padding: 2px var(--s-16) var(--s-12) calc(var(--s-16) + 66px + var(--s-12));
+}
+.prow__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--fg-faint);
 }
 .prow__summary {
   font-size: 14px;
@@ -2185,6 +2232,37 @@ a.btn {
   .prow__from {
     display: none;
   }
+  /* The reason does not go with it — it is the one thing on this row the user
+     cannot reconstruct from the title. There is no width left to share, so it
+     drops under the title and the row grows by one 12px line, on this
+     breakpoint only. */
+  .prow__btn {
+    flex-wrap: wrap;
+    padding-block: 6px;
+  }
+  /* basis auto + a nowrap title = a hypothetical size wide enough to push the
+     chevron onto its own line; from zero the title just shrinks, as it did
+     before wrapping was allowed at all */
+  .prow__title {
+    flex: 1 1 0;
+  }
+  .prow__why {
+    order: 1;
+    flex: 1 0 100%;
+    max-width: 100%;
+    align-items: flex-start;
+    padding-left: calc(66px + var(--s-12));
+  }
+  .prow__why > svg {
+    margin-top: 2px;
+  }
+  .prow__why-text {
+    white-space: normal;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
 }
 
 @media (max-width: 520px) {
@@ -2206,12 +2284,16 @@ a.btn {
   .tile__title {
     white-space: normal;
   }
+  .focus__why,
   .focus__summary,
   .focus__actions {
     margin-left: 0;
   }
   .prow__body {
     padding-left: var(--s-16);
+  }
+  .prow__why {
+    padding-left: 0;
   }
 }
 

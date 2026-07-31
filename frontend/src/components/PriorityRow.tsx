@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ChevronDown, Loader } from 'lucide-react';
+import { ChevronDown, ListOrdered, Loader } from 'lucide-react';
 import { useId, useState } from 'react';
 import { SOURCE_META, URGENCY_META, kindLabel } from './InsightCardView';
 import { enterProps, expandProps } from '../lib/motion';
@@ -8,6 +8,8 @@ import type { InsightCard, SuggestedAction } from '../types/brief';
 type Props = {
   card: InsightCard;
   index: number;
+  /** `digest.priorities[].why` — why this one sits here. Often absent. */
+  why?: string | null;
   busyTool: string | null;
   onAction: (card: InsightCard, action: SuggestedAction) => void;
   onDismiss: (cardId: string) => void;
@@ -17,8 +19,13 @@ type Props = {
  * Everything under the focus card: one 44px line each — urgency, subject,
  * who. The summary and the suggested actions are one click away, so five
  * insights cost five lines instead of five screens.
+ *
+ * When the digest explains the ordering, the reason takes over that third
+ * slot and the sender moves into the body. It is the same one line either
+ * way: an order nobody can see the logic of is worth less than a name that
+ * is repeated in the summary a click below.
  */
-export function PriorityRow({ card, index, busyTool, onAction, onDismiss }: Props) {
+export function PriorityRow({ card, index, why, busyTool, onAction, onDismiss }: Props) {
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
   const bodyId = useId();
@@ -43,12 +50,20 @@ export function PriorityRow({ card, index, busyTool, onAction, onDismiss }: Prop
 
         <span className="prow__title">{card.title}</span>
 
-        <span className="prow__from">
-          <source.Icon size={13} aria-hidden />
-          <span className="sr-only">{source.label} · </span>
-          {card.from ? `${card.from} · ` : ''}
-          {kindLabel(card.kind)}
-        </span>
+        {why ? (
+          <span className="prow__why" title={why}>
+            <ListOrdered size={13} aria-hidden />
+            <span className="sr-only">Sıralama gerekçesi: </span>
+            <span className="prow__why-text">{why}</span>
+          </span>
+        ) : (
+          <span className="prow__from">
+            <source.Icon size={13} aria-hidden />
+            <span className="sr-only">{source.label} · </span>
+            {card.from ? `${card.from} · ` : ''}
+            {kindLabel(card.kind)}
+          </span>
+        )}
 
         <span className="prow__hint">
           <span className="prow__hint-text">
@@ -62,6 +77,15 @@ export function PriorityRow({ card, index, busyTool, onAction, onDismiss }: Prop
         {open && (
           <motion.div key="body" id={bodyId} {...expandProps(reduce)}>
             <div className="prow__body">
+              {/* the sender the reason displaced upstairs — shown once, here */}
+              {why ? (
+                <p className="prow__meta">
+                  <source.Icon size={12} aria-hidden />
+                  <span className="sr-only">{source.label} · </span>
+                  {card.from ? `${card.from} · ` : ''}
+                  {kindLabel(card.kind)}
+                </p>
+              ) : null}
               {card.summary && <p className="prow__summary">{card.summary}</p>}
               <div className="prow__actions">
                 {card.suggestedActions.map((action) => {

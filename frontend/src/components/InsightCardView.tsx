@@ -1,5 +1,13 @@
 import { motion, useReducedMotion } from 'motion/react';
-import { AlertTriangle, CircleDot, GitPullRequest, Loader, Mail, SquareKanban } from 'lucide-react';
+import {
+  AlertTriangle,
+  CircleDot,
+  GitPullRequest,
+  ListOrdered,
+  Loader,
+  Mail,
+  SquareKanban,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { enterProps } from '../lib/motion';
 import type { InsightCard, InsightSource, InsightUrgency, SuggestedAction } from '../types/brief';
@@ -7,6 +15,8 @@ import type { InsightCard, InsightSource, InsightUrgency, SuggestedAction } from
 type Props = {
   card: InsightCard;
   index: number;
+  /** `digest.priorities[].why` — why this one earned the top slot. Often absent. */
+  why?: string | null;
   busyTool: string | null;
   onAction: (card: InsightCard, action: SuggestedAction) => void;
   onDismiss: (cardId: string) => void;
@@ -45,7 +55,7 @@ export function kindLabel(kind: string): string {
  * everything else drops to a one-line row (PriorityRow). A stack of five
  * equally loud cards is a list, not a priority.
  */
-export function InsightCardView({ card, index, busyTool, onAction, onDismiss }: Props) {
+export function InsightCardView({ card, index, why, busyTool, onAction, onDismiss }: Props) {
   const reduce = useReducedMotion();
   const source = SOURCE_META[card.source] ?? SOURCE_META.gmail;
   const urgency = URGENCY_META[card.urgency] ?? URGENCY_META.normal;
@@ -73,6 +83,21 @@ export function InsightCardView({ card, index, busyTool, onAction, onDismiss }: 
           {urgency.label}
         </span>
       </div>
+
+      {/*
+        The ranking rationale, not a second summary: `summary` says what the thing
+        is, this says why it outranked everything else today. It leads the body
+        because "why am I looking at this first" is the question the big slot raises.
+      */}
+      {why ? (
+        <p className="focus__why">
+          <ListOrdered size={13} aria-hidden />
+          <span>
+            <span className="sr-only">Sıralama gerekçesi: </span>
+            {why}
+          </span>
+        </p>
+      ) : null}
 
       {card.summary && <p className="focus__summary">{card.summary}</p>}
 
