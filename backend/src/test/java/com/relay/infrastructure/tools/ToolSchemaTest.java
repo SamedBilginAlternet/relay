@@ -32,7 +32,8 @@ class ToolSchemaTest {
                 new GmailTool.ListToday("replay", FIXTURES, null),
                 new GmailTool.GetMessage("replay", FIXTURES, null),
                 new GmailTool.Search("replay", FIXTURES, null),
-                new CalendarTool.ListToday("replay", FIXTURES, null, "Europe/Istanbul"));
+                new CalendarTool.ListToday("replay", FIXTURES, null, "Europe/Istanbul"),
+                new CalendarUpcomingTool("replay", FIXTURES, null, "Europe/Istanbul"));
     }
 
     @ParameterizedTest
@@ -168,5 +169,11 @@ class ToolSchemaTest {
                 .execute(Json.object(), null);
         assertThat(events.ok()).isTrue();
         assertThat(events.data().path("events")).isNotEmpty();
+
+        // "Yarın toplantım var mı" needs a window that outlives today — see CalendarUpcomingTool.
+        ToolResult upcoming = new CalendarUpcomingTool("replay", FIXTURES, null, "Europe/Istanbul")
+                .execute(Json.object(), null);
+        assertThat(upcoming.ok()).isTrue();
+        assertThat(upcoming.data().path("events")).isNotEmpty();
     }
 }
