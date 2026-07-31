@@ -36,9 +36,27 @@ public abstract class SlackTool extends AbstractTool {
 
     protected JsonNode checked(JsonNode response) {
         if (!response.path("ok").asBoolean(false)) {
-            throw new HttpJson.ToolCallException("slack error: " + response.path("error").asText("unknown"));
+            throw new HttpJson.ToolCallException("slack error: " + response.path("error").asText("unknown")
+                    + scopeDetail(response));
         }
         return response;
+    }
+
+    /**
+     * Slack says which scopes it wanted and which the token carries. Without those two
+     * lists {@code missing_scope} is unfixable guesswork — and the usual cause is invisible:
+     * scopes are baked into the token at install time, so adding them in the app settings
+     * changes nothing until the app is reinstalled and the new token is saved here.
+     */
+    private static String scopeDetail(JsonNode response) {
+        String needed = response.path("needed").asText("");
+        String provided = response.path("provided").asText("");
+        if (needed.isBlank() && provided.isBlank()) {
+            return "";
+        }
+        return " — gereken: " + (needed.isBlank() ? "?" : needed)
+                + " · token'daki: " + (provided.isBlank() ? "(yok)" : provided)
+                + ". Scope eklendiyse uygulamayı yeniden kurup YENİ xoxb- token'ını kaydet.";
     }
 
     // ------------------------------------------------------------ listChannels
