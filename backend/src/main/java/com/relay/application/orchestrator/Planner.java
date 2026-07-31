@@ -131,6 +131,12 @@ public class Planner {
                   Use one only if the goal spells it out. Otherwise the plan MUST start with a
                   search/list step, and the writing step depends on what that step found.
                 - Prefer reading before writing. Keep the plan under 6 steps.
+                - A step that writes text for a human — a Slack message, a Jira description,
+                  a PR comment — must come AFTER the step that gathers the facts, and its
+                  title must say what that text is about. Never plan "özet gönder" as the
+                  first step: there is nothing to summarise yet.
+                - User-facing text is written in the language of the goal (Turkish goal →
+                  Turkish message). Titles too.
                 - Answer with JSON only, matching the given schema. No prose.
                 """;
     }

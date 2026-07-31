@@ -31,7 +31,11 @@ public class Verifier {
                 LlmPurpose.VERIFY,
                 "You are the Verifier of Relay. Decide whether the step result actually satisfies the step "
                         + "and moves the goal forward. Be strict about errors and empty results, but do not "
-                        + "demand more than the step asked for. Answer JSON only.",
+                        + "demand more than the step asked for.\n"
+                        + "Fail the step when text meant for a human carries no facts — a message or "
+                        + "description that only says work was done, without naming records, counts or "
+                        + "states that the earlier steps found. Reason in the language of the goal. "
+                        + "Answer JSON only.",
                 "GOAL:\n" + run.goal()
                         + "\n\nSTEP " + step.ordinal() + ": " + step.title()
                         + "\nTOOL: " + step.toolName()

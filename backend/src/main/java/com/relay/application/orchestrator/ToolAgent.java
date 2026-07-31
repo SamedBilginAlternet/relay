@@ -269,7 +269,17 @@ public class ToolAgent {
             LlmRequest request = LlmRequest.of(
                     LlmPurpose.TOOL_PARAMS,
                     "You are the " + tool.provider() + " specialist agent of Relay. "
-                            + "Produce ONLY the JSON parameter object for the tool call. No prose.",
+                            + "Produce ONLY the JSON parameter object for the tool call. No prose.\n"
+                            // The message body is the product here: a Slack post that says
+                            // "özet gönderildi, ayrıntılar zaman çizelgesinde" is worse than
+                            // no message at all — the reader learns nothing and has to go
+                            // digging, which is the exact work Relay claims to remove.
+                            + "Any field a human will read (message text, description, comment) "
+                            + "must carry the actual content: name the records by key, give the "
+                            + "counts, say what state they are in. Write it in the language of "
+                            + "the goal. Never write placeholders like \"özet\", \"detaylar "
+                            + "aşağıda\", \"ayrıntılar zaman çizelgesinde\", \"TODO\" or "
+                            + "\"<...>\" — if the facts are in PREVIOUS RESULTS, put them in the text.",
                     "GOAL:\n" + run.goal()
                             + "\n\nSTEP: " + step.title()
                             + "\n\nTOOL: " + tool.name() + " — " + tool.description()
