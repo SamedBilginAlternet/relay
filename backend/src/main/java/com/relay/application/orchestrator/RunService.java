@@ -126,6 +126,11 @@ public class RunService {
         return run;
     }
 
+    /** " (ayse@sirket.com)" — or nothing at all when the caller did not say. */
+    private static String by(String actor) {
+        return actor == null || actor.isBlank() ? "" : " (" + actor.trim() + ")";
+    }
+
     public Run get(UUID id) {
         return runs.findById(id).orElseThrow(() -> new NotFound("run " + id + " not found"));
     }
@@ -139,6 +144,15 @@ public class RunService {
     }
 
     public Run approve(UUID runId, UUID stepId) {
+        return approve(runId, stepId, null);
+    }
+
+    /**
+     * @param actor who pressed the button — written into the audit trail. The trail claimed
+     *              "kim, neyi, neden" but only ever recorded a generic user, so on a shared
+     *              workspace nobody could answer the "kim".
+     */
+    public Run approve(UUID runId, UUID stepId, String actor) {
         Run run = get(runId);
         Step step = step(run, stepId);
         if (step.status() != StepStatus.AWAITING_APPROVAL) {
@@ -151,13 +165,17 @@ public class RunService {
         }
         run.status(RunStatus.RUNNING);
         journal.say(run, step.id(), AgentRole.USER, step.role() == null ? AgentRole.COORDINATOR : step.role(),
-                "Onaylandı — devam et.");
+                "Onaylandı" + by(actor) + " — devam et.");
         runs.save(run);
         executor.execute(() -> coordinator.drive(runId));
         return run;
     }
 
     public Run reject(UUID runId, UUID stepId, String reason) {
+        return reject(runId, stepId, reason, null);
+    }
+
+    public Run reject(UUID runId, UUID stepId, String reason, String actor) {
         Run run = get(runId);
         Step step = step(run, stepId);
         if (step.status().terminal()) {
@@ -171,7 +189,7 @@ public class RunService {
         step.status(StepStatus.PENDING);
         run.status(RunStatus.RUNNING);
         journal.say(run, step.id(), AgentRole.USER, step.role() == null ? AgentRole.COORDINATOR : step.role(),
-                "Reddedildi: " + why);
+                "Reddedildi" + by(actor) + ": " + why);
         runs.save(run);
         executor.execute(() -> coordinator.drive(runId));
         return run;

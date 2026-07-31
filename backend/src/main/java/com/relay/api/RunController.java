@@ -99,14 +99,24 @@ public class RunController {
     }
 
     @PostMapping("/{id}/steps/{stepId}/approve")
-    public Map<String, Object> approve(@PathVariable UUID id, @PathVariable UUID stepId) {
-        return Views.run(runService.approve(id, stepId));
+    public Map<String, Object> approve(@PathVariable UUID id, @PathVariable UUID stepId,
+                                       jakarta.servlet.http.HttpServletRequest request) {
+        return Views.run(runService.approve(id, stepId, actor(request)));
+    }
+
+    /** The signed-in e-mail, so the audit trail can answer "who approved this". */
+    private static String actor(jakarta.servlet.http.HttpServletRequest request) {
+        return com.relay.infrastructure.auth.AuthFilter.current(request)
+                .map(com.relay.domain.User::email)
+                .orElse(null);
     }
 
     @PostMapping("/{id}/steps/{stepId}/reject")
     public Map<String, Object> reject(@PathVariable UUID id, @PathVariable UUID stepId,
-                                      @RequestBody(required = false) RejectRequest request) {
-        return Views.run(runService.reject(id, stepId, request == null ? null : request.reason()));
+                                      @RequestBody(required = false) RejectRequest request,
+                                      jakarta.servlet.http.HttpServletRequest httpRequest) {
+        return Views.run(runService.reject(id, stepId, request == null ? null : request.reason(),
+                actor(httpRequest)));
     }
 
     @PostMapping("/{id}/rerun")
