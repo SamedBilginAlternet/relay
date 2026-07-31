@@ -23,6 +23,8 @@ Bu cümle açılışta bir kez, kapanışta bir kez geçer. Başka hiçbir yerde
 Neden değişiyor: boş bir sohbet kutusuyla açılmak "peki ne yazacağım" sorusunu jüriye de sordurur.
 Bugün ekranı ürünün iddiasını ilk saniyede gösterir — **sistem işi getiriyor, kullanıcı "yap" diyor.**
 
+> **Demo öncesi:** giriş yapılmış ve tanıtım turu bitirilmiş olsun. Uygulama artık oturum ister (`#/giris`); oturum çerezi 30 gün yaşar, ama sahneye çıkmadan bir kez `#/` açıp Bugün ekranının geldiğini gör. Turu tekrar göstermek istersen sağ üstteki hesap menüsünden "Tanıtım turunu tekrar aç".
+
 | Zaman | Sen ne yapıyorsun | Ekranda ne oluyor |
 |---|---|---|
 | **0:00–0:12** | Açılış cümlesinin ilk yarısı. Hiçbir şeye dokunma. | Uygulama **Bugün** ekranında açık: üstte ÖNCELİKLİ kartları, altta Gelen kutusu · Üstümdeki işler · Kod · Takvim. |
@@ -82,6 +84,17 @@ Cevaplar 15 saniyeyi geçmeyecek şekilde yazıldı. İlk cümle her zaman doğr
 
 **"Zapier'den farkı ne?"**
 > Zapier'de işi *önceden* kurarsın; kurmadığın iş yapılamaz. Relay'de işi *o an* tarif edersin — plan cümlenden çıkarılır. Zapier tekrarlayan boru hatları için; Relay bugünün doğaçlama işi için. Ayrıca Zapier zap'i kara kutuda koşturur; bizde her araç çağrısı parametresiyle görünür ve yazma adımı sana sorar.
+
+**"n8n'den farkı ne?"** (Zapier'den ayrı bir soru — n8n'i bilen jüri üyesi teknik cevap bekler)
+> n8n'de akışı önceden kurarsın; kurmadığın iş yapılamaz. Relay'de işi o an tarif edersin, plan cümleden çıkar. Asıl fark şu: n8n bir akışı baştan sona koşturur, biz her **yazma** adımında duruyoruz — kim onayladı, neden reddetti, ne kadara mal oldu, hepsi iz kaydında. n8n tekrarlayan boru hatları için; Relay bugünün doğaçlama işi ve onun denetimi için.
+
+Üstelerse üç ayrım: **ne zaman tasarlanıyor** (n8n tasarım zamanı, biz çalışma zamanı) · **kimin izni var** (n8n'de kimlik akışa verilir ve akış onunla ne yaparsa yapar; bizde her araç risk seviyesiyle kayıtlı — oku otomatik, yaz onay, sil yasak) · **sonra ne kanıtlayabiliyorsun** (araç, parametre, süre, onaylayan, token, dolar).
+
+**"n8n'de de AI Agent node var"** — en keskin versiyonu, hazırlıklı ol:
+> Doğru, ve o node araçlarıyla sonuna kadar koşar. Bizim iddiamız ajan çalıştırmak değil, **ajanı durdurabilmek**. Demoda gördünüz: sistem uydurduğu bir kayıt anahtarıyla Jira'ya yazmaya kalktı, kendi kendini durdurdu ve önce aramaya gitti.
+
+Bitirirken tamamlayıcı ol, jüri bunu sever: *"n8n kullanan bir ekip Relay'i onun üstüne koyar — n8n gecelik boru hattını çalıştırır, Relay gün içinde çıkan işi yapar ve kimin neyi neden onayladığını kaydeder."*
+**Asla deme:** "n8n'i değiştiririz" (400+ entegrasyon, zamanlayıcı, retry altyapısı — o savaş kaybedilir) · "bizde de node editörü olacak" (ürünün tezinin tersi).
 
 **"Mindra zaten var, siz ne katıyorsunuz?"**
 > Mindra'nın tezini doğru buluyoruz ve saklamıyoruz — referansımız o. Fark odak: Mindra departman ölçeğinde ajan ekipleri simüle ediyor; biz aynı şeffaflık ve ekip modelini **tek kişinin günlük işine** indiriyoruz. Kurulum beş dakika: iki token gir, çalış. 48 saatte de bunu uçtan uca canlı çalışır hale getirdik — bu masada Jira ve Slack gerçek.
