@@ -139,8 +139,10 @@ public class DigestService {
             return Optional.empty();
         }
         String summary = clamp(root.path("summary").asText(""), MAX_SUMMARY_LENGTH);
-        if (summary.isBlank()) {
-            // No summary, no digest. An empty paragraph is worse than a missing one.
+        if (summary.isBlank() || isTemplate(summary)) {
+            // No summary, no digest. An empty paragraph is worse than a missing one — and
+            // live, the Bugün screen printed two ellipses because a small model copied the
+            // shape we showed it ({"summary":"…"}) instead of filling it in.
             return Optional.empty();
         }
 
@@ -156,7 +158,7 @@ public class DigestService {
                 continue;
             }
             String why = clamp(node.path("why").asText(node.path("reason").asText("")), MAX_WHY_LENGTH);
-            if (why.isBlank()) {
+            if (why.isBlank() || isTemplate(why)) {
                 continue;
             }
             priorities.add(new Priority(itemId, why));
@@ -165,9 +167,22 @@ public class DigestService {
             }
         }
 
+        String advice = clamp(root.path("advice").asText(""), MAX_ADVICE_LENGTH);
         return Optional.of(new Digest(summary, priorities,
-                clamp(root.path("advice").asText(""), MAX_ADVICE_LENGTH),
+                isTemplate(advice) ? "" : advice,
                 response.totalTokens(), response.costUsd()));
+    }
+
+    /**
+     * Did the model hand back the placeholder from the example instead of an answer?
+     *
+     * <p>The prompt ends with {@code JSON döndür: {"summary":"…","advice":"…"}} — a small
+     * model under pressure copies that literally, and the screen then shows an ellipsis
+     * where the day's summary belongs.
+     */
+    private static boolean isTemplate(String text) {
+        String stripped = text.replace("…", "").replace(".", "").trim();
+        return stripped.isEmpty();
     }
 
     private static String clamp(String raw, int max) {
