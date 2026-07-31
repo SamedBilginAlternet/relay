@@ -103,12 +103,13 @@ class MailQueryTranslatorTest {
 
     @Test
     void anUnknownTopicIsSearchedWithTheQuestionsOwnWords() {
-        MailQueryTranslator.Translation translation =
-                new MailQueryTranslator(new StubLlmClient(null)).translate("Vergi levhası geldi mi?");
+        MailQueryTranslator.Translation translation = new MailQueryTranslator(new StubLlmClient(null))
+                .translate("Vergi levhası ile ilgili mail gelmiş mi?");
 
-        assertThat(translation.query()).contains("Vergi").contains("newer_than:");
-        // Scaffolding words are not searched for.
-        assertThat(translation.query()).doesNotContain("geldi");
+        assertThat(translation.query()).contains("Vergi").contains("levhası").contains("newer_than:");
+        // Scaffolding words are not searched for: live, "ilgili" went into the query and
+        // no mail about a tax certificate contains it.
+        assertThat(translation.query()).doesNotContain("gelmiş").doesNotContain("ilgili");
     }
 
     @Test

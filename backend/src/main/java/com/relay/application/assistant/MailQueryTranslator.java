@@ -249,7 +249,11 @@ public class MailQueryTranslator {
             "mail", "maili", "mailim", "maillerim", "mailleri", "gelmis", "geldi", "gelen", "var",
             "yok", "bana", "benim", "bir", "bu", "su", "acaba", "lutfen", "misin", "mi", "mu",
             "hic", "sunu", "sundan", "kim", "kimden", "ne", "nedir", "nerede", "ile", "icin",
-            "hakkinda", "gonderilmis", "gonderdi", "sordum", "bak", "bakar", "misiniz");
+            "hakkinda", "gonderilmis", "gonderdi", "sordum", "bak", "bakar", "misiniz",
+            // Connective filler: live, "Vergi levhası ile ilgili mail geldi mi" searched for
+            // the word "ilgili", which no mail about a tax certificate contains.
+            "ilgili", "konusunda", "dair", "olan", "diye", "gore", "kadar", "sonra", "once",
+            "simdi", "bugun", "dun", "yarin");
 
     /**
      * Turkish-safe folding for keyword matching.
