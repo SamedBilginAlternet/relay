@@ -78,9 +78,19 @@ AgentMessage id, runId, stepId?, fromAgent, toAgent, content, createdAt
 Connection   id, provider(jira|slack), config(jsonb, ŞİFRELİ), createdAt
 
 ToolPolicy   provider, toolName, mode(auto|ask|forbidden)
+
+User         id, email(unique, küçük harfe normalize), passwordHash(BCrypt, Google
+             hesaplarında null), displayName, avatarUrl, provider(password|google),
+             onboardedAt, createdAt
+
+UserSession  id, userId, tokenHash(SHA-256), createdAt, expiresAt
 ```
 
 Şifreleme: `Connection.config` AES-GCM ile şifrelenir, anahtar `APP_ENCRYPTION_KEY` ortam değişkeninden. Token'lar **asla** log'a yazılmaz, API yanıtlarında maskelenir (`xoxb-****1234`).
+
+**Kapsam kararı — tek çalışma alanı.** Relay tek bir ortak çalışma alanıdır: giriş yapan herkes aynı bağlantıları, aynı koşuları ve aynı politikaları görür. `runs`/`connections` üzerinde bilinçli olarak `user_id` yoktur; `users` kimin klavyede olduğunu söyler, veriyi bölmez. Kullanıcı başına izolasyon isteniyorsa bu, şema değişikliği gerektiren ayrı bir iştir — "zaten vardır" varsayımıyla üzerine kod yazmayın.
+
+Oturum: rastgele 32 baytlık opak token çereze (`relay_session`, HttpOnly · Secure · SameSite=Lax · 30 gün) yazılır, veritabanında yalnızca SHA-256'sı durur. İmzalı çerez yerine bunun seçilmesinin nedeni **iptal edilebilirlik**: çıkış yapınca satır silinir ve token o an ölür; imzalı çerez süresi dolana kadar geçerli kalırdı. Ayrıca çereze taşınması şart, çünkü `EventSource` özel başlık gönderemez — SSE ucu (`/api/runs/{id}/stream`) yalnızca çerezle çalışır.
 
 ---
 
@@ -100,6 +110,17 @@ ToolPolicy   provider, toolName, mode(auto|ask|forbidden)
 | `POST` | `/api/connections/{provider}/test` | Bağlantı testi |
 | `GET`/`PUT` | `/api/policies` | Araç politikaları |
 | `GET` | `/api/tools` | Kayıtlı araçlar + şemaları |
+| `POST` | `/api/auth/register` | `{email, password, displayName?}` → oturum çerezi + `{user}` |
+| `POST` | `/api/auth/login` | `{email, password}` → oturum çerezi + `{user}` |
+| `POST` | `/api/auth/logout` | Çerezi ve oturum satırını siler |
+| `GET` | `/api/auth/me` | `{authenticated, user, googleLogin}` — oturum yoksa da **200** |
+| `POST` | `/api/auth/onboarding/complete` | Tanıtım turunu hesapta kalıcı olarak biter sayar |
+| `GET` | `/api/auth/google/start` | Google'a yönlendirir — kapsam yalnız `openid email profile` |
+| `GET` | `/api/auth/google/callback` | Kod → oturum çerezi, ardından SPA'ya döner |
+
+**Koruma.** Bir servlet filtresi (`AuthFilter`) `/api/**` altındaki her şeyi çerezle korur; muaf olanlar `/api/health`, `/api/auth/**` ve `/api/oauth/google/callback`. Oturumsuz istek **401 + JSON** alır, HTML yönlendirme değil — SPA'nın `fetch`'i bir giriş sayfasını okuyamaz.
+
+**Google iki ayrı onaydır.** `/api/auth/google/*` yalnızca kimliktir (`openid email profile`, hiçbir token saklanmaz). Gmail/Takvim verisine erişim `/api/oauth/google/*` altındaki ayrı akıştır ve refresh token'ı şifreli `google` bağlantısında tutar. Giriş yapmak posta kutusunu vermek değildir; ikisi asla tek onaya indirgenmemeli.
 
 ### SSE olay tipleri
 

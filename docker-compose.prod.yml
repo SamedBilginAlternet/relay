@@ -151,6 +151,17 @@ services:
       # live = real Jira/Slack calls, stub = deterministic offline tools.
       TOOLS_MODE: ${TOOLS_MODE:-stub}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://${APP_DOMAIN:-localhost}}
+      # Google OAuth. The same client serves two DIFFERENT consents: data access
+      # (/api/oauth/google/callback) and sign-in (/api/auth/google/callback).
+      # Both redirect URIs must be registered in the Google console.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      GOOGLE_LOGIN_REDIRECT_URI: ${GOOGLE_LOGIN_REDIRECT_URI:-}
+      # Session cookie. Secure stays on: the app is served over HTTPS.
+      AUTH_SUCCESS_REDIRECT: ${AUTH_SUCCESS_REDIRECT:-/}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      AUTH_ENABLED: ${AUTH_ENABLED:-true}
       JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -Djava.awt.headless=true -Dfile.encoding=UTF-8}
       TZ: ${TZ:-Etc/UTC}
     ports:
