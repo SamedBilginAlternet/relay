@@ -5,6 +5,7 @@ import com.relay.application.brief.InsightService;
 import com.relay.application.connection.ConnectionService;
 import com.relay.application.cost.CostMeter;
 import com.relay.application.orchestrator.AgentJournal;
+import com.relay.application.playbook.PlaybookService;
 import com.relay.application.orchestrator.Coordinator;
 import com.relay.application.orchestrator.Planner;
 import com.relay.application.orchestrator.RunService;
@@ -124,6 +125,12 @@ public class ApplicationConfig {
                                      @Value("${app.brief.default-project-key:RELAY}") String projectKey) {
         return new BriefService(tools, connections, insights, llm, clock, briefExecutor,
                 Duration.ofSeconds(timeoutSeconds), Duration.ofSeconds(cacheSeconds), timezone, projectKey);
+    }
+
+    @Bean
+    public PlaybookService playbookService(ToolRegistry tools, ConnectionRepository connections,
+                                           RunService runService) {
+        return new PlaybookService(tools, connections, runService);
     }
 
     @Bean

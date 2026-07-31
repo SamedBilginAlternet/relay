@@ -83,6 +83,40 @@ public class RunService {
         return run;
     }
 
+    /** One seeded step of a playbook: title, tool and starting parameters. */
+    public record SeedStep(String title, String toolName, Map<String, Object> params) {
+    }
+
+    /**
+     * Starts a written-down flow (a playbook) instead of asking the planner for a shape.
+     *
+     * <p>The steps are fixed, the facts are not: each specialist still finalises its own
+     * parameters from what the earlier steps found, the policy engine still sees every
+     * write, and the approval gate still opens. Skipping the planner removes one model call
+     * and, with it, the run-to-run variance that made the same job come out differently
+     * every time.
+     */
+    public Run startFromPlaybook(String goal, String label, List<SeedStep> steps, Double budgetUsd) {
+        if (steps == null || steps.isEmpty()) {
+            throw new IllegalArgumentException("a playbook needs at least one step");
+        }
+        Run run = Run.create(goal.trim(), clock.now(), budgetUsd != null ? budgetUsd : defaultBudgetUsd);
+        int ordinal = 0;
+        for (SeedStep seed : steps) {
+            if (tools != null && tools.find(seed.toolName()).isEmpty()) {
+                throw new IllegalArgumentException("unknown tool: " + seed.toolName());
+            }
+            run.addStep(Step.create(run.id(), ++ordinal, seed.title(),
+                    AgentRole.toolAgent(seed.toolName()), seed.toolName(),
+                    seed.params() == null ? Map.of() : seed.params()));
+        }
+        runs.save(run);
+        journal.say(run, null, AgentRole.USER, AgentRole.COORDINATOR,
+                "Hazır akış çalıştırılıyor: " + label + " (" + ordinal + " adım)");
+        executor.execute(() -> coordinator.drive(run.id()));
+        return run;
+    }
+
     public Run get(UUID id) {
         return runs.findById(id).orElseThrow(() -> new NotFound("run " + id + " not found"));
     }
