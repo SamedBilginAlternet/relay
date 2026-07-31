@@ -1,6 +1,7 @@
 import type {
   Connection,
   ConnectionTestResult,
+  GoogleStatus,
   Health,
   Provider,
   Run,
@@ -44,4 +45,6 @@ export interface RunSource {
   getConnections(): Promise<Connection[]>;
   saveConnection(provider: Provider, config: Record<string, string>): Promise<Connection>;
   testConnection(provider: Provider): Promise<ConnectionTestResult>;
+  /** Google has no token field — the screen needs to know whether to offer the consent flow. */
+  getGoogleStatus(): Promise<GoogleStatus>;
 }

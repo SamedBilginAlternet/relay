@@ -3,17 +3,19 @@ import {
   CircleX,
   Eye,
   EyeOff,
+  GitPullRequest,
   Hash,
   KeyRound,
+  Mail,
   Plug,
   RefreshCw,
   ShieldCheck,
   TriangleAlert,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { getRunSource } from '../data';
+import { API_BASE_URL, getRunSource } from '../data';
 import { formatRelative } from '../lib/format';
-import type { Connection, ConnectionTestResult, Provider } from '../types/api';
+import type { Connection, ConnectionTestResult, GoogleStatus, Provider } from '../types/api';
 
 type FieldDef = {
   key: string;
@@ -44,6 +46,26 @@ const PROVIDERS: {
         hint: 'id.atlassian.com › Security › API tokens',
       },
       { key: 'projectKey', label: 'Varsayılan proje (opsiyonel)', placeholder: 'RUN' },
+    ],
+  },
+  {
+    provider: 'github',
+    title: 'GitHub',
+    blurb: 'Fine-grained personal access token ile bağlanır (OAuth yok). Review bekleyen PR’lar, sana atanmış issue’lar, yorum ekleme.',
+    fields: [
+      {
+        key: 'token',
+        label: 'Personal access token',
+        placeholder: 'github_pat_…',
+        secret: true,
+        hint: 'github.com › Settings › Developer settings › Fine-grained tokens · izinler: Pull requests + Issues (Read and write), Metadata (Read)',
+      },
+      {
+        key: 'login',
+        label: 'Kullanıcı adı (opsiyonel)',
+        placeholder: 'kullanici-adi',
+        hint: 'Boş bırakılırsa aramalar @me ile yapılır.',
+      },
     ],
   },
   {
@@ -131,6 +153,8 @@ export function ConnectionsScreen() {
             />
           ))}
 
+        {!loading && <GoogleCard connection={connections.google} />}
+
         <div className="notice">
           <ShieldCheck size={16} aria-hidden />
           <span>
@@ -140,6 +164,95 @@ export function ConnectionsScreen() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Google is the odd one out: there is no token to paste, so this card offers the consent
+ * flow instead of a form — and, when the server has no client id yet, says exactly which
+ * environment variables are missing rather than showing an input that cannot work.
+ */
+function GoogleCard({ connection }: { connection: Connection | undefined }) {
+  const [status, setStatus] = useState<GoogleStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const next = await getRunSource().getGoogleStatus();
+        if (alive) setStatus(next);
+      } catch (err) {
+        if (alive) setError(err instanceof Error ? err.message : 'Google durumu okunamadı.');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const connected = Boolean(status?.connected || connection?.configured);
+  const apiBase = API_BASE_URL.replace(/\/+$/, '');
+
+  return (
+    <section className="card" aria-label="Google bağlantısı">
+      <div className="card__head">
+        <span className="card__icon" aria-hidden>
+          <Mail size={18} />
+        </span>
+        <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+          <h2 className="t-title">Google — Gmail + Takvim</h2>
+          <p className="t-caption">
+            Token yapıştırılmaz: Google’ın izin ekranından geçersin, yetki sunucuda şifreli
+            saklanır. İzinler yalnızca okuma (gmail.readonly, calendar.readonly).
+          </p>
+        </div>
+        <span className={`status-pill ${connected ? 'st-done' : 'st-pending'}`}>
+          {connected ? <CircleCheck size={13} aria-hidden /> : <KeyRound size={13} aria-hidden />}
+          {connected ? 'Bağlı' : 'Boş'}
+        </span>
+      </div>
+
+      {loading && <div className="skeleton" style={{ height: 56 }} />}
+
+      {!loading && error && (
+        <div className="notice notice--danger">
+          <TriangleAlert size={15} aria-hidden />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {!loading && !error && status && !status.configured && (
+        <div className="notice notice--warn">
+          <TriangleAlert size={15} aria-hidden />
+          <span>
+            Sunucuda Google istemcisi tanımlı değil. Ortam değişkenleri gerekiyor:{' '}
+            <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>,{' '}
+            <code>GOOGLE_REDIRECT_URI</code>. Ayrıntı: <code>docs/INTEGRATIONS.md</code> §4.
+          </span>
+        </div>
+      )}
+
+      <div className="card__actions">
+        <a
+          className={`btn btn--sm${status?.configured ? '' : ' btn--disabled'}`}
+          href={`${apiBase}/oauth/google/start`}
+          aria-disabled={status?.configured ? undefined : true}
+          onClick={(e) => {
+            if (!status?.configured) e.preventDefault();
+          }}
+        >
+          <Plug size={14} aria-hidden />
+          {connected ? 'Yeniden bağlan' : 'Google ile bağlan'}
+        </a>
+        {status?.redirectUri && (
+          <span className="t-caption">Dönüş adresi: {status.redirectUri}</span>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -191,7 +304,9 @@ function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: C
     <section className="card" aria-label={`${title} bağlantısı`}>
       <div className="card__head">
         <span className="card__icon" aria-hidden>
-          {provider === 'jira' ? <Plug size={18} /> : <Hash size={18} />}
+          {provider === 'jira' ? <Plug size={18} />
+            : provider === 'github' ? <GitPullRequest size={18} />
+            : <Hash size={18} />}
         </span>
         <div style={{ flex: '1 1 auto', minWidth: 0 }}>
           <h2 className="t-title">{title}</h2>

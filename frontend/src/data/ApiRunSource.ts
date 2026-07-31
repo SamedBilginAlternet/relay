@@ -1,6 +1,7 @@
 import type {
   Connection,
   ConnectionTestResult,
+  GoogleStatus,
   Health,
   Provider,
   Run,
@@ -138,6 +139,22 @@ export class ApiRunSource implements RunSource {
       `/connections/${encodeURIComponent(provider)}/test`,
       { method: 'POST', body: '{}' },
     );
+  }
+
+  async getGoogleStatus(): Promise<GoogleStatus> {
+    // 503 here is a normal answer, not a fault: it means the server was started without
+    // GOOGLE_CLIENT_ID/SECRET. The screen shows what to set instead of an error banner.
+    try {
+      return await this.request<GoogleStatus>('/oauth/google/status');
+    } catch {
+      return {
+        configured: false,
+        connected: false,
+        scopes: '',
+        redirectUri: '',
+        startUrl: '/api/oauth/google/start',
+      };
+    }
   }
 
   streamRun(runId: string, handlers: RunStreamHandlers): Unsubscribe {

@@ -129,7 +129,22 @@ export const RUN_EVENT_TYPES = [
 /* Connections & policies                                              */
 /* ------------------------------------------------------------------ */
 
-export type Provider = 'jira' | 'slack';
+export type Provider = 'jira' | 'slack' | 'github' | 'google';
+
+/**
+ * Google is the one provider with no token to paste: the user is sent to Google's
+ * consent screen and the refresh token lands in the connection server-side.
+ *
+ * @property configured whether the server has the client id/secret at all
+ * @property connected  whether a user has already granted access
+ */
+export type GoogleStatus = {
+  configured: boolean;
+  connected: boolean;
+  scopes: string;
+  redirectUri: string;
+  startUrl: string;
+};
 
 /** Values come back masked from the API (`xoxb-****1234`). */
 export type Connection = {

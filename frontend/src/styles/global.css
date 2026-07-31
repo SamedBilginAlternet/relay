@@ -239,6 +239,17 @@ textarea {
   border-color: #d1d5db;
 }
 
+/* An <a> can never be :disabled, and the Google connect target has to stay a real link
+   (it leaves the SPA for Google's consent screen). This is the anchor's disabled look;
+   the click itself is stopped in the handler. */
+a.btn {
+  text-decoration: none;
+}
+.btn--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn--ghost {
   background: transparent;
   color: var(--fg-muted);

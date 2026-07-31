@@ -1,5 +1,6 @@
 import type {
   Connection,
+  GoogleStatus,
   ConnectionTestResult,
   Health,
   Provider,
@@ -42,6 +43,8 @@ export class MockRunSource implements RunSource {
   private readonly connections: Record<Provider, { config: Record<string, string>; updatedAt: string | null }> = {
     jira: { config: {}, updatedAt: null },
     slack: { config: {}, updatedAt: null },
+    github: { config: {}, updatedAt: null },
+    google: { config: {}, updatedAt: null },
   };
 
   async health(): Promise<Health> {
@@ -144,7 +147,9 @@ export class MockRunSource implements RunSource {
 
   async getConnections(): Promise<Connection[]> {
     await delay(160);
-    return (['jira', 'slack'] as Provider[]).map((provider) => this.maskConnection(provider));
+    return (['jira', 'slack', 'github', 'google'] as Provider[]).map((provider) =>
+      this.maskConnection(provider),
+    );
   }
 
   async saveConnection(provider: Provider, config: Record<string, string>): Promise<Connection> {
@@ -167,6 +172,23 @@ export class MockRunSource implements RunSource {
       }
       return { ok: true, message: `Bağlandı — ${cfg.email} · 3 proje görünür (mock).`, checkedAt };
     }
+    if (provider === 'github') {
+      if (!cfg.token) {
+        return { ok: false, message: 'GitHub için fine-grained token (github_pat_…) gerekli.', checkedAt };
+      }
+      return {
+        ok: true,
+        message: `Bağlandı — ${cfg.login || '@me'} · 2 PR, 1 issue görünür (mock).`,
+        checkedAt,
+      };
+    }
+    if (provider === 'google') {
+      return {
+        ok: false,
+        message: 'Google mock veri kaynağında bağlanamaz — canlı API gerekiyor.',
+        checkedAt,
+      };
+    }
     if (!cfg.botToken) {
       return { ok: false, message: 'Slack bot token (xoxb-…) girilmemiş.', checkedAt };
     }
@@ -176,11 +198,22 @@ export class MockRunSource implements RunSource {
     return { ok: true, message: 'Bağlandı — relay-bot · 2 kanal görünür (mock).', checkedAt };
   }
 
+  async getGoogleStatus(): Promise<GoogleStatus> {
+    await delay(140);
+    return {
+      configured: false,
+      connected: false,
+      scopes: 'gmail.readonly calendar.readonly',
+      redirectUri: '',
+      startUrl: '/api/oauth/google/start',
+    };
+  }
+
   /* ---------------------------------------------------------------- */
 
   private maskConnection(provider: Provider): Connection {
     const entry = this.connections[provider];
-    const secretKeys = new Set(['apiToken', 'botToken']);
+    const secretKeys = new Set(['apiToken', 'botToken', 'token', 'refreshToken']);
     const config: Record<string, string> = {};
     for (const [k, v] of Object.entries(entry.config)) {
       config[k] = secretKeys.has(k) ? MASK(v) : v;
