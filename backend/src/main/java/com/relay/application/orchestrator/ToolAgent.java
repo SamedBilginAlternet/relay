@@ -125,6 +125,48 @@ public class ToolAgent {
 
     // ---- grounding --------------------------------------------------------
 
+    /** Marker the coordinator recognises so it can repair the plan instead of giving up. */
+    public static final String UNGROUNDED = "uydurulmuş tanımlayıcı";
+
+    public static boolean ungrounded(String error) {
+        return error != null && error.contains(UNGROUNDED);
+    }
+
+    /**
+     * Drops the invented identifiers so the step has to derive them again.
+     *
+     * <p>Without this the repaired step would keep {@code issueKey=RELAY-1} in its draft,
+     * the draft would still satisfy the schema, no model call would happen, and the lookup
+     * step we just inserted would change nothing.
+     */
+    public static Map<String, Object> withoutIdentifiers(Map<String, Object> params) {
+        Map<String, Object> kept = new LinkedHashMap<>();
+        params.forEach((key, value) -> {
+            if (!isIdentifier(key)) {
+                kept.put(key, value);
+            }
+        });
+        return kept;
+    }
+
+    /**
+     * The cheapest READ tool of the same provider — the step to run <em>before</em> a write
+     * whose identifier came from nowhere. Search/list style tools need no entity key
+     * themselves, so they can always run first.
+     */
+    public java.util.Optional<String> lookupToolFor(String writeToolName) {
+        return tools.find(writeToolName)
+                .flatMap(write -> tools.all().stream()
+                        .filter(candidate -> candidate.provider().equals(write.provider()))
+                        .filter(candidate -> candidate.risk() == com.relay.domain.RiskLevel.READ)
+                        .filter(candidate -> {
+                            String name = candidate.name().toLowerCase();
+                            return name.contains("search") || name.contains("list");
+                        })
+                        .map(Tool::name)
+                        .findFirst());
+    }
+
     /**
      * Refuses to write to an entity nobody ever mentioned.
      *
@@ -155,7 +197,7 @@ public class ToolAgent {
             if (value.isEmpty() || value.contains(" ") || haystack.contains(value.toLowerCase())) {
                 continue;
             }
-            return tool.name() + " için uydurulmuş tanımlayıcı: " + field.getKey() + "=" + value
+            return tool.name() + " için " + UNGROUNDED + ": " + field.getKey() + "=" + value
                     + ". Bu kayıt ne hedefte ne de önceki adımların sonucunda geçiyor —"
                     + " önce onu bulan bir arama adımı gerekiyor.";
         }

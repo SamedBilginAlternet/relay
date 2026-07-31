@@ -15,7 +15,7 @@ public class Step {
 
     private final UUID id;
     private final UUID runId;
-    private final int ordinal;
+    private int ordinal;
     private String title;
     private String role;
     private String toolName;
@@ -115,6 +115,11 @@ public class Step {
 
     public int ordinal() {
         return ordinal;
+    }
+
+    /** Renumbering only: the coordinator may insert a step into a running plan. */
+    public void ordinal(int ordinal) {
+        this.ordinal = ordinal;
     }
 
     public String title() {

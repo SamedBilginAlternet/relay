@@ -172,6 +172,10 @@ public class Coordinator {
         costMeter.record(run, step, outcome.tokens(), outcome.costUsd());
 
         if (!outcome.ok()) {
+            if (ToolAgent.ungrounded(outcome.error()) && !step.retriesExhausted()
+                    && insertLookupBefore(run, step)) {
+                return;
+            }
             step.markFailed(outcome.error(), clock.now());
             journal.say(run, step.id(), AgentRole.COORDINATOR, AgentRole.USER,
                     "Adım " + step.ordinal() + " başarısız: " + outcome.error());
@@ -202,6 +206,54 @@ public class Coordinator {
         journal.say(run, step.id(), AgentRole.VERIFIER, AgentRole.COORDINATOR,
                 "Adım " + step.ordinal() + " doğrulandı: " + verdict.reason());
         publishStepFinished(run, step);
+    }
+
+    /**
+     * Repairs a plan that tried to write to a record it never looked up.
+     *
+     * <p>Rather than failing the run — which leaves the user with an error and no work done —
+     * the coordinator puts a read step in front of the write and sends the write back. The
+     * new step is visible in the plan like any other: the repair is part of the audit trail,
+     * not a hidden retry.
+     *
+     * @return {@code true} when the plan was repaired and the loop should yield
+     */
+    private boolean insertLookupBefore(Run run, Step step) {
+        String lookupTool = toolAgent.lookupToolFor(step.toolName()).orElse(null);
+        if (lookupTool == null || alreadyPrecededByRead(run, step)) {
+            return false;
+        }
+
+        Step lookup = Step.create(run.id(), step.ordinal(), "Önce ilgili kaydı bul",
+                AgentRole.toolAgent(lookupTool), lookupTool, Map.of());
+        List<Step> repaired = new ArrayList<>();
+        for (Step existing : run.steps()) {
+            if (existing.ordinal() >= step.ordinal()) {
+                existing.ordinal(existing.ordinal() + 1);
+            }
+            repaired.add(existing);
+        }
+        repaired.add(lookup);
+        repaired.sort((a, b) -> Integer.compare(a.ordinal(), b.ordinal()));
+        run.replaceSteps(repaired);
+        step.params(ToolAgent.withoutIdentifiers(step.params()));
+        step.sendBack();
+
+        journal.say(run, step.id(), AgentRole.COORDINATOR, AgentRole.USER,
+                "Adım " + step.ordinal() + " kaydı adıyla değil varsayımla hedefliyordu."
+                        + " Plana önce " + lookupTool + " adımı eklendi.");
+        runs.save(run);
+        events.publish(run.id(), RunEvent.of(RunEvent.RUN_PLANNED, Map.of("steps", stepViews(run.steps()))));
+        publishCost(run);
+        return true;
+    }
+
+    /** Has a read of the same provider already run before this step? Then repair is pointless. */
+    private boolean alreadyPrecededByRead(Run run, Step step) {
+        String provider = step.toolName() == null ? "" : step.toolName().split("\\.")[0];
+        return run.steps().stream()
+                .filter(other -> other.ordinal() < step.ordinal())
+                .anyMatch(other -> other.toolName() != null && other.toolName().startsWith(provider + "."));
     }
 
     private void park(Run run, Step step, String reason, String from) {
