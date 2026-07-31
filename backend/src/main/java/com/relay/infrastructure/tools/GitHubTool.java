@@ -57,6 +57,30 @@ public abstract class GitHubTool extends AbstractTool {
         return HttpJson.send("GET", url, headers(connection), null);
     }
 
+    /**
+     * Turns GitHub's flat permission errors into the sentence that fixes them.
+     *
+     * <p>"Resource not accessible by personal access token" is the same 403 whether the
+     * token is read-only, the repository is outside its scope, or an organisation has not
+     * approved fine-grained tokens at all — and the message names none of those.
+     */
+    static HttpJson.ToolCallException explain(HttpJson.ToolCallException failure, String repo) {
+        String message = failure.getMessage() == null ? "" : failure.getMessage();
+        if (message.contains("403")) {
+            return new HttpJson.ToolCallException(
+                    "GitHub bu token'a yazma izni vermiyor (403). Token'ın izinlerinde"
+                            + " Issues ve Pull requests \"Read and write\" olmalı ve " + repo
+                            + " token'ın erişim listesinde bulunmalı. Repo bir organizasyona aitse"
+                            + " fine-grained token'ları organizasyonun ayrıca onaylaması gerekir.");
+        }
+        if (message.contains("404")) {
+            return new HttpJson.ToolCallException(
+                    repo + " token tarafından görülemiyor (404). Depo adı yanlış olabilir ya da"
+                            + " token'ın repository erişim listesinde değildir.");
+        }
+        return failure;
+    }
+
     protected static boolean notBlank(String value) {
         return value != null && !value.isBlank();
     }
@@ -261,7 +285,12 @@ public abstract class GitHubTool extends AbstractTool {
             String url = API + "/repos/" + repo + "/issues/" + number + "/comments";
             ObjectNode body = Json.object();
             body.put("body", params.path("body").asText());
-            JsonNode response = HttpJson.send("POST", url, headers(connection), body);
+            JsonNode response;
+            try {
+                response = HttpJson.send("POST", url, headers(connection), body);
+            } catch (HttpJson.ToolCallException e) {
+                throw explain(e, repo);
+            }
 
             ObjectNode out = Json.object();
             out.put("repo", repo);
