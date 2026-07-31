@@ -18,7 +18,8 @@ import org.springframework.stereotype.Component;
  * which makes it the cheapest integration of the daily brief (BRIEF §6).
  *
  * <p>Connection config keys: {@code token} (required) and {@code login} (optional).
- * When {@code login} is absent the search qualifiers fall back to {@code @me}.
+ * A missing or non-username {@code login} is resolved from the token itself — see
+ * {@link #me(Connection)}.
  *
  * <p>Responses are normalised here, so the fixtures, the brief and the frontend all see
  * one flat shape instead of GitHub's raw search payload.
@@ -45,10 +46,48 @@ public abstract class GitHubTool extends AbstractTool {
         return headers;
     }
 
-    /** The search qualifier value for "the connected user". */
+    /**
+     * The GitHub username to put in a search qualifier.
+     *
+     * <p>Search qualifiers take a login, not an address: live, the connection carried
+     * {@code login = samed.bilgin@alternet.com.tr} and every query came back HTTP 422, so
+     * the whole KOD section of the brief showed an error. {@code @me} is not a valid REST
+     * qualifier either — that shorthand only works in GitHub's own UI.
+     *
+     * <p>So anything that is not a plain username is ignored and the real login is read
+     * from the token itself. The answer is cached per token: it cannot change without the
+     * credential changing.
+     */
     protected String me(Connection connection) {
         String login = connection.get("login");
-        return notBlank(login) ? login : "@me";
+        if (isUsername(login)) {
+            return login.trim();
+        }
+        return resolveLogin(connection);
+    }
+
+    /** GitHub usernames are alphanumeric with single hyphens — no dots, no @, no spaces. */
+    private static boolean isUsername(String value) {
+        return value != null && value.trim().matches("[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?");
+    }
+
+    private static final Map<String, String> LOGIN_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private String resolveLogin(Connection connection) {
+        String token = connection.get("token");
+        if (!notBlank(token)) {
+            return "@me";
+        }
+        return LOGIN_CACHE.computeIfAbsent(token, key -> {
+            try {
+                JsonNode user = HttpJson.send("GET", API + "/user", headers(connection), null);
+                String login = user.path("login").asText("");
+                return isUsername(login) ? login : "@me";
+            } catch (Exception e) {
+                // Leave the qualifier out rather than guessing; the caller's error is clearer.
+                return "@me";
+            }
+        });
     }
 
     protected JsonNode search(Connection connection, String query, int perPage) throws Exception {
