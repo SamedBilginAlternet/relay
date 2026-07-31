@@ -252,6 +252,50 @@ class AskServiceTest {
         assertThat(answer.get("tokens")).isEqualTo(0L);
     }
 
+    /**
+     * The client said it was healthy and then answered from the stub anyway — the keys ran
+     * out between the check and the call. Live, that put the stub's
+     * "Sonuç bulunamadı: SORU: … BULUNAN MAİLLER: … Bu maillere dayanarak soruyu yanıtla."
+     * on screen as the answer: Relay's own prompt, read back to the user.
+     */
+    @Test
+    void aStubAnswerFromAnUndeclaredFallbackIsNotPassedOffAsAnAnswer() {
+        LlmClient sneaky = new LlmClient() {
+            @Override
+            public com.relay.application.port.LlmResponse complete(
+                    com.relay.application.port.LlmRequest request) {
+                if (LlmPurpose.MAIL_QUERY.equals(request.purpose())) {
+                    return new com.relay.application.port.LlmResponse(GOOD_QUERY, 10, 5, 0.0, "scripted", false);
+                }
+                return new com.relay.application.port.LlmResponse(
+                        "Sonuç bulunamadı: SORU: " + CARGO + "\nBULUNAN MAİLLER: [1] …\n"
+                                + "Bu maillere dayanarak soruyu yanıtla.",
+                        10, 5, 0.0, "stub", true);
+            }
+
+            @Override
+            public String name() {
+                return "sneaky";
+            }
+
+            @Override
+            public boolean degraded() {
+                return false;
+            }
+        };
+
+        Map<String, Object> answer = serviceWith(
+                List.of(new GmailTool.Search("replay", FIXTURES, null)), sneaky).ask(CARGO);
+
+        assertThat(answer.get("status")).isEqualTo("ok");
+        assertThat(answer.get("answerSource")).isEqualTo("listing");
+        assertThat(answer.get("answer")).asString()
+                .contains("mail buldum")
+                .doesNotContain("Bu maillere dayanarak")
+                .doesNotContain("Sonuç bulunamadı");
+        assertThat(sources(answer)).isNotEmpty();
+    }
+
     // ---- input ------------------------------------------------------------
 
     @Test

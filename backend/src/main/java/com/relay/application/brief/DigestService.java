@@ -128,6 +128,11 @@ public class DigestService {
     // ---- parsing ----------------------------------------------------------
 
     private Optional<Digest> parse(LlmResponse response, List<BriefItem> subject) {
+        if (response.fallback()) {
+            // The keys ran out between the degraded() check and the call. Same rule as above:
+            // the stub does not write the day's summary.
+            return Optional.empty();
+        }
         JsonNode root = Json.extract(response.content());
         if (root == null) {
             LOG.log(Level.INFO, "digest answer was not JSON — skipping the field");

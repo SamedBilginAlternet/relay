@@ -157,7 +157,12 @@ public class AskService {
                         result.data(), sources));
                 tokens += response.totalTokens();
                 cost += response.costUsd();
-                answer = sanitizeAnswer(response.content(), sources.size());
+                // The router can drop to the stub *inside* the call — the keys ran out
+                // between the degraded() check and the request. Live, that put the stub's
+                // "Sonuç bulunamadı: <the entire prompt>" on screen as the answer, internal
+                // instructions and all. A stub response is not an answer, whatever the
+                // client said about itself a moment earlier.
+                answer = response.fallback() ? null : sanitizeAnswer(response.content(), sources.size());
                 if (answer != null) {
                     answerSource = ANSWER_LLM;
                 }

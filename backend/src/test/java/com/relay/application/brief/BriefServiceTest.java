@@ -235,6 +235,40 @@ class BriefServiceTest {
         assertThat(priority(brief)).isNotEmpty();
     }
 
+    /**
+     * Same rule as {@code noDigestIsWrittenWhileTheModelIsDegraded}, for the case the flag
+     * misses: the client says it is healthy, the keys run out during the call, and the answer
+     * comes back from the stub. A summary is only ever written by a real model.
+     */
+    @Test
+    void aDigestThatCameFromTheStubIsDroppedEvenWhenTheClientSaysItIsHealthy() {
+        ToolRegistry registry = new ToolRegistryImpl(everything());
+        LlmClient sneaky = new LlmClient() {
+            @Override
+            public com.relay.application.port.LlmResponse complete(
+                    com.relay.application.port.LlmRequest request) {
+                return new com.relay.application.port.LlmResponse(
+                        "{\"summary\":\"Bugün her şey yolunda.\",\"priorities\":[],\"advice\":\"Devam et.\"}",
+                        10, 5, 0.0, "stub", true);
+            }
+
+            @Override
+            public String name() {
+                return "sneaky";
+            }
+
+            @Override
+            public boolean degraded() {
+                return false;
+            }
+        };
+
+        Map<String, Object> brief = serviceWith(registry, new TestDoubles.FixedClock(), sneaky).brief();
+
+        assertThat(brief).doesNotContainKey("digest");
+        assertThat(priority(brief)).isNotEmpty();
+    }
+
     @Test
     void digestCarriesASummaryAnOrderAndAdviceWithoutTouchingTheOldFields() {
         ToolRegistry registry = new ToolRegistryImpl(everything());
