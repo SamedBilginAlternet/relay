@@ -13,7 +13,7 @@ type Props = {
 export function Composer({
   onSubmit,
   busy = false,
-  placeholder = 'Ne yapmamı istersin? Örn: “Sprint blocker’larını çıkar, Jira’da güncelle, ekibe Slack’ten özet at.”',
+  placeholder = 'Ne yapmamı istersin? Örn: “Blocker etiketli Jira işlerini bul, durumlarını güncelle, ekibe Slack’ten özet at.”',
   variant = 'inline',
   autoFocus = false,
   value,

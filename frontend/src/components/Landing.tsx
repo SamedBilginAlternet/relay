@@ -10,7 +10,7 @@ type Props = {
 
 const SUGGESTIONS: { text: string; tools: string }[] = [
   {
-    text: 'Sprint’teki blocker’ları çıkar, Jira’da durumlarını güncelle, ekibe Slack’ten özet at.',
+    text: 'Jira’daki blocker etiketli işleri bul, durumlarını güncelle, ekibe Slack’ten özet at.',
     tools: 'jira.searchIssues · jira.updateIssue · slack.postMessage',
   },
   {
