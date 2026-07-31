@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 export type Route =
   | { name: 'today' }
   | { name: 'chat' }
+  | { name: 'ask' }
   | { name: 'history' }
   | { name: 'history-detail'; runId: string }
   | { name: 'connections' }
@@ -17,6 +18,8 @@ export function parseHash(hash: string): Route {
     return parts[1] ? { name: 'history-detail', runId: decodeURIComponent(parts[1]) } : { name: 'history' };
   }
   if (parts[0] === 'connections') return { name: 'connections' };
+  // `#/sor` reads the mailbox and answers; it never runs a tool, so it is not `#/sohbet`.
+  if (parts[0] === 'sor') return { name: 'ask' };
   if (parts[0] === 'giris') return { name: 'login' };
   if (parts[0] === 'kayit') return { name: 'register' };
   if (parts[0] === 'onboarding') return { name: 'onboarding' };

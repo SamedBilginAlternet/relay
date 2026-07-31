@@ -1,5 +1,7 @@
 import { ApiBriefSource } from './ApiBriefSource';
 import { ApiRunSource } from './ApiRunSource';
+import { ApiAskSource, MockAskSource } from './AskSource';
+import type { AskSource } from './AskSource';
 import type { BriefSource } from './BriefSource';
 import { MockBriefSource } from './MockBriefSource';
 import { MockRunSource } from './MockRunSource';
@@ -36,5 +38,15 @@ export function getBriefSource(): BriefSource {
   return briefInstance;
 }
 
+let askInstance: AskSource | null = null;
+
+export function getAskSource(): AskSource {
+  if (!askInstance) {
+    askInstance = RUN_SOURCE_KIND === 'api' ? new ApiAskSource(API_BASE_URL) : new MockAskSource();
+  }
+  return askInstance;
+}
+
 export type { RunSource, RunStreamHandlers, StreamStatus, Unsubscribe } from './RunSource';
 export type { BriefSource } from './BriefSource';
+export type { AskSource } from './AskSource';

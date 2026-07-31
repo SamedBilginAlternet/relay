@@ -1,4 +1,4 @@
-import { History, MessageSquare, Plug, Sun } from 'lucide-react';
+import { History, MessageSquare, Plug, Search, Sun } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
 import type { Route } from '../lib/router';
@@ -10,6 +10,7 @@ type Props = {
 
 const ITEMS: { hash: string; label: string; match: Route['name'][]; Icon: LucideIcon }[] = [
   { hash: '#/', label: 'Bugün', match: ['today'], Icon: Sun },
+  { hash: '#/sor', label: 'Postana sor', match: ['ask'], Icon: Search },
   { hash: '#/sohbet', label: 'Sohbet', match: ['chat'], Icon: MessageSquare },
   { hash: '#/history', label: 'Geçmiş', match: ['history', 'history-detail'], Icon: History },
   { hash: '#/connections', label: 'Bağlantılar', match: ['connections'], Icon: Plug },

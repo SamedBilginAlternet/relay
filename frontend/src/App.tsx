@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AppHeader } from './components/AppHeader';
 import { useHashRoute } from './lib/router';
+import { AskScreen } from './screens/AskScreen';
 import { AuthGate } from './screens/AuthGate';
 import { ChatScreen } from './screens/ChatScreen';
 import { ConnectionsScreen } from './screens/ConnectionsScreen';
@@ -34,6 +35,7 @@ export default function App() {
         <main className="main" id="main" ref={mainRef} tabIndex={-1}>
           {route.name === 'today' && <TodayScreen onNavigate={navigate} />}
           {route.name === 'chat' && <ChatScreen />}
+          {route.name === 'ask' && <AskScreen />}
           {route.name === 'history' && <HistoryScreen onOpen={(id) => navigate(`#/history/${id}`)} />}
           {route.name === 'history-detail' && (
             <RunDetailScreen

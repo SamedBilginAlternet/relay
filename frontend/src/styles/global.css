@@ -2298,6 +2298,204 @@ a.btn {
 }
 
 /* ------------------------------------------------------------------ */
+/* Sor — a question about the mailbox, answered with sources           */
+/* ------------------------------------------------------------------ */
+
+.ask__form {
+  align-items: center;
+}
+.ask__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 6px;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--fg);
+}
+.ask__input::placeholder {
+  color: var(--fg-faint);
+}
+.ask__examples {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  flex-wrap: wrap;
+}
+.ask__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+.ask__error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-8);
+}
+
+.ans {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+}
+
+/* The receipt. Quiet block, mono query — it is evidence, not decoration. */
+.ans__trace {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: var(--s-12);
+  border-left: 2px solid var(--accent-line);
+}
+.ans__trace-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--fg);
+}
+.ans__trace-line > svg {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: var(--accent);
+}
+.ans__query {
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  background: var(--bg-subtle);
+  color: var(--fg-muted);
+  /* a Gmail query is one long line; wrap it instead of scrolling the page */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ans__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.ans__meta > span + span::before {
+  content: '·';
+  margin-right: 10px;
+  color: var(--fg-faint);
+}
+
+.ans__text {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--fg);
+  /* the listing fallback is newline-separated; keep the shape the server sent */
+  white-space: pre-wrap;
+}
+
+/* Inline footnote. Deliberately small: it is part of a sentence, not a control
+   in its own right, so it takes the inline-target exemption rather than 44px. */
+.cite {
+  padding: 0 1px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  vertical-align: baseline;
+}
+.cite:hover,
+.cite:focus-visible {
+  text-decoration: underline;
+}
+
+.ans__srcs-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-12);
+  flex-wrap: wrap;
+}
+.ans__srcs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.ans__src {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-12);
+  min-height: 44px;
+  padding: 10px var(--s-16);
+  transition: background-color 160ms ease-out;
+}
+.ans__src + .ans__src {
+  border-top: 1px solid var(--border);
+}
+/* where a citation lands — a tint plus the accent edge, never colour alone:
+   the row is also scrolled to and its link focused */
+.ans__src--active {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
+.ans__src-n {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ans__src-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ans__src-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+  text-decoration: none;
+}
+.ans__src-link > svg {
+  flex: 0 0 auto;
+  color: var(--fg-faint);
+}
+.ans__src-link:hover {
+  text-decoration: underline;
+}
+.ans__src-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.ans__src-meta > svg {
+  flex: 0 0 auto;
+}
+
+/* ------------------------------------------------------------------ */
 /* Reduced motion                                                      */
 /* ------------------------------------------------------------------ */
 
