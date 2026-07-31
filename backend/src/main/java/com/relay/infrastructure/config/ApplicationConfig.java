@@ -1,5 +1,7 @@
 package com.relay.infrastructure.config;
 
+import com.relay.application.assistant.AskService;
+import com.relay.application.assistant.MailQueryTranslator;
 import com.relay.application.brief.BriefService;
 import com.relay.application.brief.DigestService;
 import com.relay.application.brief.InsightService;
@@ -132,6 +134,17 @@ public class ApplicationConfig {
                                      @Value("${app.brief.default-project-key:RELAY}") String projectKey) {
         return new BriefService(tools, connections, insights, digests, llm, clock, briefExecutor,
                 Duration.ofSeconds(timeoutSeconds), Duration.ofSeconds(cacheSeconds), timezone, projectKey);
+    }
+
+    @Bean
+    public MailQueryTranslator mailQueryTranslator(LlmClient llm) {
+        return new MailQueryTranslator(llm);
+    }
+
+    @Bean
+    public AskService askService(ToolRegistry tools, ConnectionRepository connections,
+                                 MailQueryTranslator translator, LlmClient llm) {
+        return new AskService(tools, connections, translator, llm);
     }
 
     @Bean
