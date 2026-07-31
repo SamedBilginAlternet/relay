@@ -28,7 +28,10 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .allowedOriginPatterns(allowedOrigins.split(","))
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
-                .allowCredentials(false)
+                // The session lives in a cookie, so a cross-origin SPA (docker-compose puts
+                // the web on :8086 and the API on :8087) must be allowed to send it.
+                // Safe because the origins are an explicit list, never "*".
+                .allowCredentials(true)
                 .maxAge(3600);
     }
 }

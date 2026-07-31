@@ -21,6 +21,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-validation")
+    // BCrypt only. NOT spring-boot-starter-security: that installs its own filter chain
+    // and would take over every endpoint before our AuthFilter got a say.
+    implementation("org.springframework.security:spring-security-crypto")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")

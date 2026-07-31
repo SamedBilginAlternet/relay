@@ -45,6 +45,18 @@ app:
     mode: ${TOOLS_MODE:replay}
   budget:
     default-usd: ${DEFAULT_BUDGET_USD:0.50}
+  auth:
+    # Guard on /api/**. Only turn it off for an offline demo you control end to end.
+    enabled: ${AUTH_ENABLED:true}
+    cookie:
+      # Browsers exempt localhost, so this can stay true in local development.
+      secure: ${AUTH_COOKIE_SECURE:true}
+    # Where the Google sign-in callback drops the browser once the cookie is set.
+    success-redirect: ${AUTH_SUCCESS_REDIRECT:/}
+    google:
+      # Identity-only callback; must also be registered in the Google console.
+      # Empty means "derive it from the incoming request" (right for same-origin deploys).
+      redirect-uri: ${GOOGLE_LOGIN_REDIRECT_URI:}
   brief:
     # Per-tool ceiling for the parallel fan-out; a slow provider never blocks the screen.
     tool-timeout-seconds: ${BRIEF_TOOL_TIMEOUT_SECONDS:8}
