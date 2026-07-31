@@ -39,5 +39,4 @@ frontend/dev-dist/
 .idea/
 **/.DS_Store
 **/*.log
-**/bin/
-**/obj/
+**/*.iml

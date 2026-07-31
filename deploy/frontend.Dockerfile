@@ -1,15 +1,16 @@
 # syntax=docker/dockerfile:1.7
 # ---------------------------------------------------------------------------
-# Rung — frontend image
+# Relay — frontend image (React + Vite + TypeScript SPA)
 #
 # Build context: the REPOSITORY ROOT (so that this Dockerfile and the sibling
 # deploy/frontend.Dockerfile.dockerignore are both honoured by BuildKit).
 #
-#   docker build -f deploy/frontend.Dockerfile -t rung-web .
+#   docker build -f deploy/frontend.Dockerfile -t relay-web .
 #
 # Stage 1: node — install deps (cached on the lockfile) and run `vite build`.
 # Stage 2: nginx:alpine — serve the static `dist/` with SPA history fallback.
-#          The API is NOT proxied here; the edge (Caddy) routes /api and /hub.
+#          The API is NOT proxied here; the edge (Caddy) routes /api/*,
+#          including the SSE stream /api/runs/{id}/stream.
 # ---------------------------------------------------------------------------
 
 ARG NODE_VERSION=22
@@ -36,15 +37,15 @@ RUN --mount=type=cache,target=/root/.npm \
 COPY frontend/ ./
 
 # Vite bakes these in at build time — they cannot be changed at runtime.
+# Changing one of them needs `docker compose build web`; a restart does nothing.
 #   VITE_API_BASE_URL=""  -> same-origin (production behind Caddy)
-#   VITE_API_BASE_URL="http://127.0.0.1:8411" -> local docker-compose dev
+#   VITE_API_BASE_URL="http://127.0.0.1:8087/api" -> local docker-compose dev
 ARG VITE_API_BASE_URL=""
-# Prod varsayilani `api`: aksi halde SPA mock fixture ile yayina cikar.
-ARG VITE_CARD_SOURCE="api"
-ARG VITE_SCROLL_STRATEGY="spring"
+# Run kaynagi. `api` = gercek backend (PROD'DA BU OLMALI),
+# `mock` = repodaki fixture ile calisan demo modu.
+ARG VITE_RUN_SOURCE="api"
 ARG VITE_APP_VERSION="dev"
-ENV VITE_CARD_SOURCE=${VITE_CARD_SOURCE} \
-    VITE_SCROLL_STRATEGY=${VITE_SCROLL_STRATEGY} \
+ENV VITE_RUN_SOURCE=${VITE_RUN_SOURCE} \
     VITE_API_BASE_URL=${VITE_API_BASE_URL} \
     VITE_APP_VERSION=${VITE_APP_VERSION} \
     NODE_ENV=production

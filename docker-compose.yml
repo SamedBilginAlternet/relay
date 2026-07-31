@@ -1,0 +1,150 @@
+# ---------------------------------------------------------------------------
+# Relay — DEVELOPMENT stack.
+#
+# The normal local loop does NOT run the app in Docker: the backend runs from
+# the IDE (or `JAVA_HOME=~/jdk21 ./gradlew bootRun`) and the frontend on the
+# Vite dev server. All this file has to provide for that is a database:
+#
+#   docker compose up -d db          # postgres on localhost:${DB_PORT:-5432}
+#
+# To bring up the full containerised stack the way production runs it — same
+# Dockerfiles, same entrypoint validation — use the `app` profile:
+#
+#   docker compose --profile app up -d --build
+#
+# PRODUCTION USES A DIFFERENT FILE: docker-compose.prod.yml. Do not deploy this
+# one. Differences on purpose:
+#   * postgres IS published here (psql/DataGrip), never in production
+#   * weak, hardcoded dev defaults for the password and the encryption key
+#   * TOOLS_MODE=stub so a local run can never post to a real Slack channel
+#   * its own project name, so the dev volume can never collide with prod's
+#
+# The `${VAR:?message}` ban applies here too — same Coolify parser, and keeping
+# both files consistent means nobody has to remember which rule lives where.
+# ---------------------------------------------------------------------------
+name: ${COMPOSE_PROJECT_NAME:-relay}-dev
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ------------------------------------------------------------------- db ---
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-relay}
+      # Dev-only default. Production has NO default and the api entrypoint
+      # refuses to start without a real one.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-relay}
+      POSTGRES_DB: ${POSTGRES_DB:-relay}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      TZ: ${TZ:-Etc/UTC}
+    ports:
+      # Published so psql/DataGrip/Flyway can reach it from the host.
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      # Same reasoning as production: `pg_isready` and `psql -h 127.0.0.1` are
+      # false positives because the image's pg_hba.conf trusts loopback before
+      # it ever checks a password. `-h db` goes through the network and is
+      # actually authenticated.
+      test:
+        [
+          "CMD-SHELL",
+          "PGPASSWORD=$$POSTGRES_PASSWORD psql -h db -U $$POSTGRES_USER -d $$POSTGRES_DB -c 'SELECT 1' >/dev/null 2>&1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging: *default-logging
+    networks: [relay]
+
+  # ------------------------------------------------------------------ api ---
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+      target: runtime
+      args:
+        JAVA_VERSION: ${JAVA_VERSION:-21}
+        APP_VERSION: ${APP_VERSION:-0.1.0-dev}
+    image: ${IMAGE_PREFIX:-relay}-api:dev
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-relay}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-relay}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-relay}
+      GROQ_API_KEYS: ${GROQ_API_KEYS:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      # Dev-only key. Long enough to pass the entrypoint check, worthless as a
+      # secret — never reuse it anywhere that stores a real Jira/Slack token.
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-dev-only-insecure-encryption-key-0123456789}
+      # stub by default: a local run must not be able to write to real Jira.
+      TOOLS_MODE: ${TOOLS_MODE:-stub}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:${WEB_PORT:-8086},http://127.0.0.1:${WEB_PORT:-8086}}
+      TZ: ${TZ:-Etc/UTC}
+    ports:
+      - "${API_PORT:-8087}:8080"
+    healthcheck:
+      # Plain GET: busybox wget has no --tries and --spider sends HEAD, which a
+      # GET-only /api/health answers with 405.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging: *default-logging
+    networks: [relay]
+
+  # ------------------------------------------------------------------ web ---
+  web:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: deploy/frontend.Dockerfile
+      target: runtime
+      args:
+        NODE_VERSION: ${NODE_VERSION:-22}
+        VITE_RUN_SOURCE: ${VITE_RUN_SOURCE:-api}
+        # Not same-origin locally: there is no Caddy in front, so the SPA has
+        # to be told where the API is.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:${API_PORT:-8087}/api}
+        VITE_APP_VERSION: ${APP_VERSION:-0.1.0-dev}
+    image: ${IMAGE_PREFIX:-relay}-web:dev
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "${WEB_PORT:-8086}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging: *default-logging
+    networks: [relay]
+
+# NOTE: inside this file `${COMPOSE_PROJECT_NAME}` resolves to the project name
+# compose already computed from `name:` above — i.e. it ALREADY ends in `-dev`.
+# Appending `-dev` again here would produce `relay-dev-dev-db-data`.
+volumes:
+  db-data:
+    name: ${COMPOSE_PROJECT_NAME:-relay-dev}-db-data
+
+networks:
+  relay:
+    name: ${COMPOSE_PROJECT_NAME:-relay-dev}-net
+    driver: bridge

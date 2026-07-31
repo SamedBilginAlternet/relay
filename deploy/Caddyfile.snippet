@@ -1,5 +1,5 @@
 # ===========================================================================
-# Rung — Caddy site block
+# Relay — Caddy site block
 # ===========================================================================
 #
 # NEREYE EKLENECEK  *** DROPLET'İ DÜZENLEMEYİN ***
@@ -11,14 +11,14 @@
 #     infra/digitalocean/Caddyfile
 #
 # Bloğu dosyanın sonundaki diğer proje bloklarının yanına ekleyin
-# (faruktekstil / kpssatlas / olay ile aynı bölüm), commit'leyin, n11'i
+# (faruktekstil / kpssatlas / olay / rung ile aynı bölüm), commit'leyin, n11'i
 # deploy edin. Caddy TLS'i Let's Encrypt ile kendi alır.
 #
 # NEDEN host.docker.internal, NEDEN 127.0.0.1 DEĞİL
 # --------------------------------------------------
 # Caddy bu kutuda bir KONTEYNER içinde çalışıyor ve `extra_hosts: host-gateway`
 # ile host'a ulaşıyor. `127.0.0.1` yazarsanız Caddy'nin KENDİ loopback'ini
-# gösterir, host'unkini değil — sonuç 502. Aynı sebeple Rung'un compose
+# gösterir, host'unkini değil — sonuç 502. Aynı sebeple Relay'in compose
 # dosyası portları `127.0.0.1:` ile DEĞİL, tüm arayüzlere yayımlıyor.
 #
 # COOLIFY TARAFI
@@ -33,37 +33,35 @@
 #
 # PORTLAR
 # -------
-# 8081 = Faruk, 8082 = KPSS Atlas, 8083 = Olaylar Arşivi.
-# Rung sıradaki ikisini alıyor: 8084 (web) ve 8085 (api).
+# 8081 = Faruk, 8082 = KPSS Atlas, 8083 = Olaylar Arşivi, 8084/8085 = Rung.
+# Relay sıradaki ikisini alıyor: 8086 (web) ve 8087 (api).
 # Deploy etmeden ÖNCE boş olduklarını doğrulayın, varsaymayın:
-#     for p in $(seq 8084 8099); do ss -tln | grep -q ":$p " || echo "BOS: $p"; done
+#     for p in $(seq 8086 8099); do ss -tln | grep -q ":$p " || echo "BOS: $p"; done
 # Değiştirirseniz .env'deki WEB_PORT/API_PORT ile bu blok AYNI olmalı.
 #
 # --------------------------- BURADAN KOPYALA -------------------------------
 
-# Rung (Coolify ile yonetilir, web 8084 / api 8085)
-rung.samedbilgin.com {
-    # SignalR hub'i once gelmeli. `encode` BILEREK yok: SSE/long-polling
-    # fallback'i sikistirmak frame'leri buffer'lar ve baglanti donmus gorunur.
-    # Elle `header_up Connection/Upgrade` EKLEMEYIN — Caddy hop-by-hop
-    # header'lari kendi yonetir, ezmek handshake'i bozmanin klasik yoludur.
-    handle /hub/* {
-        reverse_proxy host.docker.internal:8085 {
-            transport http {
-                versions 1.1
-            }
+# Relay (Coolify ile yonetilir, web 8086 / api 8087)
+relay.samedbilgin.com {
+    # SSE akisi ONCE gelmeli — asagidaki genel /api/* bloguyla ayni yolu
+    # esliyor ve Caddy ilk eslesen `handle`i kullanir.
+    # `encode` BILEREK yok: SSE'yi sikistirmak frame'leri buffer'lar, olaylar
+    # toplu halde gelir ve arayuz DONMUS gorunur (adimlar bir anda akar).
+    # `flush_interval -1` her yazmayi aninda istemciye iter.
+    handle /api/runs/*/stream {
+        reverse_proxy host.docker.internal:8087 {
             flush_interval -1
         }
     }
 
     handle /api/* {
         encode zstd gzip
-        reverse_proxy host.docker.internal:8085
+        reverse_proxy host.docker.internal:8087
     }
 
     handle {
         encode zstd gzip
-        reverse_proxy host.docker.internal:8084
+        reverse_proxy host.docker.internal:8086
     }
 
     log {
@@ -79,9 +77,15 @@ rung.samedbilgin.com {
 #
 # DOGRULAMA (n11 deploy'undan sonra)
 # ----------------------------------
-#   curl -sS https://rung.samedbilgin.com/api/health
-#   curl -sSI https://rung.samedbilgin.com/ | head -n1
-#   curl -sSI -H "Connection: Upgrade" -H "Upgrade: websocket" \
-#        -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
-#        https://rung.samedbilgin.com/hub/generation
-#        # beklenen: 101 veya SignalR'dan 400. 502 gelirse port/host yanlis.
+#   curl -sS https://relay.samedbilgin.com/api/health ; echo
+#   curl -sSI https://relay.samedbilgin.com/ | head -n1
+#
+#   # SSE: header'lar aninda gelmeli, `content-type: text/event-stream` ve
+#   # `content-encoding` YOK. Varsa `encode` yanlislikla bu yola sizmis demektir.
+#   curl -sSI -H 'Accept: text/event-stream' \
+#        https://relay.samedbilgin.com/api/runs/00000000-0000-0000-0000-000000000000/stream
+#
+#   # Canli akis testi (gercek bir runId ile): olaylar TEK TEK dusmeli,
+#   # 30 saniye sessizlik sonrasi toplu halde degil.
+#   curl -N -H 'Accept: text/event-stream' \
+#        https://relay.samedbilgin.com/api/runs/<RUN_ID>/stream

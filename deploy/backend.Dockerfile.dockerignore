@@ -7,19 +7,25 @@
 # Requires BuildKit (default for `docker compose` v2+ / `docker buildx build`).
 #
 # Rule: ignore everything, then re-add only what the backend build needs.
+# deploy/backend-entrypoint.sh is re-added because the runtime stage COPYs it.
 # ---------------------------------------------------------------------------
 *
 
 !backend/
+!deploy/backend-entrypoint.sh
 
 # ---- never ship build output or local state into the context ---------------
-backend/**/bin/
-backend/**/obj/
-backend/**/.vs/
-backend/**/TestResults/
-backend/**/*.user
-backend/**/appsettings.Development.json
-backend/**/appsettings.Local.json
+# Gradle (the wrapper JAR itself must stay — do NOT ignore backend/gradle/)
+backend/**/build/
+backend/**/.gradle/
+backend/**/out/
+# Maven (kept in case the backend ever switches wrappers)
+backend/**/target/
+# JVM crash dumps / profiler output
+backend/**/hs_err_pid*.log
+backend/**/*.hprof
+# local-only Spring config — production config comes from environment variables
+backend/**/application-local.*
 backend/**/*.db
 backend/**/*.db-shm
 backend/**/*.db-wal
@@ -28,7 +34,8 @@ backend/**/*.db-wal
 **/.env
 **/.env.*
 **/*.pem
-**/*.pfx
+**/*.p12
+**/*.jks
 **/*.key
 
 # ---- vcs / editor / os -----------------------------------------------------
@@ -37,6 +44,7 @@ backend/**/*.db-wal
 .github/
 .vscode/
 .idea/
+**/*.iml
 **/.DS_Store
 **/*.log
 **/node_modules/
