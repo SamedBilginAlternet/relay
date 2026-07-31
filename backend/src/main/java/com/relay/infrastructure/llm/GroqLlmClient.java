@@ -29,50 +29,87 @@ public class GroqLlmClient implements LlmClient {
     private final String model;
     private final double inputUsdPerMillion;
     private final double outputUsdPerMillion;
+    private final String smallModel;
+    /**
+     * Cooldowns are tracked per model on purpose: Groq rate limits each model separately,
+     * so a key that is out of budget on the big model may still answer on the small one.
+     * Sharing one pool would park it for both and throw that capacity away.
+     */
+    private final ApiKeyPool smallKeys;
 
     public GroqLlmClient(ApiKeyPool keys, HttpTransport transport, String baseUrl, String model,
                          double inputUsdPerMillion, double outputUsdPerMillion) {
+        this(keys, transport, baseUrl, model, inputUsdPerMillion, outputUsdPerMillion, null, null);
+    }
+
+    public GroqLlmClient(ApiKeyPool keys, HttpTransport transport, String baseUrl, String model,
+                         double inputUsdPerMillion, double outputUsdPerMillion,
+                         String smallModel, ApiKeyPool smallKeys) {
         this.keys = keys;
         this.transport = transport;
         this.baseUrl = baseUrl;
         this.model = model;
         this.inputUsdPerMillion = inputUsdPerMillion;
         this.outputUsdPerMillion = outputUsdPerMillion;
+        this.smallModel = smallModel == null || smallModel.isBlank() ? null : smallModel.trim();
+        this.smallKeys = smallKeys;
     }
 
     @Override
     public LlmResponse complete(LlmRequest request) {
-        String body = requestBody(request);
+        Attempt big = attempt(request, model, keys);
+        if (big.response() != null) {
+            return big.response();
+        }
+        // The big model is out of budget for now. A smaller one still writes a usable
+        // message, and a usable message beats the offline fallback's summary of nothing.
+        if (smallModel != null && smallKeys != null) {
+            Attempt small = attempt(request, smallModel, smallKeys);
+            if (small.response() != null) {
+                LOG.log(Level.INFO, "groq answered on {0} — {1} is rate limited", smallModel, model);
+                return small.response();
+            }
+        }
+        throw new LlmUnavailableException("all groq keys exhausted (" + big.error() + ")");
+    }
+
+    private record Attempt(LlmResponse response, String error) {
+    }
+
+    /** One pass over the pool for a single model. */
+    private Attempt attempt(LlmRequest request, String targetModel, ApiKeyPool pool) {
+        String body = requestBody(request, targetModel);
         String lastError = "no key available";
 
-        for (int attempt = 0; attempt < Math.max(1, keys.total()); attempt++) {
-            Optional<String> key = keys.next();
+        for (int tries = 0; tries < Math.max(1, pool.total()); tries++) {
+            Optional<String> key = pool.next();
             if (key.isEmpty()) {
                 break;
             }
             HttpTransport.Reply reply = transport.post(baseUrl + "/chat/completions", key.get(), body);
             if (reply.ok()) {
-                return parse(reply.body());
+                return new Attempt(parse(reply.body(), targetModel), null);
             }
             lastError = "groq HTTP " + reply.status();
             if (reply.shouldRotate()) {
                 // A refused key (revoked, out of quota) never recovers; a rate limited one
                 // does. Parking both for 60s would keep resurrecting a dead key.
                 if (reply.refused()) {
-                    keys.retire(key.get());
+                    pool.retire(key.get());
                     LOG.log(Level.WARNING, "groq key {0} retired ({1}) — provider refused it",
                             ApiKeyPool.mask(key.get()), reply.status());
                 } else {
-                    keys.penalize(key.get(), reply.retryAfter());
-                    LOG.log(Level.WARNING, "groq key {0} parked ({1}, retry-after {2}) — rotating",
-                            ApiKeyPool.mask(key.get()), reply.status(), String.valueOf(reply.retryAfter()));
+                    pool.penalize(key.get(), reply.retryAfter());
+                    LOG.log(Level.WARNING, "groq key {0} parked on {1} ({2}, retry-after {3}) — rotating",
+                            ApiKeyPool.mask(key.get()), targetModel, reply.status(),
+                            String.valueOf(reply.retryAfter()));
                 }
                 continue;
             }
             // A genuine bad request (400 with a schema problem) will not be fixed by another key.
             throw new LlmUnavailableException("groq rejected the request: HTTP " + reply.status());
         }
-        throw new LlmUnavailableException("all groq keys exhausted (" + lastError + ")");
+        return new Attempt(null, lastError);
     }
 
     @Override
@@ -82,7 +119,7 @@ public class GroqLlmClient implements LlmClient {
 
     @Override
     public boolean degraded() {
-        return keys.available() == 0;
+        return keys.available() == 0 && (smallKeys == null || smallKeys.available() == 0);
     }
 
     public ApiKeyPool keys() {
@@ -95,9 +132,9 @@ public class GroqLlmClient implements LlmClient {
 
     // -----------------------------------------------------------------------
 
-    private String requestBody(LlmRequest request) {
+    private String requestBody(LlmRequest request, String targetModel) {
         ObjectNode root = Json.object();
-        root.put("model", model);
+        root.put("model", targetModel);
         root.put("temperature", request.temperature());
         root.put("max_tokens", request.maxTokens());
 
@@ -119,13 +156,13 @@ public class GroqLlmClient implements LlmClient {
         return root.toString();
     }
 
-    private LlmResponse parse(String body) {
+    private LlmResponse parse(String body, String usedModel) {
         JsonNode root = Json.parse(body);
         String content = root.path("choices").path(0).path("message").path("content").asText("");
         long promptTokens = root.path("usage").path("prompt_tokens").asLong(0);
         long completionTokens = root.path("usage").path("completion_tokens").asLong(0);
         double cost = (promptTokens / 1_000_000d) * inputUsdPerMillion
                 + (completionTokens / 1_000_000d) * outputUsdPerMillion;
-        return new LlmResponse(content, promptTokens, completionTokens, cost, model, false);
+        return new LlmResponse(content, promptTokens, completionTokens, cost, usedModel, false);
     }
 }

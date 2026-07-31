@@ -229,9 +229,13 @@ public class StubLlmClient implements LlmClient {
      * which subjects, how many. Pull those out instead.
      */
     private String digest(String goal, String previousJson) {
-        String previous = previousJson == null ? "" : previousJson;
-        List<String> keys = collect(ISSUE_KEY, previous, 6);
-        List<String> subjects = collect(SUBJECT_LIKE, previous, 4);
+        // Only what the providers returned. The wrapper around each step also carries a
+        // "title" — the step's own name — and reading that produced Slack messages like
+        // "Konular: Jira'da ilgili işleri bul · Slack kanallarını listele": the plan read
+        // back to the team instead of its findings.
+        String payload = resultsOnly(previousJson);
+        List<String> keys = collect(ISSUE_KEY, payload, 6);
+        List<String> subjects = collect(SUBJECT_LIKE, payload, 4);
 
         StringBuilder sb = new StringBuilder();
         if (!keys.isEmpty()) {
@@ -249,6 +253,31 @@ public class StubLlmClient implements LlmClient {
             return "Sonuç bulunamadı: " + goal.trim();
         }
         return sb.toString();
+    }
+
+    /** The {@code result} subtrees of the previous steps, with the step wrappers dropped. */
+    private static String resultsOnly(String previousJson) {
+        if (previousJson == null || previousJson.isBlank()) {
+            return "";
+        }
+        JsonNode parsed;
+        try {
+            parsed = Json.parse(previousJson);
+        } catch (RuntimeException e) {
+            // Not every caller passes a JSON array here; fall back to the raw text.
+            return previousJson;
+        }
+        if (!parsed.isArray()) {
+            return previousJson;
+        }
+        ArrayNode results = Json.mapper().createArrayNode();
+        for (JsonNode step : parsed) {
+            JsonNode result = step.path("result");
+            if (!result.isMissingNode() && !result.isNull()) {
+                results.add(result);
+            }
+        }
+        return results.toString();
     }
 
     /** First {@code limit} distinct capture groups of {@code pattern} in {@code text}. */

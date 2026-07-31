@@ -155,4 +155,30 @@ class GroqKeyRotationTest {
         ApiKeyPool pool = new ApiKeyPool(List.of("gsk_live_abcdefghijklmnop"), Duration.ofSeconds(60), clock);
         assertThat(pool.masked()).containsExactly("gsk_****mnop");
     }
+
+    @Test
+    void theSmallModelAnswersWhenTheBigOneIsRateLimited() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        List<String> models = new ArrayList<>();
+        FakeTransport transport = new FakeTransport(key -> new HttpTransport.Reply(429, RATE_LIMITED)) {
+            @Override
+            public Reply post(String url, String apiKey, String jsonBody) {
+                String model = jsonBody.contains("8b-instant") ? "small" : "big";
+                models.add(model);
+                return "small".equals(model)
+                        ? new HttpTransport.Reply(200, OK_BODY)
+                        : new HttpTransport.Reply(429, RATE_LIMITED);
+            }
+        };
+        ApiKeyPool big = new ApiKeyPool(List.of("key-1"), Duration.ofSeconds(60), clock);
+        ApiKeyPool small = new ApiKeyPool(List.of("key-1"), Duration.ofSeconds(60), clock);
+        GroqLlmClient client = new GroqLlmClient(big, transport, "https://groq.test/v1",
+                "llama-3.3-70b-versatile", 0.59, 0.79, "llama-3.1-8b-instant", small);
+
+        LlmResponse response = client.complete(request());
+
+        assertThat(models).containsExactly("big", "small");
+        assertThat(response.model()).isEqualTo("llama-3.1-8b-instant");
+        assertThat(client.degraded()).as("small tier still has capacity").isFalse();
+    }
 }

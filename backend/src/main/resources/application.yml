@@ -75,6 +75,8 @@ app:
     # Comma separated. Empty means the stub LLM, which always works offline.
     api-keys: ${GROQ_API_KEYS:}
     model: ${GROQ_MODEL:llama-3.3-70b-versatile}
+    # Rate limits are per model, so this tier keeps answering when the big one is spent.
+    small-model: ${GROQ_SMALL_MODEL:llama-3.1-8b-instant}
     base-url: ${GROQ_BASE_URL:https://api.groq.com/openai/v1}
     cooldown-seconds: 60
     price:

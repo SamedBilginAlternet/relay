@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Primary;
 
 /**
  * LLM wiring. With no {@code GROQ_API_KEYS} the app still boots and runs — on the stub.
@@ -33,15 +34,33 @@ public class LlmConfig {
     }
 
     @Bean
+    @Primary
     public ApiKeyPool groqKeyPool(@Value("${app.groq.api-keys:}") String rawKeys,
                                   @Value("${app.groq.cooldown-seconds:60}") long cooldownSeconds,
                                   Clock clock) {
-        List<String> keys = Arrays.stream((rawKeys == null ? "" : rawKeys).split(","))
+        List<String> keys = parseKeys(rawKeys);
+        LOG.log(Level.INFO, "groq keys configured: {0}", keys.size());
+        return new ApiKeyPool(keys, Duration.ofSeconds(cooldownSeconds), clock);
+    }
+
+    /**
+     * The same keys, tracked separately for the small model.
+     *
+     * <p>Groq rate limits per model, so a key parked on the big model can still answer on
+     * the small one. One shared pool would hide that capacity exactly when it is needed.
+     */
+    @Bean
+    public ApiKeyPool groqSmallKeyPool(@Value("${app.groq.api-keys:}") String rawKeys,
+                                       @Value("${app.groq.cooldown-seconds:60}") long cooldownSeconds,
+                                       Clock clock) {
+        return new ApiKeyPool(parseKeys(rawKeys), Duration.ofSeconds(cooldownSeconds), clock);
+    }
+
+    private static List<String> parseKeys(String rawKeys) {
+        return Arrays.stream((rawKeys == null ? "" : rawKeys).split(","))
                 .map(String::trim)
                 .filter(key -> !key.isEmpty())
                 .toList();
-        LOG.log(Level.INFO, "groq keys configured: {0}", keys.size());
-        return new ApiKeyPool(keys, Duration.ofSeconds(cooldownSeconds), clock);
     }
 
     @Bean
@@ -50,12 +69,13 @@ public class LlmConfig {
     }
 
     @Bean
-    public GroqLlmClient groqLlmClient(ApiKeyPool pool, HttpTransport transport,
+    public GroqLlmClient groqLlmClient(ApiKeyPool pool, ApiKeyPool groqSmallKeyPool, HttpTransport transport,
                                        @Value("${app.groq.base-url:https://api.groq.com/openai/v1}") String baseUrl,
                                        @Value("${app.groq.model:llama-3.3-70b-versatile}") String model,
+                                       @Value("${app.groq.small-model:llama-3.1-8b-instant}") String smallModel,
                                        @Value("${app.groq.price.input-usd-per-million:0.59}") double input,
                                        @Value("${app.groq.price.output-usd-per-million:0.79}") double output) {
-        return new GroqLlmClient(pool, transport, baseUrl, model, input, output);
+        return new GroqLlmClient(pool, transport, baseUrl, model, input, output, smallModel, groqSmallKeyPool);
     }
 
     /** The bean the orchestrator gets: Groq with a stub safety net. */
