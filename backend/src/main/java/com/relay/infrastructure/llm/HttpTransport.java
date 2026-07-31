@@ -22,5 +22,13 @@ public interface HttpTransport {
             String lower = body == null ? "" : body.toLowerCase();
             return lower.contains("rate limit") || lower.contains("quota") || lower.contains("insufficient");
         }
+
+        /**
+         * The provider rejected the key itself rather than throttling it — revoked,
+         * unauthorised or out of credit. Waiting does not help; only a new key does.
+         */
+        public boolean refused() {
+            return status == 401 || status == 403 || status == 402;
+        }
     }
 }

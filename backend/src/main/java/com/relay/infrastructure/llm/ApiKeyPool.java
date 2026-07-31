@@ -5,9 +5,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Round-robin over the configured Groq keys. A key that answers 429 / quota-exceeded
@@ -19,6 +21,7 @@ public class ApiKeyPool {
 
     private final List<String> keys;
     private final Map<String, Instant> coolingUntil = new HashMap<>();
+    private final Set<String> retired = new HashSet<>();
     private final Duration cooldown;
     private final Clock clock;
     private int cursor;
@@ -38,21 +41,34 @@ public class ApiKeyPool {
         for (int i = 0; i < keys.size(); i++) {
             String key = keys.get(cursor % keys.size());
             cursor = (cursor + 1) % keys.size();
-            Instant until = coolingUntil.get(key);
-            if (until == null || !until.isAfter(now)) {
-                return Optional.of(key);
+            if (!retired.contains(key)) {
+                Instant until = coolingUntil.get(key);
+                if (until == null || !until.isAfter(now)) {
+                    return Optional.of(key);
+                }
             }
         }
         return Optional.empty();
     }
 
-    /** Park a key that just got rate limited or rejected. */
+    /** Park a key that just got rate limited. It comes back when the cooldown ends. */
     public synchronized void penalize(String key) {
         coolingUntil.put(key, clock.now().plus(cooldown));
     }
 
+    /**
+     * Retire a key the provider refused outright (401/403/402). Waiting will not fix a
+     * revoked key, and pretending otherwise makes {@code /api/health} flip back to green
+     * every cooldown while every call keeps failing.
+     */
+    public synchronized void retire(String key) {
+        retired.add(key);
+        coolingUntil.remove(key);
+    }
+
     public synchronized void clearCooldown(String key) {
         coolingUntil.remove(key);
+        retired.remove(key);
     }
 
     public synchronized int total() {
@@ -63,6 +79,9 @@ public class ApiKeyPool {
         Instant now = clock.now();
         int count = 0;
         for (String key : keys) {
+            if (retired.contains(key)) {
+                continue;
+            }
             Instant until = coolingUntil.get(key);
             if (until == null || !until.isAfter(now)) {
                 count++;

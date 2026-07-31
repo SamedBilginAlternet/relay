@@ -56,9 +56,17 @@ public class GroqLlmClient implements LlmClient {
             }
             lastError = "groq HTTP " + reply.status();
             if (reply.shouldRotate()) {
-                keys.penalize(key.get());
-                LOG.log(Level.WARNING, "groq key {0} parked ({1}) — rotating",
-                        ApiKeyPool.mask(key.get()), reply.status());
+                // A refused key (revoked, out of quota) never recovers; a rate limited one
+                // does. Parking both for 60s would keep resurrecting a dead key.
+                if (reply.refused()) {
+                    keys.retire(key.get());
+                    LOG.log(Level.WARNING, "groq key {0} retired ({1}) — provider refused it",
+                            ApiKeyPool.mask(key.get()), reply.status());
+                } else {
+                    keys.penalize(key.get());
+                    LOG.log(Level.WARNING, "groq key {0} parked ({1}) — rotating",
+                            ApiKeyPool.mask(key.get()), reply.status());
+                }
                 continue;
             }
             // A genuine bad request (400 with a schema problem) will not be fixed by another key.

@@ -21,7 +21,12 @@ public class RoutingLlmClient implements LlmClient {
 
     private final GroqLlmClient primary;
     private final StubLlmClient fallback;
-    private final AtomicBoolean degraded = new AtomicBoolean(false);
+    /**
+     * Set only by failures another key cannot fix (a rejected request, a dead key).
+     * Rate limiting is <em>not</em> recorded here: the pool already parks the key and
+     * frees it when the cooldown ends, so that outage has to expire on its own.
+     */
+    private final AtomicBoolean hardFailure = new AtomicBoolean(false);
     private final AtomicReference<String> lastError = new AtomicReference<>();
 
     public RoutingLlmClient(GroqLlmClient primary, StubLlmClient fallback) {
@@ -34,13 +39,13 @@ public class RoutingLlmClient implements LlmClient {
         if (primary != null && !primary.keys().empty()) {
             try {
                 LlmResponse response = primary.complete(request);
-                if (degraded.compareAndSet(true, false)) {
+                if (hardFailure.compareAndSet(true, false)) {
                     LOG.log(Level.INFO, "groq recovered — leaving stub mode");
                 }
                 lastError.set(null);
                 return response;
             } catch (RuntimeException e) {
-                degraded.set(true);
+                hardFailure.set(!exhausted(e));
                 lastError.set(e.getMessage());
                 LOG.log(Level.WARNING, "groq unavailable ({0}) — falling back to stub", e.getMessage());
             }
@@ -53,19 +58,35 @@ public class RoutingLlmClient implements LlmClient {
         if (primary == null || primary.keys().empty()) {
             return fallback.name();
         }
-        return degraded.get() ? fallback.name() + " (groq degraded)" : primary.name();
+        return degraded() ? fallback.name() + " (groq degraded)" : primary.name();
     }
 
+    /**
+     * Reflects what the next call would do, not what the last one did.
+     *
+     * <p>A burst of 429s used to latch this to {@code true} until some run happened to
+     * succeed, so health stayed red long after the cooldown expired and the key worked
+     * again. Now a freed key is enough to clear it.
+     */
     @Override
     public boolean degraded() {
-        return primary == null || primary.keys().empty() || degraded.get();
+        if (primary == null || primary.keys().empty()) {
+            return true;
+        }
+        return hardFailure.get() || primary.keys().available() == 0;
+    }
+
+    /** Was the failure "every key is cooling down" rather than something a retry cannot fix? */
+    private static boolean exhausted(RuntimeException e) {
+        String message = e.getMessage();
+        return message != null && message.startsWith("all groq keys exhausted");
     }
 
     /** What {@code GET /api/health} shows. Never contains a key. */
     public Map<String, Object> health() {
         Map<String, Object> map = new LinkedHashMap<>();
         boolean groqConfigured = primary != null && !primary.keys().empty();
-        map.put("provider", groqConfigured && !degraded.get() ? "groq" : "stub");
+        map.put("provider", groqConfigured && !degraded() ? "groq" : "stub");
         map.put("model", groqConfigured ? primary.model() : "stub");
         map.put("degraded", degraded());
         map.put("keysTotal", groqConfigured ? primary.keys().total() : 0);
