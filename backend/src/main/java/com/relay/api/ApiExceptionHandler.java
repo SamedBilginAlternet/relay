@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /** Uniform error envelope: {@code {error, message}}. */
 @RestControllerAdvice
@@ -26,10 +27,28 @@ public class ApiExceptionHandler {
         return body(HttpStatus.BAD_REQUEST, "bad_request", e.getMessage());
     }
 
+    /**
+     * A malformed path variable is the caller's mistake, not a server fault.
+     * {@code /api/runs/not-a-uuid} used to answer 500 and hand back Spring's internal
+     * conversion message.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> badParameter(MethodArgumentTypeMismatchException e) {
+        return body(HttpStatus.BAD_REQUEST, "bad_request",
+                "'" + e.getName() + "' değeri geçersiz");
+    }
+
+    /**
+     * Anything unhandled is a bug on our side, so the caller gets a stable sentence and
+     * the detail goes to the log. Exception messages carry whatever the failing layer put
+     * in them — a provider body, a query, occasionally a credential — and none of that
+     * belongs in an HTTP response.
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> unexpected(Exception e) {
         LOG.log(Level.ERROR, "unhandled API error", e);
-        return body(HttpStatus.INTERNAL_SERVER_ERROR, "internal_error", e.getMessage());
+        return body(HttpStatus.INTERNAL_SERVER_ERROR, "internal_error",
+                "Beklenmeyen bir hata oluştu. Sunucu günlüklerine bakın.");
     }
 
     private ResponseEntity<Map<String, Object>> body(HttpStatus status, String code, String message) {

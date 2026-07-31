@@ -44,10 +44,19 @@ public class RunService {
         this.tools = tools;
     }
 
+    /** Long enough for a paragraph of context, short enough not to eat a run's budget. */
+    private static final int MAX_GOAL_CHARS = 2000;
+
     /** Creates the run and returns immediately; planning and execution happen off-thread. */
     public Run start(String goal, Double budgetUsd) {
         if (goal == null || goal.isBlank()) {
             throw new IllegalArgumentException("goal is required");
+        }
+        // The goal is pasted verbatim into every planner and specialist prompt, so an
+        // unbounded one burns the run's budget before a single tool is called.
+        if (goal.length() > MAX_GOAL_CHARS) {
+            throw new IllegalArgumentException("goal is too long: " + goal.length()
+                    + " characters, limit is " + MAX_GOAL_CHARS);
         }
         Run run = Run.create(goal.trim(), clock.now(), budgetUsd != null ? budgetUsd : defaultBudgetUsd);
         runs.save(run);
