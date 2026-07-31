@@ -22,6 +22,16 @@ public class ApiExceptionHandler {
         return body(HttpStatus.NOT_FOUND, "not_found", e.getMessage());
     }
 
+    /**
+     * The caller did nothing wrong; the resource moved. Approving a step on a run somebody
+     * else has just cancelled is the case this exists for — 400 would blame the user for a
+     * button that was legal when the screen drew it.
+     */
+    @ExceptionHandler(RunService.Conflict.class)
+    public ResponseEntity<Map<String, Object>> conflict(RunService.Conflict e) {
+        return body(HttpStatus.CONFLICT, "conflict", e.getMessage());
+    }
+
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
     public ResponseEntity<Map<String, Object>> badRequest(RuntimeException e) {
         return body(HttpStatus.BAD_REQUEST, "bad_request", e.getMessage());

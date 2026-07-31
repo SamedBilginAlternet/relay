@@ -119,6 +119,17 @@ public class RunController {
                 actor(httpRequest)));
     }
 
+    /**
+     * Stops the flow. Answers with the run as it stands: {@code cancelled} when it was
+     * waiting on a human, still {@code running} when a tool call is in flight — that one is
+     * allowed to finish, and the {@code run.finished} event lands when it does.
+     */
+    @PostMapping("/{id}/cancel")
+    public Map<String, Object> cancel(@PathVariable UUID id,
+                                      jakarta.servlet.http.HttpServletRequest request) {
+        return Views.run(runService.cancel(id, actor(request)));
+    }
+
     @PostMapping("/{id}/rerun")
     public ResponseEntity<Map<String, Object>> rerun(@PathVariable UUID id) {
         Run run = runService.rerun(id);

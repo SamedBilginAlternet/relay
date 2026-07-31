@@ -102,8 +102,9 @@ Oturum: rastgele 32 baytlık opak token çereze (`relay_session`, HttpOnly · Se
 | `POST` | `/api/runs` | `{goal}` → `{runId}` — planlama başlar |
 | `GET` | `/api/runs/{id}` | Run + adımlar + mesajlar (tam durum) |
 | `GET` | `/api/runs/{id}/stream` | **SSE** — canlı olaylar |
-| `POST` | `/api/runs/{id}/steps/{stepId}/approve` | Onay |
+| `POST` | `/api/runs/{id}/steps/{stepId}/approve` | Onay — bitmiş ya da iptal edilmiş koşuda **409** |
 | `POST` | `/api/runs/{id}/steps/{stepId}/reject` | `{reason}` — gerekçe ajana gider |
+| `POST` | `/api/runs/{id}/cancel` | Akışı durdur — başlamış araç çağrısı tamamlanır, kalan adımlar `rejected` olur, koşu `cancelled` kapanır. Bitmiş koşuda **409** |
 | `POST` | `/api/runs/{id}/rerun` | Aynı hedefi tekrar çalıştır |
 | `GET` | `/api/runs` | Geçmiş (sayfalı) |
 | `GET`/`PUT` | `/api/connections` | Jira/Slack token'ları (maskeli döner) |

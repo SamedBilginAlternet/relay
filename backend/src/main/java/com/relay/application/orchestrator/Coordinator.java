@@ -48,6 +48,14 @@ public class Coordinator {
     private final Clock clock;
     private final Summarizer summarizer;
     private final Map<UUID, ReentrantLock> locks = new ConcurrentHashMap<>();
+    /**
+     * Runs whose owner pressed Durdur, mapped to whoever pressed it.
+     *
+     * <p>Deliberately in memory and not on the run: it is a request that lives for seconds,
+     * and the driving thread — which may be mid tool call with its own copy of the aggregate
+     * — would overwrite anything written to the row underneath it.
+     */
+    private final Map<UUID, String> cancelRequests = new ConcurrentHashMap<>();
 
     /** Without a summarizer the run still finishes — it just ends on the cost line. */
     public Coordinator(RunRepository runs, Planner planner, ToolAgent toolAgent, Verifier verifier,
@@ -84,6 +92,9 @@ public class Coordinator {
             if (run.status().terminal()) {
                 return;
             }
+            if (stopIfCancelled(run)) {
+                return;
+            }
             walk(run);
         } catch (RuntimeException e) {
             LOG.log(Level.ERROR, "run " + runId + " blew up", e);
@@ -92,6 +103,46 @@ public class Coordinator {
                         "Akış hata ile durdu: " + e.getMessage());
                 finish(run, RunStatus.FAILED);
             });
+        } finally {
+            lock.unlock();
+            locks.remove(runId, lock);
+        }
+    }
+
+    /**
+     * Stops a run on the user's word, at the first moment it is safe to stop.
+     *
+     * <p>A tool call that is already in flight is <b>not</b> interrupted. Aborting the HTTP
+     * request would not undo anything: the provider may well have created the issue or
+     * posted the message and only the answer would be lost — and a run whose trail says
+     * "iptal edildi" over a write that actually happened is worse than a run that took ten
+     * more seconds to stop. So the call is allowed to return and be recorded; what
+     * cancellation guarantees is that <b>nothing new starts</b>.
+     *
+     * <p>Which is also why this never blocks on the run's lock: the driving thread holds it
+     * for the whole tool call, and the user pressing Durdur must not wait on the very call
+     * they are trying to get away from.
+     *
+     * @param actor the signed-in e-mail, written into the trail
+     * @return {@code true} when the run was stopped and written down here and now,
+     *         {@code false} when a step is in flight and the driving thread will close the
+     *         run as soon as that step returns
+     */
+    public boolean cancel(UUID runId, String actor) {
+        cancelRequests.put(runId, actor == null ? "" : actor);
+        ReentrantLock lock = locks.computeIfAbsent(runId, k -> new ReentrantLock());
+        if (!lock.tryLock()) {
+            return false;
+        }
+        try {
+            Run run = runs.findById(runId).orElse(null);
+            if (run == null || run.status().terminal()) {
+                // Nothing to stop — it finished on its own between the check and the press.
+                cancelRequests.remove(runId);
+                return true;
+            }
+            stop(run);
+            return true;
         } finally {
             lock.unlock();
             locks.remove(runId, lock);
@@ -114,6 +165,9 @@ public class Coordinator {
         run.status(RunStatus.RUNNING);
 
         while (true) {
+            if (stopIfCancelled(run)) {
+                return;
+            }
             Optional<Step> next = run.nextActionable();
             if (next.isEmpty()) {
                 break;
@@ -162,6 +216,13 @@ public class Coordinator {
             }
 
             runStep(run, step);
+
+            // Durdur was pressed while this step was in flight. The call finished and is on
+            // the record; the run stops here rather than reporting the step's own outcome as
+            // the reason it ended.
+            if (stopIfCancelled(run)) {
+                return;
+            }
 
             if (step.status() == StepStatus.FAILED) {
                 finish(run, RunStatus.FAILED);
@@ -328,6 +389,42 @@ public class Coordinator {
         publishStepFinished(run, step);
     }
 
+    /** @return {@code true} when the run was cancelled and the caller must stop walking it. */
+    private boolean stopIfCancelled(Run run) {
+        if (!cancelRequests.containsKey(run.id())) {
+            return false;
+        }
+        stop(run);
+        return true;
+    }
+
+    /**
+     * Closes a cancelled run: everything that had not finished is written off as rejected,
+     * so no step is left claiming it is still about to happen.
+     *
+     * <p>Only the caller holding the run's lock may call this — it writes the aggregate.
+     */
+    private void stop(Run run) {
+        String actor = by(cancelRequests.get(run.id()));
+        for (Step step : run.steps()) {
+            if (!step.status().terminal()) {
+                step.reject("akış iptal edildi" + actor);
+                step.finishedAt(clock.now());
+                publishStepFinished(run, step);
+            }
+        }
+        journal.say(run, null, AgentRole.USER, AgentRole.COORDINATOR,
+                "Akış iptal edildi" + actor + " — kalan adımlar çalıştırılmadı.");
+        // No closing summary: the user just asked Relay to stop spending on this run, and a
+        // summary is one more model call to say what the trail already says.
+        finish(run, RunStatus.CANCELLED, false);
+    }
+
+    /** " (ayse@sirket.com)" — or nothing at all when the caller did not say who. */
+    private static String by(String actor) {
+        return actor == null || actor.isBlank() ? "" : " (" + actor.trim() + ")";
+    }
+
     private void publishStepFinished(Run run, Step step) {
         runs.save(run);
         Map<String, Object> data = new LinkedHashMap<>();
@@ -351,9 +448,16 @@ public class Coordinator {
     }
 
     private void finish(Run run, RunStatus status) {
+        finish(run, status, true);
+    }
+
+    private void finish(Run run, RunStatus status, boolean summarise) {
+        cancelRequests.remove(run.id());
         run.status(status);
         run.finishedAt(clock.now());
-        sayWhatHappened(run, status);
+        if (summarise) {
+            sayWhatHappened(run, status);
+        }
         journal.say(run, null, AgentRole.COORDINATOR, AgentRole.USER,
                 "Akış bitti: " + status.wire() + String.format(" · %,d token · $%.4f", run.costTokens(), run.costUsd()));
         runs.save(run);

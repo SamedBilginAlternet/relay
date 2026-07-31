@@ -154,6 +154,7 @@ public class RunService {
      */
     public Run approve(UUID runId, UUID stepId, String actor) {
         Run run = get(runId);
+        stillOpen(run);
         Step step = step(run, stepId);
         if (step.status() != StepStatus.AWAITING_APPROVAL) {
             throw new IllegalStateException("step " + stepId + " is not awaiting approval");
@@ -177,6 +178,7 @@ public class RunService {
 
     public Run reject(UUID runId, UUID stepId, String reason, String actor) {
         Run run = get(runId);
+        stillOpen(run);
         Step step = step(run, stepId);
         if (step.status().terminal()) {
             throw new IllegalStateException("step " + stepId + " already finished");
@@ -193,6 +195,40 @@ public class RunService {
         runs.save(run);
         executor.execute(() -> coordinator.drive(runId));
         return run;
+    }
+
+    /**
+     * Stops a run the user no longer wants — the whole flow, not one step at a time.
+     *
+     * <p>Returns the run as it stands once the request has been placed. A run that was
+     * waiting on a human is already {@code cancelled} here; a run that is mid tool call is
+     * still {@code running}, because the call in flight is allowed to finish (see
+     * {@link Coordinator#cancel}). The caller learns which of the two happened from the
+     * status it gets back, and the {@code run.finished} event closes the screen either way.
+     *
+     * @param actor who pressed Durdur — written into the trail, same as approve/reject
+     */
+    public Run cancel(UUID runId, String actor) {
+        Run run = get(runId);
+        if (run.status().terminal()) {
+            throw new Conflict("run " + runId + " already finished as " + run.status().wire());
+        }
+        coordinator.cancel(runId, actor);
+        return get(runId);
+    }
+
+    /**
+     * A finished run takes no more decisions.
+     *
+     * <p>409 rather than 400: the request was well formed and was legal when the screen drew
+     * the button — the run moved on underneath it. That is exactly the case of someone
+     * approving a step on a run a colleague has just cancelled.
+     */
+    private void stillOpen(Run run) {
+        if (run.status().terminal()) {
+            throw new Conflict("run " + run.id() + " is already " + run.status().wire()
+                    + "; no step can be approved or rejected");
+        }
     }
 
     /** Same goal, brand new run. */
@@ -212,6 +248,13 @@ public class RunService {
 
     public static class NotFound extends RuntimeException {
         public NotFound(String message) {
+            super(message);
+        }
+    }
+
+    /** The run exists, the request is fine — its state has moved on. Answered with 409. */
+    public static class Conflict extends RuntimeException {
+        public Conflict(String message) {
             super(message);
         }
     }
