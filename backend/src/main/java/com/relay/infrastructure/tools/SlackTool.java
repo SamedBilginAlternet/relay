@@ -3,6 +3,7 @@ package com.relay.infrastructure.tools;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.relay.application.json.Json;
+import com.relay.application.text.Placeholder;
 import com.relay.domain.Connection;
 import com.relay.domain.RiskLevel;
 import java.util.LinkedHashMap;
@@ -151,6 +152,33 @@ public abstract class SlackTool extends AbstractTool {
             thread.put("type", "string");
             thread.put("description", "Reply into this thread timestamp — omit for a new message");
             return schema;
+        }
+
+        /**
+         * Falls back to the connection's {@code defaultChannel} when the channel is missing
+         * or was left as a placeholder.
+         *
+         * <p>The run that exposed this asked Slack to post to {@code {{steps[3].channel}}}
+         * while {@code #all-samed} sat configured and unused. Resolving here — rather than
+         * inside {@link #call} — means the approval screen shows the channel the message
+         * will actually go to.
+         */
+        @Override
+        public JsonNode withDefaults(JsonNode params, Connection connection) {
+            if (connection == null || !params.isObject()) {
+                return params;
+            }
+            String channel = params.path("channel").asText("");
+            if (!channel.isBlank() && !Placeholder.unresolved(channel)) {
+                return params;
+            }
+            String fallback = connection.get("defaultChannel");
+            if (fallback == null || fallback.isBlank()) {
+                return params;
+            }
+            ObjectNode resolved = ((ObjectNode) params).deepCopy();
+            resolved.put("channel", fallback.trim());
+            return resolved;
         }
 
         @Override

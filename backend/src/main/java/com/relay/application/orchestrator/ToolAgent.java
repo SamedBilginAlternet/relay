@@ -82,6 +82,12 @@ public class ToolAgent {
             return StepOutcome.failed(empty, params.tokens(), params.costUsd());
         }
 
+        String placeholder = unresolvedPlaceholder(tool, params.params());
+        if (placeholder != null) {
+            journal.say(run, step.id(), agent, AgentRole.COORDINATOR, placeholder);
+            return StepOutcome.failed(placeholder, params.tokens(), params.costUsd());
+        }
+
         journal.say(run, step.id(), agent, AgentRole.COORDINATOR,
                 tool.name() + " çağrılıyor: " + Json.preview(step.params(), 240));
 
@@ -171,6 +177,37 @@ public class ToolAgent {
                         })
                         .map(Tool::name)
                         .findFirst());
+    }
+
+    /**
+     * Stops a parameter that still contains a substitution nobody is going to perform.
+     *
+     * <p>Slack was handed the channel {@code {{steps[3].channel}}} and answered
+     * {@code channel_not_found} — a confusing error for a channel that exists, because the
+     * value sent was never a channel name. Relay has no template engine: a step reads the
+     * earlier results and writes the real value, so a template marker that survives this far
+     * is a parameter the model declined to fill.
+     *
+     * <p>Applies to reads as well. A JQL with {@code {{…}}} in it is just as broken, and the
+     * provider's own error will not say so.
+     *
+     * @return the message to fail with, or {@code null} when every value is concrete
+     */
+    private String unresolvedPlaceholder(Tool tool, JsonNode params) {
+        var fields = params.fields();
+        while (fields.hasNext()) {
+            var field = fields.next();
+            if (!field.getValue().isTextual()) {
+                continue;
+            }
+            String value = field.getValue().asText();
+            if (com.relay.application.text.Placeholder.unresolved(value)) {
+                return tool.name() + " için çözülmemiş yer tutucu: " + field.getKey() + "=" + value
+                        + ". Bu değer önceki adımdan alınacaktı ama doldurulmadı — sağlayıcıya"
+                        + " gönderilmedi.";
+            }
+        }
+        return null;
     }
 
     /** Fields whose value a person reads: the message, not the plumbing. */
@@ -295,6 +332,10 @@ public class ToolAgent {
         if (!draft.isObject()) {
             draft = Json.object();
         }
+        // Before the model sees the draft: what the user configured beats what a model would
+        // invent. A blank channel filled in from the connection is also one fewer model call.
+        Connection connection = connections.findByProvider(tool.provider()).orElse(null);
+        draft = tool.withDefaults(draft, connection);
 
         long tokens = 0;
         double cost = 0;
@@ -348,7 +389,10 @@ public class ToolAgent {
         if (!check.valid()) {
             return new ParamOutcome(false, candidate, check.message(), tokens, cost);
         }
-        return new ParamOutcome(true, candidate, null, tokens, cost);
+        // Applied again in case the model overwrote a resolved value with a placeholder.
+        // Defaults land here rather than at call time so the parameters a human approves are
+        // the parameters that get sent.
+        return new ParamOutcome(true, tool.withDefaults(candidate, connection), null, tokens, cost);
     }
 
     /** Model output wins, draft fills the gaps. */
