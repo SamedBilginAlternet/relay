@@ -36,6 +36,12 @@ export interface RunSource {
   getRun(runId: string): Promise<Run>;
   listRuns(): Promise<RunSummary[]>;
   rerun(runId: string): Promise<{ runId: string }>;
+  /**
+   * Stops the flow. Answers with the run as it stands: already `cancelled` when it was
+   * waiting on a human, still `running` when a tool call is in flight — that call is
+   * allowed to finish, and `run.finished` lands when it does.
+   */
+  cancelRun(runId: string): Promise<Run>;
 
   streamRun(runId: string, handlers: RunStreamHandlers): Unsubscribe;
 

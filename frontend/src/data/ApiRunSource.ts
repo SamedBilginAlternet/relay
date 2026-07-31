@@ -106,6 +106,13 @@ export class ApiRunSource implements RunSource {
     }));
   }
 
+  cancelRun(runId: string): Promise<Run> {
+    return this.request<Run>(`/runs/${encodeURIComponent(runId)}/cancel`, {
+      method: 'POST',
+      body: '{}',
+    });
+  }
+
   rerun(runId: string): Promise<{ runId: string }> {
     return this.request<{ runId: string }>(`/runs/${encodeURIComponent(runId)}/rerun`, {
       method: 'POST',

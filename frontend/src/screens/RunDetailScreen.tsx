@@ -1,11 +1,11 @@
-import { ArrowLeft, Repeat2, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Repeat2, Square, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { ChatPanel } from '../components/ChatPanel';
 import { StatusPill } from '../components/StatusPill';
 import { WorkflowPanel } from '../components/WorkflowPanel';
 import { getRunSource } from '../data';
 import { formatDateTime } from '../lib/format';
-import { useRunStore } from '../store/runStore';
+import { isTerminal, useRunStore } from '../store/runStore';
 import type { Run } from '../types/api';
 
 type Props = { runId: string; onBack: () => void; onNavigate: (hash: string) => void };
@@ -15,6 +15,8 @@ export function RunDetailScreen({ runId, onBack, onNavigate }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const openRun = useRunStore((s) => s.openRun);
 
   const load = useCallback(async () => {
@@ -32,6 +34,30 @@ export function RunDetailScreen({ runId, onBack, onNavigate }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * Stopping is honest about what it can undo: a tool call already sent to the provider
+   * runs to its end, so the button promises "no further step", never "nothing happened".
+   */
+  const cancel = async () => {
+    setCancelling(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const stopped = await getRunSource().cancelRun(runId);
+      setRun(stopped);
+      if (!isTerminal(stopped.status)) {
+        setNotice(
+          'Durduruluyor — başlamış araç çağrısı yarıda kesilmiyor. O adım bitince akış kapanır; ' +
+            'sonraki adımlar çalıştırılmayacak.',
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Akış durdurulamadı.');
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const rerun = async () => {
     try {
@@ -74,6 +100,17 @@ export function RunDetailScreen({ runId, onBack, onNavigate }: Props) {
           </h1>
         </div>
         {run && <StatusPill status={run.status} />}
+        {run && !isTerminal(run.status) && (
+          <button
+            type="button"
+            className="btn btn--danger-outline btn--sm"
+            disabled={cancelling}
+            onClick={() => void cancel()}
+          >
+            <Square size={14} aria-hidden />
+            {cancelling ? 'Durduruluyor…' : 'Durdur'}
+          </button>
+        )}
         {run && (
           <button type="button" className="btn btn--outline btn--sm" onClick={() => void rerun()}>
             <Repeat2 size={14} aria-hidden />
@@ -81,6 +118,12 @@ export function RunDetailScreen({ runId, onBack, onNavigate }: Props) {
           </button>
         )}
       </div>
+
+      {notice && (
+        <div style={{ padding: '12px 16px 0' }}>
+          <div className="notice">{notice}</div>
+        </div>
+      )}
 
       {error && (
         <div style={{ padding: 16 }}>

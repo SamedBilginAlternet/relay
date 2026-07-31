@@ -23,6 +23,9 @@ type Playback = {
   subscribers: Set<RunStreamHandlers>;
 };
 
+const TERMINAL = new Set(['done', 'failed', 'cancelled']);
+const TERMINAL_STEP = new Set(['done', 'failed', 'rejected']);
+
 const MASK = (value: string): string => {
   const v = value.trim();
   if (!v) return '';
@@ -102,6 +105,46 @@ export class MockRunSource implements RunSource {
         finishedAt: r.finishedAt,
         stepCount: r.steps.length,
       }));
+  }
+
+  /**
+   * The scripted twin of `POST /api/runs/{id}/cancel`: the playback stops, everything
+   * unfinished is written off as rejected and the run closes as `cancelled`.
+   */
+  async cancelRun(runId: string): Promise<Run> {
+    await delay(150);
+    const playback = this.runs.get(runId);
+    if (!playback) throw new Error(`Çalışan akış bulunamadı: ${runId}`);
+    if (TERMINAL.has(playback.run.status)) throw new Error('Akış zaten bitti.');
+
+    playback.cancelled = true;
+    // A gate waiting on a human never settles on its own — release it, the playback
+    // checks `cancelled` the moment it wakes up.
+    for (const resolve of [...playback.pending.values()]) resolve({ kind: 'approve' });
+    playback.pending.clear();
+
+    this.emit(playback, {
+      type: 'agent.message',
+      from: AGENTS.user,
+      to: AGENTS.coordinator,
+      content: 'Akış iptal edildi — kalan adımlar çalıştırılmadı.',
+    });
+    for (const step of playback.run.steps) {
+      if (TERMINAL_STEP.has(step.status)) continue;
+      this.emit(playback, {
+        type: 'step.finished',
+        stepId: step.id,
+        status: 'rejected',
+        decision: 'rejected',
+        rejectReason: 'akış iptal edildi',
+        result: null,
+        error: null,
+        tokens: 0,
+        costUsd: 0,
+      });
+    }
+    this.emit(playback, { type: 'run.finished', status: 'cancelled' });
+    return clone(playback.run);
   }
 
   async rerun(runId: string): Promise<{ runId: string }> {
