@@ -46,11 +46,20 @@ public class Coordinator {
     private final EventPublisher events;
     private final AgentJournal journal;
     private final Clock clock;
+    private final Summarizer summarizer;
     private final Map<UUID, ReentrantLock> locks = new ConcurrentHashMap<>();
 
+    /** Without a summarizer the run still finishes — it just ends on the cost line. */
     public Coordinator(RunRepository runs, Planner planner, ToolAgent toolAgent, Verifier verifier,
                        PolicyEngine policyEngine, CostMeter costMeter, EventPublisher events,
                        AgentJournal journal, Clock clock) {
+        this(runs, planner, toolAgent, verifier, policyEngine, costMeter, events, journal, clock, null);
+    }
+
+    public Coordinator(RunRepository runs, Planner planner, ToolAgent toolAgent, Verifier verifier,
+                       PolicyEngine policyEngine, CostMeter costMeter, EventPublisher events,
+                       AgentJournal journal, Clock clock, Summarizer summarizer) {
+        this.summarizer = summarizer;
         this.runs = runs;
         this.planner = planner;
         this.toolAgent = toolAgent;
@@ -338,6 +347,7 @@ public class Coordinator {
     private void finish(Run run, RunStatus status) {
         run.status(status);
         run.finishedAt(clock.now());
+        sayWhatHappened(run, status);
         journal.say(run, null, AgentRole.COORDINATOR, AgentRole.USER,
                 "Akış bitti: " + status.wire() + String.format(" · %,d token · $%.4f", run.costTokens(), run.costUsd()));
         runs.save(run);
@@ -346,6 +356,22 @@ public class Coordinator {
         data.put("tokens", run.costTokens());
         data.put("costUsd", run.costUsd());
         events.publish(run.id(), RunEvent.of(RunEvent.RUN_FINISHED, data));
+    }
+
+    /**
+     * The closing line the user actually reads. Costs one cheap call and is allowed to fail:
+     * the run is already finished, so a missing summary changes nothing but the wording.
+     */
+    private void sayWhatHappened(Run run, RunStatus status) {
+        if (summarizer == null || run.steps().isEmpty()) {
+            return;
+        }
+        Summarizer.Outcome outcome = summarizer.summarise(run, status == RunStatus.FAILED);
+        if (outcome == null) {
+            return;
+        }
+        costMeter.record(run, null, outcome.tokens(), outcome.costUsd());
+        journal.say(run, null, AgentRole.COORDINATOR, AgentRole.USER, outcome.text());
     }
 
     private List<Map<String, Object>> stepViews(List<Step> steps) {

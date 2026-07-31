@@ -9,6 +9,7 @@ import com.relay.application.orchestrator.Coordinator;
 import com.relay.application.orchestrator.Planner;
 import com.relay.application.orchestrator.RunService;
 import com.relay.application.orchestrator.ToolAgent;
+import com.relay.application.orchestrator.Summarizer;
 import com.relay.application.orchestrator.Verifier;
 import com.relay.application.policy.PolicyEngine;
 import com.relay.application.port.Clock;
@@ -70,10 +71,16 @@ public class ApplicationConfig {
     }
 
     @Bean
+    public Summarizer summarizer(LlmClient llm) {
+        return new Summarizer(llm);
+    }
+
+    @Bean
     public Coordinator coordinator(RunRepository runs, Planner planner, ToolAgent toolAgent, Verifier verifier,
                                    PolicyEngine policyEngine, CostMeter costMeter, EventPublisher events,
-                                   AgentJournal journal, Clock clock) {
-        return new Coordinator(runs, planner, toolAgent, verifier, policyEngine, costMeter, events, journal, clock);
+                                   AgentJournal journal, Clock clock, Summarizer summarizer) {
+        return new Coordinator(runs, planner, toolAgent, verifier, policyEngine, costMeter, events, journal,
+                clock, summarizer);
     }
 
     /** Runs are driven off the request thread — POST /api/runs returns immediately. */
