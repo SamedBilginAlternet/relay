@@ -29,6 +29,9 @@ public class StubLlmClient implements LlmClient {
     private static final Pattern PROJECT_KEY = Pattern.compile("\\b([A-Z][A-Z0-9]{1,9})-\\d+\\b");
     private static final Pattern BARE_PROJECT = Pattern.compile("\\b([A-Z][A-Z0-9]{1,9})\\b");
     private static final Pattern ISSUE_KEY = Pattern.compile("\\b([A-Z][A-Z0-9]{1,9}-\\d+)\\b");
+    /** Whatever the provider called the headline: mail subject, issue summary, PR title. */
+    private static final Pattern SUBJECT_LIKE = Pattern.compile(
+            "\"(?:subject|summary|title)\"\\s*:\\s*\"([^\"]{4,90})\"");
 
     private final ToolRegistry tools;
 
@@ -217,23 +220,48 @@ public class StubLlmClient implements LlmClient {
         return "#general";
     }
 
-    /** Deterministic human-readable digest of what happened so far. */
+    /**
+     * A findings-first digest built from the step results, with no model involved.
+     *
+     * <p>The old version wrote "Adımlar Relay tarafından yürütüldü; ayrıntılar zaman
+     * çizelgesinde" — a sentence that reports activity and tells the reader nothing. Live,
+     * that text reached a Slack channel. What matters is in the results: which records,
+     * which subjects, how many. Pull those out instead.
+     */
     private String digest(String goal, String previousJson) {
-        List<String> keys = new ArrayList<>();
-        if (previousJson != null) {
-            Matcher matcher = ISSUE_KEY.matcher(previousJson);
-            while (matcher.find() && keys.size() < 8) {
-                if (!keys.contains(matcher.group(1))) {
-                    keys.add(matcher.group(1));
-                }
+        String previous = previousJson == null ? "" : previousJson;
+        List<String> keys = collect(ISSUE_KEY, previous, 6);
+        List<String> subjects = collect(SUBJECT_LIKE, previous, 4);
+
+        StringBuilder sb = new StringBuilder();
+        if (!keys.isEmpty()) {
+            sb.append(keys.size()).append(" kayıt: ").append(String.join(", ", keys));
+        }
+        if (!subjects.isEmpty()) {
+            if (sb.length() > 0) {
+                sb.append('\n');
+            }
+            sb.append("Konular: ").append(String.join(" · ", subjects));
+        }
+        if (sb.length() == 0) {
+            // Nothing concrete came back. Say that plainly rather than dressing it up —
+            // the write gate treats template phrasing as a defect and stops the step.
+            return "Sonuç bulunamadı: " + goal.trim();
+        }
+        return sb.toString();
+    }
+
+    /** First {@code limit} distinct capture groups of {@code pattern} in {@code text}. */
+    private static List<String> collect(Pattern pattern, String text, int limit) {
+        List<String> out = new ArrayList<>();
+        Matcher matcher = pattern.matcher(text);
+        while (matcher.find() && out.size() < limit) {
+            String value = matcher.group(1).trim();
+            if (!value.isEmpty() && !out.contains(value)) {
+                out.add(value);
             }
         }
-        StringBuilder sb = new StringBuilder("Relay özeti — ").append(goal.trim());
-        if (!keys.isEmpty()) {
-            sb.append("\nİlgili kayıtlar: ").append(String.join(", ", keys));
-        }
-        sb.append("\nAdımlar Relay tarafından yürütüldü; ayrıntılar zaman çizelgesinde.");
-        return sb.toString();
+        return out;
     }
 
     // ---- verify / summarize ----------------------------------------------

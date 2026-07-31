@@ -76,6 +76,12 @@ public class ToolAgent {
             return StepOutcome.failed(invented, params.tokens(), params.costUsd());
         }
 
+        String empty = emptyContent(tool, params.params());
+        if (empty != null) {
+            journal.say(run, step.id(), agent, AgentRole.COORDINATOR, empty);
+            return StepOutcome.failed(empty, params.tokens(), params.costUsd());
+        }
+
         journal.say(run, step.id(), agent, AgentRole.COORDINATOR,
                 tool.name() + " çağrılıyor: " + Json.preview(step.params(), 240));
 
@@ -165,6 +171,39 @@ public class ToolAgent {
                         })
                         .map(Tool::name)
                         .findFirst());
+    }
+
+    /** Fields whose value a person reads: the message, not the plumbing. */
+    private static final java.util.Set<String> HUMAN_TEXT_FIELDS = java.util.Set.of(
+            "text", "message", "body", "comment", "description");
+
+    /**
+     * Refuses to send a message that reports activity instead of findings.
+     *
+     * <p>This is the last gate before a provider call, and it is deliberately dumb: it
+     * matches known placeholder phrasing rather than judging quality. The fallback model
+     * writes exactly those phrases, so when Groq is rate limited the run stops here with a
+     * reason instead of posting "adımlar yürütüldü" into someone's Slack channel.
+     *
+     * @return the message to fail with, or {@code null} when the content carries something
+     */
+    private String emptyContent(Tool tool, JsonNode params) {
+        if (tool.risk() == com.relay.domain.RiskLevel.READ) {
+            return null;
+        }
+        var fields = params.fields();
+        while (fields.hasNext()) {
+            var field = fields.next();
+            if (!HUMAN_TEXT_FIELDS.contains(field.getKey().toLowerCase()) || !field.getValue().isTextual()) {
+                continue;
+            }
+            if (com.relay.application.text.Filler.looksLikeFiller(field.getValue().asText())) {
+                return tool.name() + " için içerik üretilemedi: " + field.getKey()
+                        + " alanı yalnızca şablon metin taşıyor. Dil modeli yedekteyse"
+                        + " (GROQ_API_KEYS) gerçek içerik yazılamaz — mesaj gönderilmedi.";
+            }
+        }
+        return null;
     }
 
     /**
