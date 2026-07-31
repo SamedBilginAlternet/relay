@@ -38,8 +38,7 @@ public final class HttpJson {
 
         HttpResponse<String> response = CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new ToolCallException("HTTP " + response.statusCode() + " from " + hostOf(url) + ": "
-                    + truncate(response.body()));
+            throw failure(response.statusCode(), hostOf(url), response.body());
         }
         if (response.body() == null || response.body().isBlank()) {
             return Json.object();
@@ -66,9 +65,75 @@ public final class HttpJson {
         return body.length() > 400 ? body.substring(0, 400) + "…" : body;
     }
 
+    /**
+     * Turns a non-2xx response into the exception the tools throw.
+     *
+     * <p>The status and the raw body travel on the exception so a provider-aware tool can
+     * rewrite the message into something a person can act on. What travels in the
+     * <em>message</em> is a different matter: a 401/403 body is the one place a provider
+     * happily echoes back the credential it just rejected, so that body never reaches the
+     * message, and every other body goes through {@link #redact}.
+     */
+    static ToolCallException failure(int status, String host, String body) {
+        String message = status == 401 || status == 403
+                ? "HTTP " + status + " from " + host + ": kimlik doğrulama reddedildi"
+                : "HTTP " + status + " from " + host + ": " + redact(truncate(body));
+        return new ToolCallException(message, status, body);
+    }
+
+    /**
+     * Blanks out anything shaped like a credential.
+     *
+     * <p>An error body is quoted into the run timeline and into the log, and providers do
+     * put tokens in them (an echoed {@code Authorization} header, a signed URL). One regex
+     * per issuer beats a guess at "long random-looking string", which would also eat issue
+     * keys and message ids.
+     */
+    static String redact(String text) {
+        if (text == null || text.isBlank()) {
+            return text == null ? "" : text;
+        }
+        String out = text;
+        for (java.util.regex.Pattern pattern : SECRET_SHAPES) {
+            out = pattern.matcher(out).replaceAll("****");
+        }
+        return out;
+    }
+
+    private static final java.util.List<java.util.regex.Pattern> SECRET_SHAPES = java.util.List.of(
+            // Atlassian API token / OAuth, Slack bot+user tokens, Google access + refresh
+            // tokens, GitHub PATs, Groq keys, and any Authorization header echoed back.
+            java.util.regex.Pattern.compile("ATATT[A-Za-z0-9_.\\-=]{8,}"),
+            java.util.regex.Pattern.compile("xox[abprs]-[A-Za-z0-9-]{8,}"),
+            java.util.regex.Pattern.compile("ya29\\.[A-Za-z0-9_\\-]{8,}"),
+            java.util.regex.Pattern.compile("1//[A-Za-z0-9_\\-]{10,}"),
+            java.util.regex.Pattern.compile("gh[pousr]_[A-Za-z0-9]{8,}"),
+            java.util.regex.Pattern.compile("gsk_[A-Za-z0-9]{8,}"),
+            java.util.regex.Pattern.compile("(?i)(?:basic|bearer)\\s+[A-Za-z0-9+/=_.\\-]{8,}"));
+
     public static class ToolCallException extends RuntimeException {
+
+        private final int status;
+        private final String body;
+
         public ToolCallException(String message) {
+            this(message, 0, null);
+        }
+
+        public ToolCallException(String message, int status, String body) {
             super(message);
+            this.status = status;
+            this.body = body;
+        }
+
+        /** HTTP status that caused this, or 0 when the failure was not an HTTP response. */
+        public int status() {
+            return status;
+        }
+
+        /** The provider's raw response body — for rewriting, never for showing as-is. */
+        public String body() {
+            return body;
         }
     }
 }

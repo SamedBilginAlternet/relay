@@ -150,6 +150,247 @@ public abstract class JiraTool extends AbstractTool {
         return SYNONYMS.get(normalised);
     }
 
+    // ------------------------------------------------------------ error text
+
+    /**
+     * Sends a Jira request, and rewrites a rejection into a sentence a person can act on.
+     *
+     * <p>Atlassian answers a bad create with {@code {"errors":{"issuetype":"Geçerli bir konu
+     * türü belirtin"}}} — the field name is right there, and dumping the JSON at the user
+     * throws it away. A 401 body is worse than useless: it can carry back the credential it
+     * just refused, so it never leaves this method.
+     */
+    protected static JsonNode jira(String method, String url, Map<String, String> headers, Object body)
+            throws Exception {
+        try {
+            return HttpJson.send(method, url, headers, body);
+        } catch (HttpJson.ToolCallException e) {
+            if (e.status() == 0) {
+                throw e;
+            }
+            throw new HttpJson.ToolCallException(explain(e.status(), e.body()), e.status(), e.body());
+        }
+    }
+
+    /** The human sentence for one Atlassian rejection. Never contains the raw body. */
+    static String explain(int status, String body) {
+        if (status == 401 || status == 403) {
+            return "Jira kimlik doğrulaması reddedildi (HTTP " + status
+                    + "). Bağlantı ayarlarındaki e-posta ve API token'ı kontrol edin.";
+        }
+        List<String> reasons = reasons(body);
+        String head = switch (status) {
+            case 404 -> "Jira böyle bir kayıt bulamadı (HTTP 404)";
+            case 429 -> "Jira istek sınırına takıldı (HTTP 429), biraz sonra tekrar deneyin";
+            default -> "Jira isteği reddetti (HTTP " + status + ")";
+        };
+        return reasons.isEmpty() ? head + "." : head + ": " + String.join("; ", reasons);
+    }
+
+    /** {@code errorMessages} verbatim, {@code errors} as "alan: sebep". */
+    static List<String> reasons(String body) {
+        List<String> out = new ArrayList<>();
+        if (body == null || body.isBlank()) {
+            return out;
+        }
+        JsonNode parsed;
+        try {
+            parsed = Json.parse(body);
+        } catch (RuntimeException e) {
+            return out;
+        }
+        for (JsonNode message : parsed.path("errorMessages")) {
+            String text = message.asText("").trim();
+            if (!text.isEmpty()) {
+                out.add(HttpJson.redact(text));
+            }
+        }
+        JsonNode errors = parsed.path("errors");
+        errors.fieldNames().forEachRemaining(field ->
+                out.add(fieldLabel(field) + ": " + HttpJson.redact(errors.path(field).asText("").trim())));
+        return out;
+    }
+
+    /** Field names as the person filling the form knows them. */
+    private static final Map<String, String> FIELD_LABELS = Map.of(
+            "issuetype", "konu türü (issuetype)", "project", "proje (project)",
+            "summary", "özet (summary)", "description", "açıklama (description)",
+            "priority", "öncelik (priority)", "assignee", "atanan (assignee)",
+            "reporter", "bildiren (reporter)", "labels", "etiketler (labels)",
+            "duedate", "bitiş tarihi (duedate)", "parent", "üst kayıt (parent)");
+
+    private static String fieldLabel(String field) {
+        return FIELD_LABELS.getOrDefault(field.toLowerCase(Locale.ROOT), field);
+    }
+
+    // ------------------------------------------------------------ issue types
+
+    /**
+     * Picks the issue type the project actually offers.
+     *
+     * <p>"Bug" is not a Jira constant, it is one project's name for a kind of work. A Turkish
+     * board offers "Hata"/"Görev", a team-managed project renames them again, and posting the
+     * literal string the model produced is how {@code jira.createIssue} came to answer
+     * "issuetype: Geçerli bir konu türü belirtin" on every single card.
+     *
+     * <p>Sub-task types are excluded unless one was asked for: they need a parent and would
+     * fail the create for a second, more confusing reason.
+     *
+     * @return the matching type node, or {@code null} when the project offers nothing like it
+     */
+    static JsonNode matchIssueType(JsonNode types, String wanted) {
+        String target = normalise(wanted);
+        String group = typeGroup(target);
+        boolean wantsSubtask = "subtask".equals(group);
+
+        for (int pass = 0; pass < 3; pass++) {
+            for (JsonNode type : types) {
+                if (type.path("subtask").asBoolean(false) != wantsSubtask) {
+                    continue;
+                }
+                String name = normalise(type.path("name").asText(""));
+                boolean hit = switch (pass) {
+                    case 0 -> !target.isEmpty() && name.equals(target);
+                    case 1 -> group != null && group.equals(typeGroup(name));
+                    default -> !target.isEmpty() && !name.isEmpty()
+                            && (name.startsWith(target) || target.startsWith(name));
+                };
+                if (hit) {
+                    return type;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The type to fall back on: the project's own "task" flavour, else its first non-sub-task.
+     *
+     * <p>Refusing would be the safer instinct — it is the right one for a transition, where the
+     * wrong column is a lie about the state of the work. Here it is not: a ticket filed under
+     * a neighbouring type is one dropdown away from correct, and no ticket at all is the bug
+     * being reported.
+     */
+    static JsonNode defaultIssueType(JsonNode types) {
+        JsonNode first = null;
+        for (JsonNode type : types) {
+            if (type.path("subtask").asBoolean(false)) {
+                continue;
+            }
+            if ("task".equals(typeGroup(normalise(type.path("name").asText(""))))) {
+                return type;
+            }
+            if (first == null) {
+                first = type;
+            }
+        }
+        return first;
+    }
+
+    /** The names a project can give the same kind of work. */
+    private static final Map<String, String> TYPE_SYNONYMS = Map.ofEntries(
+            Map.entry("task", "task"), Map.entry("gorev", "task"), Map.entry("is", "task"),
+            Map.entry("isemri", "task"), Map.entry("todo", "task"),
+            Map.entry("bug", "bug"), Map.entry("hata", "bug"), Map.entry("defect", "bug"),
+            Map.entry("ariza", "bug"), Map.entry("sorun", "bug"), Map.entry("problem", "bug"),
+            Map.entry("story", "story"), Map.entry("hikaye", "story"),
+            Map.entry("userstory", "story"), Map.entry("kullanicihikayesi", "story"),
+            Map.entry("epic", "epic"), Map.entry("epik", "epic"),
+            Map.entry("subtask", "subtask"), Map.entry("altgorev", "subtask"),
+            Map.entry("altkonu", "subtask"), Map.entry("altis", "subtask"));
+
+    private static String typeGroup(String normalised) {
+        return TYPE_SYNONYMS.get(normalised);
+    }
+
+    /**
+     * The issue types this project offers, straight from {@code createmeta}.
+     *
+     * @return the type array, or {@code null} when the question could not be asked — a
+     *         missing answer must not block the create, only a wrong project must
+     * @throws HttpJson.ToolCallException when the project itself does not exist
+     */
+    protected JsonNode issueTypes(Connection connection, String project) throws Exception {
+        String url = base(connection) + "/rest/api/3/issue/createmeta/"
+                + HttpJson.encode(project) + "/issuetypes?maxResults=100";
+        JsonNode response;
+        try {
+            response = HttpJson.send("GET", url, headers(connection), null);
+        } catch (HttpJson.ToolCallException e) {
+            if (e.status() == 404) {
+                throw new HttpJson.ToolCallException(unknownProject(connection, project), 404, e.body());
+            }
+            // 401/403/5xx: the create call is about to hit the same wall and will say so.
+            return null;
+        }
+        JsonNode values = response.has("values") ? response.path("values") : response.path("issueTypes");
+        return values.isArray() && !values.isEmpty() ? values : null;
+    }
+
+    /** "There is no such project" is only useful next to the ones there are. */
+    private String unknownProject(Connection connection, String project) {
+        String message = "Jira'da '" + project + "' anahtarlı bir proje yok "
+                + "(ya da bu API token onu görmüyor).";
+        try {
+            JsonNode found = HttpJson.send("GET",
+                    base(connection) + "/rest/api/3/project/search?maxResults=20",
+                    headers(connection), null);
+            List<String> keys = new ArrayList<>();
+            for (JsonNode candidate : found.path("values")) {
+                String key = candidate.path("key").asText("");
+                String name = candidate.path("name").asText("");
+                if (!key.isBlank()) {
+                    keys.add(name.isBlank() ? key : key + " (" + name + ")");
+                }
+            }
+            if (!keys.isEmpty()) {
+                return message + " Erişilebilen projeler: " + String.join(", ", keys)
+                        + ". Bağlantı ayarlarındaki proje anahtarını düzeltin.";
+            }
+        } catch (Exception e) {
+            // Listing the projects is a courtesy; failing at it must not replace the real error.
+        }
+        return message;
+    }
+
+    /** Type names as the project spells them — quoted back when a request could not be met. */
+    static String typeNames(JsonNode types) {
+        List<String> out = new ArrayList<>();
+        for (JsonNode type : types) {
+            String name = type.path("name").asText("");
+            if (!name.isBlank() && !type.path("subtask").asBoolean(false)) {
+                out.add(name);
+            }
+        }
+        return out.isEmpty() ? "(hiçbiri)" : String.join(", ", out);
+    }
+
+    /**
+     * The project key to file under: what was asked for, else the one the connection was
+     * configured with.
+     *
+     * <p>The brief's suggestion carries a project key that came from a config default, and it
+     * is wrong as often as it is right. The connection is what the user actually set up.
+     */
+    protected static String projectKey(JsonNode params, Connection connection) {
+        String asked = params.path("projectKey").asText("").trim();
+        if (!asked.isEmpty()) {
+            return asked.toUpperCase(Locale.ROOT);
+        }
+        String configured = connection == null ? null : firstConfigured(connection, "projectKey", "defaultProject");
+        return configured == null ? "" : configured.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static String firstConfigured(Connection connection, String... keys) {
+        for (String key : keys) {
+            String value = connection.get(key);
+            if (notBlank(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
     /** Atlassian Document Format wrapper for a plain-text comment body. */
     protected static ObjectNode adf(String text) {
         ObjectNode doc = Json.object();
@@ -213,7 +454,7 @@ public abstract class JiraTool extends AbstractTool {
             // parameters but returns `isLast` instead of `total` for pagination.
             String url = base(connection) + "/rest/api/3/search/jql?jql=" + HttpJson.encode(jql)
                     + "&maxResults=" + max + "&fields=summary,status,assignee,priority";
-            return HttpJson.send("GET", url, headers(connection), null);
+            return jira("GET", url, headers(connection), null);
         }
     }
 
@@ -262,7 +503,7 @@ public abstract class JiraTool extends AbstractTool {
             // /rest/api/3/search is gone (HTTP 410, CHANGE-2046) — /search/jql replaced it.
             String url = base(connection) + "/rest/api/3/search/jql?jql=" + HttpJson.encode(jql)
                     + "&maxResults=" + max + "&fields=summary,status,assignee,priority,updated,issuetype";
-            return HttpJson.send("GET", url, headers(connection), null);
+            return jira("GET", url, headers(connection), null);
         }
     }
 
@@ -318,10 +559,44 @@ public abstract class JiraTool extends AbstractTool {
 
         @Override
         protected JsonNode call(JsonNode params, Connection connection) throws Exception {
+            String project = projectKey(params, connection);
+            if (project.isEmpty()) {
+                throw new HttpJson.ToolCallException("Kaydın hangi projede açılacağı belli değil: "
+                        + "projectKey boş ve Jira bağlantısında varsayılan proje anahtarı yok.");
+            }
+
+            String requestedType = params.path("issueType").asText("").trim();
+            JsonNode available = issueTypes(connection, project);
+            String note = null;
+
             ObjectNode fields = Json.object();
-            fields.putObject("project").put("key", params.path("projectKey").asText().trim().toUpperCase());
-            fields.putObject("issuetype").put("name",
-                    params.path("issueType").asText("").isBlank() ? "Task" : params.path("issueType").asText());
+            fields.putObject("project").put("key", project);
+            String typeName = "";
+            if (available == null) {
+                // createmeta is unavailable (older Jira, or the token cannot read it).
+                // Send the name and let the create call be the one that judges it.
+                typeName = requestedType.isEmpty() ? "Task" : requestedType;
+                fields.putObject("issuetype").put("name", typeName);
+            } else {
+                JsonNode chosen = matchIssueType(available, requestedType);
+                if (chosen == null) {
+                    chosen = defaultIssueType(available);
+                    if (chosen == null) {
+                        throw new HttpJson.ToolCallException(project
+                                + " projesinde kayıt açılabilecek bir konu türü yok.");
+                    }
+                    if (!requestedType.isEmpty()) {
+                        note = "'" + requestedType + "' bu projede yok; '"
+                                + chosen.path("name").asText() + "' kullanıldı. "
+                                + project + " projesindeki türler: " + typeNames(available);
+                    }
+                }
+                typeName = chosen.path("name").asText("");
+                // By id, not by name: the id is what the project actually keys on, and two
+                // types can share a display name across a site.
+                fields.putObject("issuetype").put("id", chosen.path("id").asText());
+            }
+
             fields.put("summary", params.path("summary").asText());
             if (params.hasNonNull("description") && !params.path("description").asText().isBlank()) {
                 fields.set("description", adf(params.path("description").asText()));
@@ -329,20 +604,93 @@ public abstract class JiraTool extends AbstractTool {
             if (params.hasNonNull("priority") && !params.path("priority").asText().isBlank()) {
                 fields.putObject("priority").put("name", params.path("priority").asText());
             }
-            ObjectNode body = Json.object();
-            body.set("fields", fields);
 
-            JsonNode response = HttpJson.send("POST", base(connection) + "/rest/api/3/issue",
-                    headers(connection), body);
+            JsonNode response = create(connection, fields);
+            String dropped = response.path("relayDroppedFields").asText("");
 
             ObjectNode out = Json.object();
             out.put("id", response.path("id").asText(""));
             out.put("issueKey", response.path("key").asText(""));
             out.put("summary", params.path("summary").asText());
+            out.put("projectKey", project);
+            if (!typeName.isEmpty()) {
+                out.put("issueType", typeName);
+            }
             out.put("url", base(connection) + "/browse/" + response.path("key").asText(""));
             out.put("created", true);
+            if (note != null) {
+                out.put("note", note);
+            }
+            if (!dropped.isEmpty()) {
+                out.put("droppedFields", dropped);
+            }
             return out;
         }
+
+        /**
+         * POSTs the issue, and retries once without the optional fields the project refused.
+         *
+         * <p>A team-managed project routinely has no priority field on its create screen, and
+         * Jira rejects the whole request for it — losing a ticket over a field nobody asked
+         * for. Required fields are never dropped: the retry only removes what Relay added on
+         * its own initiative, so a rejection that matters still surfaces.
+         */
+        private JsonNode create(Connection connection, ObjectNode fields) throws Exception {
+            String url = base(connection) + "/rest/api/3/issue";
+            ObjectNode body = Json.object();
+            body.set("fields", fields);
+            try {
+                return jira("POST", url, headers(connection), body);
+            } catch (HttpJson.ToolCallException e) {
+                List<String> droppable = droppable(e.status(), e.body());
+                if (droppable.isEmpty()) {
+                    throw e;
+                }
+                ObjectNode retryFields = fields.deepCopy();
+                droppable.forEach(retryFields::remove);
+                ObjectNode retry = Json.object();
+                retry.set("fields", retryFields);
+                JsonNode created = jira("POST", url, headers(connection), retry);
+                ObjectNode annotated = created.deepCopy();
+                annotated.put("relayDroppedFields", String.join(", ", droppable));
+                return annotated;
+            }
+        }
+    }
+
+    /** Fields Relay volunteered and can therefore give up — only when Jira named them. */
+    private static final java.util.Set<String> OPTIONAL_FIELDS =
+            java.util.Set.of("priority", "description", "labels");
+
+    /**
+     * Which of the rejected fields the retry may drop.
+     *
+     * <p>Empty unless <em>every</em> field Jira complained about is one Relay added by itself:
+     * dropping half the complaint would only produce the same 400 with one field fewer.
+     */
+    static List<String> droppable(int status, String body) {
+        List<String> out = new ArrayList<>();
+        if (status != 400 || body == null) {
+            return List.of();
+        }
+        JsonNode parsed;
+        try {
+            parsed = Json.parse(body);
+        } catch (RuntimeException e) {
+            return List.of();
+        }
+        if (!parsed.path("errorMessages").isEmpty() || !parsed.path("errors").fieldNames().hasNext()) {
+            return List.of();
+        }
+        java.util.Iterator<String> names = parsed.path("errors").fieldNames();
+        while (names.hasNext()) {
+            String field = names.next();
+            if (!OPTIONAL_FIELDS.contains(field.toLowerCase(Locale.ROOT))) {
+                return List.of();
+            }
+            out.add(field);
+        }
+        return out;
     }
 
     // --------------------------------------------------------------- getIssue
@@ -384,7 +732,7 @@ public abstract class JiraTool extends AbstractTool {
         protected JsonNode call(JsonNode params, Connection connection) throws Exception {
             String url = base(connection) + "/rest/api/3/issue/"
                     + HttpJson.encode(params.path("issueKey").asText());
-            return HttpJson.send("GET", url, headers(connection), null);
+            return jira("GET", url, headers(connection), null);
         }
     }
 
@@ -438,13 +786,13 @@ public abstract class JiraTool extends AbstractTool {
             if (params.hasNonNull("summary")) {
                 ObjectNode body = Json.object();
                 body.putObject("fields").put("summary", params.path("summary").asText());
-                HttpJson.send("PUT", issueUrl, headers(connection), body);
+                jira("PUT", issueUrl, headers(connection), body);
                 result.put("summaryUpdated", true);
             }
 
             if (params.hasNonNull("status")) {
                 String target = params.path("status").asText();
-                JsonNode transitions = HttpJson.send("GET", issueUrl + "/transitions", headers(connection), null);
+                JsonNode transitions = jira("GET", issueUrl + "/transitions", headers(connection), null);
                 String transitionId = matchTransition(transitions.path("transitions"), target);
                 if (transitionId == null) {
                     throw new HttpJson.ToolCallException(
@@ -453,7 +801,7 @@ public abstract class JiraTool extends AbstractTool {
                 }
                 ObjectNode body = Json.object();
                 body.putObject("transition").put("id", transitionId);
-                HttpJson.send("POST", issueUrl + "/transitions", headers(connection), body);
+                jira("POST", issueUrl + "/transitions", headers(connection), body);
                 result.put("status", target);
                 result.put("transitionId", transitionId);
             }
@@ -506,7 +854,7 @@ public abstract class JiraTool extends AbstractTool {
                     + HttpJson.encode(params.path("issueKey").asText()) + "/comment";
             ObjectNode body = Json.object();
             body.set("body", adf(params.path("body").asText()));
-            return HttpJson.send("POST", url, headers(connection), body);
+            return jira("POST", url, headers(connection), body);
         }
     }
 }
