@@ -1,0 +1,11 @@
+{
+  "id": "{{messageId}}",
+  "threadId": "{{messageId}}",
+  "from": "Ayşe Yıldız <ayse@alterteam.dev>",
+  "to": "Samed Bilgin <samed@alterteam.dev>",
+  "subject": "Ödeme servisi staging'de patlıyor",
+  "receivedAt": "2026-07-31T05:41:00Z",
+  "unread": true,
+  "snippet": "Selam, sabahtan beri staging'de ödeme çağrıları 502 dönüyor.",
+  "body": "Selam,\n\nSabahtan beri staging'de ödeme çağrıları 502 dönüyor. Log'larda upstream timeout görünüyor.\nMüşteri demosu 14:00'te, o saate kadar bir çözüm ya da geçici bir yol lazım.\n\nİlgili istek id: pay-9f31c\n\nTeşekkürler,\nAyşe"
+}

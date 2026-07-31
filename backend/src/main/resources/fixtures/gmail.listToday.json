@@ -1,0 +1,42 @@
+{
+  "total": 4,
+  "query": "newer_than:1d -in:chats",
+  "messages": [
+    {
+      "id": "18f2c9a10b3d4e01",
+      "threadId": "18f2c9a10b3d4e01",
+      "from": "Ayşe Yıldız <ayse@alterteam.dev>",
+      "subject": "Ödeme servisi staging'de patlıyor",
+      "snippet": "Selam, sabahtan beri staging'de ödeme çağrıları 502 dönüyor. Log'larda timeout görünüyor, bir bakabilir misin? Müşteri demosu 14:00'te.",
+      "receivedAt": "2026-07-31T05:41:00Z",
+      "unread": true
+    },
+    {
+      "id": "18f2c7440a1b2c33",
+      "threadId": "18f2c7440a1b2c33",
+      "from": "Deniz Arslan <deniz@alterteam.dev>",
+      "subject": "Sprint planlama notları — onayın lazım",
+      "snippet": "Yarınki sprint için kapsamı çıkardım. Kesinleşmesi için senin onayın gerekiyor, bugün içinde dönebilir misin?",
+      "receivedAt": "2026-07-31T04:58:00Z",
+      "unread": true
+    },
+    {
+      "id": "18f2c51298aa7712",
+      "threadId": "18f2c51298aa7712",
+      "from": "GitHub <notifications@github.com>",
+      "subject": "[alter-team/relay] PR #128 review talebi",
+      "snippet": "ayse-yildiz requested your review on #128 Ödeme servisi retry politikası.",
+      "receivedAt": "2026-07-31T04:12:00Z",
+      "unread": false
+    },
+    {
+      "id": "18f2be0033c19900",
+      "threadId": "18f2be0033c19900",
+      "from": "Coolify <no-reply@coolify.io>",
+      "subject": "Deployment succeeded: relay-backend",
+      "snippet": "Your deployment finished successfully in 1m 12s.",
+      "receivedAt": "2026-07-31T02:33:00Z",
+      "unread": false
+    }
+  ]
+}

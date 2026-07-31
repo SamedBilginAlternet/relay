@@ -41,6 +41,29 @@ public class RunController {
     public record RejectRequest(String reason) {
     }
 
+    /** {@code cardId} is the brief card the action came from — echoed back, never trusted. */
+    public record FromSuggestionRequest(String cardId, @NotBlank String tool, Map<String, Object> params,
+                                        String label, Double budgetUsd) {
+    }
+
+    /**
+     * A suggested action from the Bugün screen becomes an ordinary run — same coordinator,
+     * same policy engine, same approval gate. Nothing is executed here.
+     */
+    @PostMapping("/from-suggestion")
+    public ResponseEntity<Map<String, Object>> fromSuggestion(@RequestBody FromSuggestionRequest request) {
+        Run run = runService.startFromSuggestion(request.tool(), request.params(), request.label(),
+                request.budgetUsd());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("runId", run.id().toString());
+        body.put("id", run.id().toString());
+        body.put("status", run.status().wire());
+        body.put("goal", run.goal());
+        body.put("tool", request.tool());
+        body.put("cardId", request.cardId());
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(body);
+    }
+
     /** Returns immediately with the runId; planning and execution continue in the background. */
     @PostMapping
     public ResponseEntity<Map<String, Object>> create(@RequestBody CreateRunRequest request) {

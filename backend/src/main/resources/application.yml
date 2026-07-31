@@ -45,6 +45,20 @@ app:
     mode: ${TOOLS_MODE:replay}
   budget:
     default-usd: ${DEFAULT_BUDGET_USD:0.50}
+  brief:
+    # Per-tool ceiling for the parallel fan-out; a slow provider never blocks the screen.
+    tool-timeout-seconds: ${BRIEF_TOOL_TIMEOUT_SECONDS:8}
+    cache-seconds: ${BRIEF_CACHE_SECONDS:60}
+    timezone: ${BRIEF_TIMEZONE:Europe/Istanbul}
+    # Fallback project for a jira.createIssue suggestion when no Jira issue is in the brief.
+    default-project-key: ${BRIEF_DEFAULT_PROJECT_KEY:RELAY}
+  google:
+    # Empty means "not configured": Gmail/Calendar report unavailable, everything else runs.
+    client-id: ${GOOGLE_CLIENT_ID:}
+    client-secret: ${GOOGLE_CLIENT_SECRET:}
+    redirect-uri: ${GOOGLE_REDIRECT_URI:}
+    # Where to send the browser after a successful consent; empty returns JSON instead.
+    success-redirect: ${GOOGLE_SUCCESS_REDIRECT:}
   groq:
     # Comma separated. Empty means the stub LLM, which always works offline.
     api-keys: ${GROQ_API_KEYS:}

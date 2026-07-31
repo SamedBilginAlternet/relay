@@ -55,6 +55,14 @@ Flyway applies `src/main/resources/db/migration/V1__init.sql` at startup; Hibern
 | `TOOLS_MODE` | `replay` | `live` \| `replay` |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:4173` | Comma separated |
 | `DEFAULT_BUDGET_USD` | `0.50` | Used when `POST /api/runs` omits `budgetUsd` |
+| `GOOGLE_CLIENT_ID` | *(empty)* | Gmail + Calendar OAuth. Empty ⇒ those tools report `unavailable`, everything else still runs |
+| `GOOGLE_CLIENT_SECRET` | *(empty)* | |
+| `GOOGLE_REDIRECT_URI` | *(empty)* | Must match the console exactly, e.g. `http://localhost:8080/api/oauth/google/callback` |
+| `GOOGLE_SUCCESS_REDIRECT` | *(empty)* | Where to send the browser after consent. Empty ⇒ the callback answers JSON |
+| `BRIEF_TOOL_TIMEOUT_SECONDS` | `8` | Per-tool ceiling in the parallel fan-out of `/api/brief` |
+| `BRIEF_CACHE_SECONDS` | `60` | `POST /api/brief/refresh` bypasses it |
+| `BRIEF_TIMEZONE` | `Europe/Istanbul` | What "today" means |
+| `BRIEF_DEFAULT_PROJECT_KEY` | `RELAY` | Jira project a `jira.createIssue` suggestion targets when the brief has no Jira issue to copy it from |
 
 Server port is `8080`. No secret is committed anywhere in this repo.
 
@@ -100,6 +108,8 @@ Credentials (entered through `PUT /api/connections`, stored AES-GCM encrypted):
 |---|---|
 | `jira` | `baseUrl` (`https://x.atlassian.net`), `email`, `apiToken` |
 | `slack` | `botToken` (`xoxb-…`) |
+| `github` | `token` (fine-grained PAT), `login` *(optional — falls back to `@me` in search qualifiers)* |
+| `google` | `refreshToken`, `accessToken`, `expiresAt` — **not typed by hand**, written by `GET /api/oauth/google/callback` |
 
 Tokens are never logged and always masked in responses (`xoxb-****4d21`). Re-saving a masked
 value keeps the stored secret.
@@ -122,9 +132,50 @@ value keeps the stored secret.
 | `POST` | `/api/connections/{provider}/test` | Calls that provider's cheapest READ tool |
 | `GET`/`PUT` | `/api/policies` | `PUT` takes a list of `{toolName, mode}` |
 | `GET` | `/api/tools` | Registry + JSON schemas |
+| `GET` | `/api/brief` | The Bugün screen, all sections in one call. Cached ~60s |
+| `POST` | `/api/brief/refresh` | Same body, cache bypassed |
+| `POST` | `/api/runs/from-suggestion` | `{cardId?, tool, params, label, budgetUsd?}` → `202 {runId, id, status}` |
+| `GET` | `/api/oauth/google/status` | `{configured, connected, scopes, …}` |
+| `GET` | `/api/oauth/google/start` | `302` to Google consent; `503 google_not_configured` when the env vars are absent |
+| `GET` | `/api/oauth/google/callback` | Code → tokens, stored on the encrypted `google` connection |
 
 SSE event names: `run.planned`, `step.started`, `step.awaiting`, `step.finished`,
 `agent.message`, `run.cost`, `run.finished`. All ids are UUID strings, all fields camelCase.
+
+### `GET /api/brief` — shape
+
+```jsonc
+{
+  "date": "2026-07-31T08:00:00Z",
+  "priority": [                                  // AI cards, highest urgency first, max 5
+    { "id": "gmail:18f2…", "source": "gmail|github|jira", "title": "…", "from": "Ayşe Yıldız",
+      "kind": "bug_report|request|fyi|needs_reply|scheduling",
+      "urgency": "high|normal|low", "summary": "Tek cümle — ne isteniyor",
+      "suggestedActions": [ { "tool": "jira.createIssue", "label": "Jira ticket aç", "params": {} } ] }
+  ],
+  "inbox":    { "status": "ok", "reason": null, "items": [ /* rows */ ] },   // Gmail
+  "work":     { "status": "ok", "reason": null, "items": [] },               // Jira
+  "code":     { "status": "error", "reason": "GitHub kimlik bilgilerini kabul etmedi (HTTP 401) — …", "items": [] },
+  "calendar": { "status": "unavailable", "reason": "Google Takvim bağlı değil — …", "items": [] }
+}
+```
+
+A row is flat and display-only: `{id, title, subtitle, meta, url, tone}`, where `tone` is
+`default | warn | danger | success` — a colour hint that never carries meaning alone, the text
+says the same thing. Provider handles (`ref`) never appear on a row; they reach the UI only
+inside `suggestedActions[].params`.
+
+`status` is exactly one of `ok` (fetched), `unavailable` (integration not connected — the user
+can fix it in settings) or `error` (connected but the call failed). `reason` is shown to the
+user verbatim, so it is a single Turkish sentence built from the HTTP status — never a raw
+provider message, which could echo back a URL or a token.
+
+**Partial success is the contract.** Every READ tool runs in parallel on a virtual thread with
+its own 8s timeout; one dead integration greys out one card and the other three still arrive.
+
+Clicking a suggestion calls `POST /api/runs/from-suggestion`, which seeds a normal run with
+that single step. It goes through the same coordinator, the same policy engine and the same
+approval gate — a suggested WRITE still parks on the human. Suggestion ≠ action.
 
 ---
 
@@ -136,6 +187,7 @@ application/
   port/            LlmClient, Tool, ToolRegistry, RunRepository, ConnectionRepository,
                    PolicyRepository, EventPublisher, Clock
   orchestrator/    Planner, Coordinator, ToolAgent, Verifier, RunService, AgentJournal
+  brief/           BriefService (parallel fan-out + partial success), InsightService (AI layer), BriefItem
   policy/          PolicyEngine (auto | ask | forbidden)
   cost/            CostMeter
   connection/      ConnectionService, Masking
@@ -143,7 +195,9 @@ application/
   view/            Views — the single source of the wire shape (REST and SSE share it)
 infrastructure/
   llm/             GroqLlmClient (key rotation), StubLlmClient, RoutingLlmClient, ApiKeyPool
-  tools/           JiraTool, SlackTool, ToolRegistryImpl, FixtureStore, AbstractTool
+  tools/           JiraTool, SlackTool, GitHubTool, GmailTool, CalendarTool, GoogleTool,
+                   ToolRegistryImpl, FixtureStore, AbstractTool
+  google/          GoogleOAuth — code exchange, refresh-token storage, access-token renewal
   persistence/     JPA entities + repository adapters
   crypto/          AesGcmCipher
   sse/             SseEventPublisher
@@ -171,10 +225,16 @@ The verifier checks each result against the goal and can send a step back at mos
 ## 8. Tests
 
 ```bash
-./gradlew test    # 35 tests, no database and no network required
+./gradlew test    # 74 tests, no database and no network required
 ```
 
 Covers the policy decisions, cost accumulation and budget stop, Groq key rotation
 (mock 429 → next key → cooldown → stub fallback), tool schema validation and replay, and a
 full orchestrator run on the stub LLM with replayed tools including approval, rejection,
 forbidden policy and the budget pause.
+
+For the Bugün screen specifically: the insight layer dropping a suggestion that names an
+unregistered tool, the brief keeping three sections alive while a fourth is `unavailable` or
+`error`, failure reasons staying Turkish and leaking neither token nor stack trace, the row
+shape the frontend renders, the 60s cache and its bypass, and a suggested WRITE still stopping
+at the approval gate.

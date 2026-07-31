@@ -1,0 +1,44 @@
+{
+  "total": 3,
+  "pullRequests": [
+    {
+      "repo": "alter-team/relay",
+      "number": 128,
+      "title": "Ödeme servisi retry politikası",
+      "url": "https://github.com/alter-team/relay/pull/128",
+      "author": "ayse-yildiz",
+      "state": "open",
+      "updatedAt": "2026-07-31T06:42:11Z",
+      "comments": 4,
+      "draft": false,
+      "reason": "review_requested",
+      "labels": ["backend", "payments"]
+    },
+    {
+      "repo": "alter-team/relay",
+      "number": 131,
+      "title": "Bugün ekranı — brief endpoint iskeleti",
+      "url": "https://github.com/alter-team/relay/pull/131",
+      "author": "samed",
+      "state": "open",
+      "updatedAt": "2026-07-31T05:10:03Z",
+      "comments": 1,
+      "draft": true,
+      "reason": "author",
+      "labels": ["brief"]
+    },
+    {
+      "repo": "alter-team/edge-proxy",
+      "number": 42,
+      "title": "Caddy site bloğu: relay.dev.alter.net.tr",
+      "url": "https://github.com/alter-team/edge-proxy/pull/42",
+      "author": "deniz-arslan",
+      "state": "open",
+      "updatedAt": "2026-07-30T16:20:47Z",
+      "comments": 7,
+      "draft": false,
+      "reason": "review_requested",
+      "labels": ["infra"]
+    }
+  ]
+}

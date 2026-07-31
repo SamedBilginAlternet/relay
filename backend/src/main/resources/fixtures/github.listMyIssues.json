@@ -1,0 +1,31 @@
+{
+  "total": 2,
+  "issues": [
+    {
+      "repo": "alter-team/relay",
+      "number": 117,
+      "title": "SSE bağlantısı 60 sn sonra sessizce düşüyor",
+      "url": "https://github.com/alter-team/relay/issues/117",
+      "author": "elif-kaya",
+      "state": "open",
+      "updatedAt": "2026-07-31T07:05:00Z",
+      "comments": 2,
+      "draft": false,
+      "reason": "assigned",
+      "labels": ["bug", "realtime"]
+    },
+    {
+      "repo": "alter-team/relay",
+      "number": 120,
+      "title": "Araç şemalarını /api/tools üzerinden dokümante et",
+      "url": "https://github.com/alter-team/relay/issues/120",
+      "author": "samed",
+      "state": "open",
+      "updatedAt": "2026-07-29T12:31:00Z",
+      "comments": 0,
+      "draft": false,
+      "reason": "assigned",
+      "labels": ["docs"]
+    }
+  ]
+}

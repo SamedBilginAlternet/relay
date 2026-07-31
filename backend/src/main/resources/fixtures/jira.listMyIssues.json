@@ -1,0 +1,50 @@
+{
+  "total": 4,
+  "isLast": true,
+  "issues": [
+    {
+      "key": "KAN-42",
+      "fields": {
+        "summary": "Ödeme servisi staging'de 502 dönüyor",
+        "status": { "name": "Blocked" },
+        "priority": { "name": "Highest" },
+        "issuetype": { "name": "Bug" },
+        "assignee": { "displayName": "Samed Bilgin" },
+        "updated": "2026-07-31T08:12:00.000+0300"
+      }
+    },
+    {
+      "key": "KAN-51",
+      "fields": {
+        "summary": "Bugün ekranı için brief uç noktası",
+        "status": { "name": "In Progress" },
+        "priority": { "name": "High" },
+        "issuetype": { "name": "Task" },
+        "assignee": { "displayName": "Samed Bilgin" },
+        "updated": "2026-07-31T07:40:00.000+0300"
+      }
+    },
+    {
+      "key": "KAN-58",
+      "fields": {
+        "summary": "GitHub PAT bağlantısı için ayarlar formu",
+        "status": { "name": "To Do" },
+        "priority": { "name": "Medium" },
+        "issuetype": { "name": "Task" },
+        "assignee": { "displayName": "Samed Bilgin" },
+        "updated": "2026-07-30T18:02:00.000+0300"
+      }
+    },
+    {
+      "key": "KAN-63",
+      "fields": {
+        "summary": "Onay kapısı reddedilince gerekçe ajana gitmiyor",
+        "status": { "name": "To Do" },
+        "priority": { "name": "Medium" },
+        "issuetype": { "name": "Bug" },
+        "assignee": { "displayName": "Samed Bilgin" },
+        "updated": "2026-07-30T11:25:00.000+0300"
+      }
+    }
+  ]
+}

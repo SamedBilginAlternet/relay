@@ -2,6 +2,7 @@ package com.relay.application.orchestrator;
 
 import com.relay.application.port.Clock;
 import com.relay.application.port.RunRepository;
+import com.relay.application.port.ToolRegistry;
 import com.relay.domain.AgentRole;
 import com.relay.domain.Decision;
 import com.relay.domain.Run;
@@ -9,6 +10,7 @@ import com.relay.domain.RunStatus;
 import com.relay.domain.Step;
 import com.relay.domain.StepStatus;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 
@@ -24,15 +26,22 @@ public class RunService {
     private final Clock clock;
     private final Executor executor;
     private final Double defaultBudgetUsd;
+    private final ToolRegistry tools;
 
     public RunService(RunRepository runs, Coordinator coordinator, AgentJournal journal, Clock clock,
                       Executor executor, Double defaultBudgetUsd) {
+        this(runs, coordinator, journal, clock, executor, defaultBudgetUsd, null);
+    }
+
+    public RunService(RunRepository runs, Coordinator coordinator, AgentJournal journal, Clock clock,
+                      Executor executor, Double defaultBudgetUsd, ToolRegistry tools) {
         this.runs = runs;
         this.coordinator = coordinator;
         this.journal = journal;
         this.clock = clock;
         this.executor = executor;
         this.defaultBudgetUsd = defaultBudgetUsd;
+        this.tools = tools;
     }
 
     /** Creates the run and returns immediately; planning and execution happen off-thread. */
@@ -42,6 +51,34 @@ public class RunService {
         }
         Run run = Run.create(goal.trim(), clock.now(), budgetUsd != null ? budgetUsd : defaultBudgetUsd);
         runs.save(run);
+        executor.execute(() -> coordinator.drive(run.id()));
+        return run;
+    }
+
+    /**
+     * A card on the Bugün screen turned into a real run (BRIEF §3).
+     *
+     * <p>The step is seeded instead of planned — the planner has nothing to decide, the user
+     * already chose. Everything after that is identical to a typed goal: the coordinator
+     * walks it, the policy engine sees the same WRITE risk and the same approval gate opens.
+     * There is no fast path around the gate.
+     */
+    public Run startFromSuggestion(String toolName, Map<String, Object> params, String label,
+                                   Double budgetUsd) {
+        if (toolName == null || toolName.isBlank()) {
+            throw new IllegalArgumentException("tool is required");
+        }
+        if (tools != null && tools.find(toolName).isEmpty()) {
+            throw new IllegalArgumentException("unknown tool: " + toolName);
+        }
+        String goal = label == null || label.isBlank() ? "Bugün önerisi: " + toolName : label.trim();
+
+        Run run = Run.create(goal, clock.now(), budgetUsd != null ? budgetUsd : defaultBudgetUsd);
+        run.addStep(Step.create(run.id(), 1, goal, AgentRole.toolAgent(toolName), toolName,
+                params == null ? Map.of() : params));
+        runs.save(run);
+        journal.say(run, null, AgentRole.USER, AgentRole.COORDINATOR,
+                "Bugün ekranından öneri çalıştırılıyor: " + toolName);
         executor.execute(() -> coordinator.drive(run.id()));
         return run;
     }

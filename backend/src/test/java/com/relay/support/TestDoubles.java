@@ -112,6 +112,72 @@ public final class TestDoubles {
         }
     }
 
+    /** An LLM that always answers with the same canned content. */
+    public static class StaticLlmClient implements com.relay.application.port.LlmClient {
+        private final String content;
+        public final List<com.relay.application.port.LlmRequest> requests = new ArrayList<>();
+
+        public StaticLlmClient(String content) {
+            this.content = content;
+        }
+
+        @Override
+        public com.relay.application.port.LlmResponse complete(
+                com.relay.application.port.LlmRequest request) {
+            requests.add(request);
+            return new com.relay.application.port.LlmResponse(content, 100, 50, 0.0002, "static", false);
+        }
+
+        @Override
+        public String name() {
+            return "static";
+        }
+
+        @Override
+        public boolean degraded() {
+            return false;
+        }
+    }
+
+    /** A tool that always fails — the "provider is down" case. */
+    public static class FailingTool implements com.relay.application.port.Tool {
+        private final String name;
+
+        public FailingTool(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public String description() {
+            return "always fails";
+        }
+
+        @Override
+        public com.fasterxml.jackson.databind.JsonNode schema() {
+            var schema = com.relay.application.json.Json.object();
+            schema.put("type", "object");
+            schema.putArray("required");
+            schema.putObject("properties");
+            return schema;
+        }
+
+        @Override
+        public com.relay.domain.RiskLevel risk() {
+            return com.relay.domain.RiskLevel.READ;
+        }
+
+        @Override
+        public com.relay.application.port.ToolResult execute(
+                com.fasterxml.jackson.databind.JsonNode params, Connection connection) {
+            return com.relay.application.port.ToolResult.error("provider exploded", 3, "live");
+        }
+    }
+
     /** Records every SSE frame so assertions can read the timeline. */
     public static class RecordingEventPublisher implements EventPublisher {
         public final List<RunEvent> events = new ArrayList<>();

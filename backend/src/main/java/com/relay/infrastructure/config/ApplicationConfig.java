@@ -1,5 +1,7 @@
 package com.relay.infrastructure.config;
 
+import com.relay.application.brief.BriefService;
+import com.relay.application.brief.InsightService;
 import com.relay.application.connection.ConnectionService;
 import com.relay.application.cost.CostMeter;
 import com.relay.application.orchestrator.AgentJournal;
@@ -16,7 +18,9 @@ import com.relay.application.port.LlmClient;
 import com.relay.application.port.PolicyRepository;
 import com.relay.application.port.RunRepository;
 import com.relay.application.port.ToolRegistry;
+import java.time.Duration;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -84,9 +88,35 @@ public class ApplicationConfig {
 
     @Bean
     public RunService runService(RunRepository runs, Coordinator coordinator, AgentJournal journal, Clock clock,
-                                 Executor orchestratorExecutor,
+                                 Executor orchestratorExecutor, ToolRegistry tools,
                                  @Value("${app.budget.default-usd:0.50}") Double defaultBudgetUsd) {
-        return new RunService(runs, coordinator, journal, clock, orchestratorExecutor, defaultBudgetUsd);
+        return new RunService(runs, coordinator, journal, clock, orchestratorExecutor, defaultBudgetUsd, tools);
+    }
+
+    /**
+     * The brief fans every READ tool out at once; virtual threads make a per-tool
+     * timeout cheap enough to give each provider its own.
+     */
+    @Bean(destroyMethod = "close")
+    public ExecutorService briefExecutor() {
+        return Executors.newVirtualThreadPerTaskExecutor();
+    }
+
+    @Bean
+    public InsightService insightService(LlmClient llm, ToolRegistry tools) {
+        return new InsightService(llm, tools);
+    }
+
+    @Bean
+    public BriefService briefService(ToolRegistry tools, ConnectionRepository connections,
+                                     InsightService insights, LlmClient llm, Clock clock,
+                                     ExecutorService briefExecutor,
+                                     @Value("${app.brief.tool-timeout-seconds:8}") long timeoutSeconds,
+                                     @Value("${app.brief.cache-seconds:60}") long cacheSeconds,
+                                     @Value("${app.brief.timezone:Europe/Istanbul}") String timezone,
+                                     @Value("${app.brief.default-project-key:RELAY}") String projectKey) {
+        return new BriefService(tools, connections, insights, llm, clock, briefExecutor,
+                Duration.ofSeconds(timeoutSeconds), Duration.ofSeconds(cacheSeconds), timezone, projectKey);
     }
 
     @Bean
