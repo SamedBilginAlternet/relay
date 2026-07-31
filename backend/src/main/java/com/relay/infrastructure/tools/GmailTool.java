@@ -154,7 +154,13 @@ public abstract class GmailTool extends GoogleTool {
                     for (String id : ids) {
                         futures.add(pool.submit(() -> HttpJson.send("GET", API + "/messages/" + id
                                 + "?format=metadata&metadataHeaders=From&metadataHeaders=To"
-                                + "&metadataHeaders=Subject&metadataHeaders=Date", headers, null)));
+                                + "&metadataHeaders=Subject&metadataHeaders=Date"
+                                // The one header that separates a person writing to you from a
+                                // mailing that went to thousands. Bulk mail carries it by law
+                                // in most jurisdictions, and guessing from the subject line
+                                // gets newsletters classified as bug reports.
+                                + "&metadataHeaders=List-Unsubscribe"
+                                + "&metadataHeaders=Precedence", headers, null)));
                     }
                     for (Future<JsonNode> future : futures) {
                         JsonNode message = future.get();
@@ -166,6 +172,8 @@ public abstract class GmailTool extends GoogleTool {
                         item.put("snippet", message.path("snippet").asText(""));
                         item.put("receivedAt", isoDate(message));
                         item.put("unread", hasLabel(message, "UNREAD"));
+                        item.put("bulk", !header(message, "List-Unsubscribe").isBlank()
+                                || !header(message, "Precedence").isBlank());
                     }
                 }
             }

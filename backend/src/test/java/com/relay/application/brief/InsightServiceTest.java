@@ -132,4 +132,31 @@ class InsightServiceTest {
         assertThat(result.tokens()).isZero();
         assertThat(llm.requests).isEmpty();
     }
+
+    /**
+     * A newsletter that happens to contain the word "bugs" must not become a bug report:
+     * live, one offered to open a Jira ticket for a DEV Community digest.
+     */
+    @Test
+    void bulk_mail_never_becomes_work() {
+        BriefItem newsletter = new BriefItem("gmail:1", "gmail", "mail", "",
+                "Good eats and rockstar bugs for your weekend", "DEV Community", "1sa önce",
+                "DEV Community", "https://mail.google.com", "2026-07-31T09:00:00Z",
+                BriefItem.DEFAULT, Map.of("bulk", true, "from", "noreply@dev.to"));
+
+        InsightService service = new InsightService(
+                new TestDoubles.StaticLlmClient("""
+                        {"insights":[{"id":"gmail:1","kind":"bug_report","urgency":"high",
+                          "summary":"Hata bildirimi","actions":[{"tool":"jira.createIssue",
+                          "label":"Jira ticket aç","params":{"projectKey":"KAN"}}]}]}
+                        """),
+                new ToolRegistryImpl(List.of()));
+
+        InsightService.Insight insight = service.analyze(List.of(newsletter), "KAN")
+                .insights().get(0);
+
+        assertThat(insight.kind()).isEqualTo("fyi");
+        assertThat(insight.urgency()).isEqualTo("low");
+        assertThat(insight.actions()).isEmpty();
+    }
 }

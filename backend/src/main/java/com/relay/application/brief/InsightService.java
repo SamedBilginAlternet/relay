@@ -116,9 +116,26 @@ public class InsightService {
         List<Insight> out = new ArrayList<>();
         for (BriefItem item : subject) {
             Insight insight = byItem.get(item.id());
-            out.add(insight != null ? insight : heuristic(item, projectKey));
+            out.add(demoteBulk(item, insight != null ? insight : heuristic(item, projectKey)));
         }
         return new Result(out, tokens, cost, source);
+    }
+
+    /**
+     * Bulk mail never becomes work, whatever the model decided.
+     *
+     * <p>Live, a DEV Community newsletter titled "Good eats and rockstar bugs for your
+     * weekend" came back as a high-urgency bug report offering to open a Jira ticket. The
+     * model was pattern-matching on the word "bugs"; the mail carried a
+     * {@code List-Unsubscribe} header, which says plainly that it went to a mailing list.
+     * The header wins over the prose.
+     */
+    private static Insight demoteBulk(BriefItem item, Insight insight) {
+        Object bulk = item.ref().get("bulk");
+        if (!Boolean.TRUE.equals(bulk)) {
+            return insight;
+        }
+        return new Insight(insight.itemId(), "fyi", "low", insight.summary(), List.of());
     }
 
     // ---- llm --------------------------------------------------------------
@@ -158,6 +175,12 @@ public class InsightService {
                 Rules:
                 - kind: bug_report | request | fyi | needs_reply | scheduling
                 - urgency: high | normal | low. Only production breakage or a same-day deadline is high.
+                - Bulk mail is not work. Newsletters, digests, product announcements, marketing,
+                  receipts, "verify your e-mail" and automated notifications are ALWAYS
+                  kind=fyi, urgency=low, with NO suggested actions — no matter which words they
+                  contain. A newsletter titled "rockstar bugs for your weekend" is not a bug
+                  report; a bug report is a person describing something that broke.
+                - A real request comes from a human who expects something back from THIS user.
                 - summary: ONE short sentence, in TURKISH, saying what is being asked of the user.
                 - label: TURKISH, imperative, max 4 words, e.g. "Jira ticket aç".
                 - suggestedActions: at most 3, ONLY tools from the given list, with params that fit

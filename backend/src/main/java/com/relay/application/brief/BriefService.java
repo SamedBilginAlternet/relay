@@ -366,6 +366,8 @@ public class BriefService {
             ref.put("from", from);
             ref.put("subject", message.path("subject").asText(""));
             ref.put("snippet", message.path("snippet").asText(""));
+            // Carried through so the insight layer can tell a person from a mailing list.
+            ref.put("bulk", message.path("bulk").asBoolean(false));
             String at = message.path("receivedAt").asText("");
             out.add(new BriefItem("gmail:" + id, "gmail", "mail", "",
                     message.path("subject").asText("(konusuz)"),
