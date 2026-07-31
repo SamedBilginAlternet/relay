@@ -58,6 +58,12 @@ public class Summarizer {
                     Map.of("goal", run.goal()));
 
             LlmResponse response = llm.complete(request);
+            if (response.fallback()) {
+                // Degraded *during* the call: the last key ran out after the check above.
+                // Live, that closed a run the user had just rejected with the stub's
+                // "Sonuç bulunamadı: <the goal>" — filler, and wrong about what happened.
+                return null;
+            }
             String text = clean(response.content());
             if (text == null) {
                 return null;

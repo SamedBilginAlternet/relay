@@ -123,6 +123,31 @@ class ClosingSummaryTest {
                 assertThat(message.content()).contains("Relay özeti"));
     }
 
+    /**
+     * The client can also go degraded between the check and the call. Live, a rejected run
+     * closed on the stub's "Sonuç bulunamadı: <hedef>" — filler, and a wrong account of what
+     * happened: the user rejected the step, nothing was searched for and not found.
+     */
+    @Test
+    void a_summary_that_came_from_the_stub_is_not_written_either() {
+        ScriptedLlm sneaky = new ScriptedLlm("Sonuç bulunamadı: Blocker kayıtlarını getir", false) {
+            @Override
+            public LlmResponse complete(LlmRequest request) {
+                LlmResponse response = super.complete(request);
+                return LlmPurpose.SUMMARIZE.equals(request.purpose())
+                        ? new LlmResponse(response.content(), response.promptTokens(),
+                                response.completionTokens(), response.costUsd(), "stub", true)
+                        : response;
+            }
+        };
+        Run run = driveOneReadStep(sneaky);
+
+        assertThat(run.messages()).last().satisfies(message ->
+                assertThat(message.content()).startsWith("Akış bitti:"));
+        assertThat(run.messages()).noneSatisfy(message ->
+                assertThat(message.content()).contains("Sonuç bulunamadı"));
+    }
+
     /** A model outage must cost the wording, never the run. */
     @Test
     void a_failing_summary_leaves_the_run_finished_anyway() {
