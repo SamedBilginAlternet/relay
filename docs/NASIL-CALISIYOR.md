@@ -374,7 +374,10 @@ Jüri buradan sorar; hazırlıklı olmak lazım.
 - **Yazma araçları dar.** Gmail gönderme, takvim yazma, Jira silme yok (PRD'de bilinçli
   kapsam dışı). `DESTRUCTIVE` riskli tek bir araç bile kayıtlı değil — politika modu
   test edilmiş ama pratikte kullanılmıyor.
-- **`/api/ask` yalnızca Gmail'e bakar.** Jira/Slack/GitHub sorusu soramazsınız.
+- **`/api/ask` en fazla üç kaynağa bakar.** `SourceRouter` soruyu kayıtlı READ araçlarına
+  yönlendirir (Gmail, Jira, GitHub, Takvim), ama tek turda en çok üç arama yapar ve
+  hangisinin seçildiğine karar veren tur, sorgunun yazıldığı turla aynıdır — ayrı bir
+  yönlendirme çağrısı yok, çünkü dakikalık token bütçesi en kıt kaynak.
 - **Onay kapısı adım bazlıdır**, akış bazlı değil: dört yazma adımı olan bir akış dört kez
   sorar. "Hepsini onayla" yok.
 - **Bugün önbelleği global ve 60 saniyelik.** Bağlantı değiştirdikten sonra ekran bir dakika

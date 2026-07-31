@@ -52,8 +52,8 @@ her akış "ends by telling someone what changed". Bu bir bilgi işleme aracı d
 
 ### Kodda var, arayüzde yok
 
-`POST /api/ask` — "kargolarım gelmiş mi?" sorusunu **kullanıcının kendi posta kutusundan,
-kaynak göstererek** yanıtlıyor (`AskService` 343 satır + `MailQueryTranslator` 355 satır,
+`POST /api/ask` — "kargolarım gelmiş mi?", "KAN-4 ne durumda?" gibi soruları **kullanıcının
+kendi hesaplarından, kaynak göstererek** yanıtlıyor (`AskService` + `SourceRouter`,
 salt-okunur, akış başlatmıyor). Frontend'de bu uca **tek bir çağrı yok** (grep: sıfır sonuç).
 Elimizdeki en "herhangi bir beyaz yakalı" özelliği yazılmış, test edilmiş ve **görünmüyor.**
 Bu, §3'teki en ucuz hamlenin gerekçesi.

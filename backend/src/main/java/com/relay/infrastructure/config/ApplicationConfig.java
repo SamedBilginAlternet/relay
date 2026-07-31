@@ -1,7 +1,7 @@
 package com.relay.infrastructure.config;
 
 import com.relay.application.assistant.AskService;
-import com.relay.application.assistant.MailQueryTranslator;
+import com.relay.application.assistant.SourceRouter;
 import com.relay.application.brief.BriefService;
 import com.relay.application.brief.DigestService;
 import com.relay.application.brief.InsightService;
@@ -137,14 +137,14 @@ public class ApplicationConfig {
     }
 
     @Bean
-    public MailQueryTranslator mailQueryTranslator(LlmClient llm) {
-        return new MailQueryTranslator(llm);
+    public SourceRouter sourceRouter(LlmClient llm, ToolRegistry tools) {
+        return new SourceRouter(llm, tools);
     }
 
     @Bean
     public AskService askService(ToolRegistry tools, ConnectionRepository connections,
-                                 MailQueryTranslator translator, LlmClient llm) {
-        return new AskService(tools, connections, translator, llm);
+                                 SourceRouter router, LlmClient llm) {
+        return new AskService(tools, connections, router, llm);
     }
 
     @Bean
