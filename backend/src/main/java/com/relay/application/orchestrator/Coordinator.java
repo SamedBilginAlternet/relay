@@ -141,6 +141,12 @@ public class Coordinator {
             }
 
             if (policy.ask() && step.decision() != Decision.APPROVED) {
+                // Fill the parameters in before asking. They used to be derived after the
+                // approval, so the gate showed the planner's empty draft — live, a Slack
+                // step waited on a human with no channel and no message text on screen.
+                // Approving what you cannot read is not approval.
+                ToolAgent.ParamRefresh refresh = toolAgent.refreshParams(run, step);
+                costMeter.record(run, step, refresh.tokens(), refresh.costUsd());
                 park(run, step, "onay gerekiyor — " + policy.reason(), AgentRole.COORDINATOR);
                 return;
             }
