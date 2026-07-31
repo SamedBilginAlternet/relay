@@ -1,15 +1,7 @@
 import { motion, useReducedMotion } from 'motion/react';
-import {
-  AlertTriangle,
-  ArrowRight,
-  CircleDot,
-  GitPullRequest,
-  Loader,
-  Mail,
-  ShieldQuestion,
-  SquareKanban,
-} from 'lucide-react';
+import { AlertTriangle, CircleDot, GitPullRequest, Loader, Mail, SquareKanban } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { enterProps } from '../lib/motion';
 import type { InsightCard, InsightSource, InsightUrgency, SuggestedAction } from '../types/brief';
 
 type Props = {
@@ -20,14 +12,17 @@ type Props = {
   onDismiss: (cardId: string) => void;
 };
 
-const SOURCE_META: Record<InsightSource, { Icon: LucideIcon; label: string }> = {
+export const SOURCE_META: Record<InsightSource, { Icon: LucideIcon; label: string }> = {
   gmail: { Icon: Mail, label: 'E-posta' },
   github: { Icon: GitPullRequest, label: 'GitHub' },
   jira: { Icon: SquareKanban, label: 'Jira' },
 };
 
 /** Colour never carries the meaning alone — icon + word always ride along. */
-const URGENCY_META: Record<InsightUrgency, { label: string; className: string; Icon: LucideIcon }> = {
+export const URGENCY_META: Record<
+  InsightUrgency,
+  { label: string; className: string; Icon: LucideIcon }
+> = {
   high: { label: 'Acil', className: 'urgency--high', Icon: AlertTriangle },
   normal: { label: 'Normal', className: 'urgency--normal', Icon: CircleDot },
   low: { label: 'Düşük', className: 'urgency--low', Icon: CircleDot },
@@ -41,38 +36,35 @@ const KIND_LABEL: Record<string, string> = {
   scheduling: 'takvim',
 };
 
+export function kindLabel(kind: string): string {
+  return KIND_LABEL[kind] ?? kind.replace(/_/g, ' ');
+}
+
+/**
+ * THE one card. Only the single most urgent insight is rendered this big —
+ * everything else drops to a one-line row (PriorityRow). A stack of five
+ * equally loud cards is a list, not a priority.
+ */
 export function InsightCardView({ card, index, busyTool, onAction, onDismiss }: Props) {
   const reduce = useReducedMotion();
   const source = SOURCE_META[card.source] ?? SOURCE_META.gmail;
   const urgency = URGENCY_META[card.urgency] ?? URGENCY_META.normal;
-  const kind = KIND_LABEL[card.kind] ?? card.kind.replace(/_/g, ' ');
   const busy = busyTool != null;
 
   return (
-    <motion.article
-      className={`insight insight--${card.urgency}`}
-      // DESIGN.md §4 — 300ms enter, 40ms stagger, transform/opacity only.
-      initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(10px)' }}
-      animate={{ opacity: 1, transform: 'translateY(0px)' }}
-      exit={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(-6px)' }}
-      transition={{
-        duration: reduce ? 0.15 : 0.3,
-        delay: reduce ? 0 : Math.min(index, 5) * 0.04,
-        ease: [0.16, 1, 0.3, 1],
-      }}
-    >
-      <div className="insight__head">
-        <span className="insight__source" title={source.label}>
+    <motion.article className={`focus focus--${card.urgency}`} {...enterProps(index, reduce)}>
+      <div className="focus__head">
+        <span className="focus__source" title={source.label}>
           <source.Icon size={16} aria-hidden />
           <span className="sr-only">{source.label}</span>
         </span>
 
-        <div className="insight__who">
-          <h3 className="insight__title">{card.title}</h3>
-          <p className="insight__from">
+        <div className="focus__who">
+          <h3 className="focus__title">{card.title}</h3>
+          <p className="focus__from">
             {card.from ? <strong>{card.from}</strong> : null}
             {card.from ? ' · ' : null}
-            {kind}
+            {kindLabel(card.kind)}
           </p>
         </div>
 
@@ -82,12 +74,9 @@ export function InsightCardView({ card, index, busyTool, onAction, onDismiss }: 
         </span>
       </div>
 
-      <p className="insight__summary">
-        <ArrowRight size={14} aria-hidden className="insight__arrow" />
-        {card.summary}
-      </p>
+      {card.summary && <p className="focus__summary">{card.summary}</p>}
 
-      <div className="insight__actions">
+      <div className="focus__actions">
         {card.suggestedActions.map((action) => {
           const thisBusy = busyTool === action.tool;
           return (
@@ -99,11 +88,7 @@ export function InsightCardView({ card, index, busyTool, onAction, onDismiss }: 
               onClick={() => onAction(card, action)}
               title={action.tool}
             >
-              {thisBusy ? (
-                <Loader size={14} aria-hidden className="spin" />
-              ) : (
-                <ShieldQuestion size={14} aria-hidden />
-              )}
+              {thisBusy && <Loader size={14} aria-hidden className="spin" />}
               {thisBusy ? 'Akış başlatılıyor…' : action.label}
             </button>
           );

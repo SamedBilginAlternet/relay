@@ -294,18 +294,40 @@ a.btn {
   background: var(--bg);
 }
 
+/*
+  The bar floats OVER the scrolling content — that is the only way frosted
+  glass means anything; a bar with white underneath it is just white.
+  `--header-h` is measured by AppHeader (it grows when the nav wraps) and
+  paid back as padding on .main, so nothing ever hides under the bar.
+
+  Glass, per DESIGN.md: white at low opacity + blur + a hairline. No tint,
+  no gradient, no coloured glow.
+*/
 .header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   row-gap: 0;
   column-gap: var(--s-16);
-  min-height: var(--header-h);
+  min-height: 56px;
   padding: 0 var(--s-16);
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-  flex: 0 0 auto;
-  z-index: 20;
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
+  border-bottom: 1px solid rgba(17, 17, 17, 0.07);
+  z-index: 30;
+}
+
+/* Without backdrop-filter the translucency would just leak text through. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .header {
+    background: var(--bg);
+    border-bottom-color: var(--border);
+  }
 }
 
 .brand {
@@ -336,17 +358,23 @@ a.btn {
   color: var(--accent);
 }
 
+/* Segmented control, not four loose pills: one track, one lit segment.
+   Reads as "where am I" at a glance and survives the translucent bar. */
 .nav {
   display: flex;
-  gap: 4px;
-  margin-left: var(--s-8);
+  gap: 2px;
+  margin-left: auto;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: rgba(17, 17, 17, 0.045);
+  border: 1px solid rgba(17, 17, 17, 0.05);
   min-width: 0;
 }
 .nav__item {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
+  min-height: 44px; /* touch target — never shrink this */
   padding: 8px 14px;
   border: 1px solid transparent;
   border-radius: var(--r-pill);
@@ -359,48 +387,15 @@ a.btn {
 }
 .nav__item:hover {
   color: var(--fg);
-  background: var(--bg-subtle);
+  background: rgba(255, 255, 255, 0.7);
 }
 .nav__item[aria-current='page'] {
   color: var(--accent);
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 8px rgba(0, 0, 0, 0.04);
 }
 .nav__label {
   display: inline;
-}
-
-.header__right {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--s-8);
-}
-
-.source-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border-radius: var(--r-pill);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--fg-muted);
-  white-space: nowrap;
-}
-.source-chip--mock {
-  color: var(--warn);
-  border-color: rgba(180, 83, 9, 0.3);
-  background: rgba(180, 83, 9, 0.06);
-}
-.source-chip--api {
-  color: var(--info);
-  border-color: rgba(37, 99, 235, 0.3);
-  background: rgba(37, 99, 235, 0.06);
 }
 
 .main {
@@ -408,6 +403,8 @@ a.btn {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* the fixed bar's height, measured live by AppHeader */
+  padding-top: var(--header-h);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1439,10 +1436,6 @@ a.btn {
   .mobile-bar {
     display: flex;
   }
-  .source-chip {
-    font-size: 11px;
-    padding: 4px 9px;
-  }
   .desktop-only {
     display: none;
   }
@@ -1472,19 +1465,25 @@ a.btn {
 @media (max-width: 640px) {
   .header {
     padding: 0 var(--s-12);
-    padding-bottom: 6px;
+    padding-bottom: 8px;
   }
-  .header__right {
-    order: 2;
-  }
+  /* Full-width row: a segmented *track* would sit there half empty, so on
+     narrow screens the nav goes back to plain pills. */
   .nav {
     order: 3;
     flex: 1 0 100%;
     margin-left: 0;
-    padding-top: 2px;
+    padding: 0;
+    background: transparent;
+    border-color: transparent;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
+  }
+  .nav__item[aria-current='page'] {
+    background: var(--accent-soft);
+    border-color: var(--accent-line);
+    box-shadow: none;
   }
   .nav::-webkit-scrollbar {
     display: none;
@@ -1510,44 +1509,129 @@ a.btn {
 
 /* ------------------------------------------------------------------ */
 /* Bugün — daily brief (docs/BRIEF.md §2)                              */
+/*                                                                     */
+/* One screen, one fold. The shape is: a headline, ONE card that says  */
+/* what to do next, a line per remaining insight, and a four-tile      */
+/* strip that answers "how much is waiting" with a number. Detail is   */
+/* always one click away — never pre-unfolded down the page.           */
 /* ------------------------------------------------------------------ */
 
-.brief-head {
-  align-items: center;
+.page__inner.brief {
+  max-width: 1040px;
+  gap: var(--s-16);
 }
-.brief-head__dot {
+
+.brief-top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-12);
+  flex-wrap: wrap;
+}
+.brief-top__text {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.brief-top__dot {
   color: var(--fg-faint);
 }
-.brief-head__date {
+.brief-top__date {
   color: var(--fg-muted);
   font-weight: 500;
 }
+/* Where the old header badge lives now: the data source describes the
+   brief, not the whole product chrome. */
+.brief-top__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--fg-muted);
+}
+/* The separator is CSS so it disappears with the line it separates,
+   instead of dangling at the end of a wrapped row. */
+.brief-top__note::before {
+  content: '·';
+  padding-right: 6px;
+  color: var(--fg-faint);
+}
 
-.brief-priority {
+.src-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.12);
+}
+.src-dot--mock {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.12);
+}
+/* a green dot next to a dead API would be a lie */
+.src-dot--down {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+
+.brief-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-24);
+}
+
+.brief-prio,
+.brief-sec {
   display: flex;
   flex-direction: column;
   gap: var(--s-12);
 }
-.brief-priority__head {
+.brief-prio__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--s-12);
   flex-wrap: wrap;
+  min-height: 24px;
 }
-.brief-priority__head h2 {
+.brief-prio__head h2 {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--accent);
 }
-
-.insight-stack {
+.brief-sec .brief-prio__head h2 {
+  color: var(--fg-muted);
+}
+.brief-prio__undo {
+  margin-left: auto;
+}
+.brief-prio__skeleton {
   display: flex;
   flex-direction: column;
-  gap: var(--s-12);
+  gap: var(--s-8);
+}
+.brief-prio__clear {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  padding: 14px var(--s-16);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-subtle);
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+.brief-prio__clear > svg {
+  flex: 0 0 auto;
+  color: var(--success);
 }
 
-.insight {
+/* ---- the one card ------------------------------------------------- */
+
+.focus {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1558,23 +1642,22 @@ a.btn {
   box-shadow: var(--shadow);
 }
 /* urgency is a left edge + a labelled chip — never colour alone */
-.insight--high {
+.focus--high {
   box-shadow: inset 3px 0 0 0 var(--danger), var(--shadow);
   border-color: rgba(220, 38, 38, 0.28);
 }
-.insight--normal {
+.focus--normal {
   box-shadow: inset 3px 0 0 0 var(--accent-line), var(--shadow);
 }
-.insight--low {
+.focus--low {
   box-shadow: inset 3px 0 0 0 var(--border), var(--shadow);
 }
-
-.insight__head {
+.focus__head {
   display: flex;
   align-items: flex-start;
   gap: var(--s-12);
 }
-.insight__source {
+.focus__source {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
@@ -1585,22 +1668,39 @@ a.btn {
   background: var(--accent-soft);
   color: var(--accent);
 }
-.insight__who {
+.focus__who {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.insight__title {
-  font-size: 15px;
+.focus__title {
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.35;
   color: var(--fg);
 }
-.insight__from {
+.focus__from {
   font-size: 13px;
   color: var(--fg-muted);
+}
+.focus__summary {
+  margin-left: 44px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.focus__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+  align-items: center;
+  margin-left: 44px;
 }
 
 .urgency {
@@ -1621,34 +1721,11 @@ a.btn {
   border-color: rgba(220, 38, 38, 0.35);
   background: #fef2f2;
 }
-.urgency--normal {
-  color: var(--fg-muted);
-}
+.urgency--normal,
 .urgency--low {
   color: var(--fg-muted);
 }
 
-.insight__summary {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--fg);
-}
-.insight__arrow {
-  flex: 0 0 auto;
-  margin-top: 4px;
-  color: var(--accent);
-}
-
-.insight__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-8);
-  align-items: center;
-  padding-top: 2px;
-}
 .action-pill {
   background: var(--accent-soft);
   border-color: var(--accent-line);
@@ -1660,94 +1737,319 @@ a.btn {
   border-color: var(--accent);
 }
 
-.brief-dismissed {
-  display: flex;
-  align-items: center;
-  gap: var(--s-8);
-  flex-wrap: wrap;
-  padding: 8px 12px;
-  border: 1px dashed var(--border);
-  border-radius: var(--r-card);
-  background: var(--bg-subtle);
-}
+/* ---- the rest: one line each -------------------------------------- */
 
-.brief-grid {
-  display: grid;
-  gap: var(--s-12);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.brief-card {
+.prow-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--s-12);
-  padding: var(--s-16);
   border: 1px solid var(--border);
   border-radius: var(--r-card);
   background: var(--surface);
   box-shadow: var(--shadow);
+  overflow: hidden;
 }
-.brief-card__head {
+.prow + .prow {
+  border-top: 1px solid var(--border);
+}
+.prow__btn {
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  width: 100%;
+  min-height: 48px;
+  padding: 4px var(--s-16);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 160ms ease-out;
+}
+.prow__btn:hover {
+  background: var(--bg-subtle);
+}
+.prow--open .prow__btn {
+  background: var(--bg-subtle);
+}
+.prow__urgency {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: 66px;
+  font-size: 12px;
+  font-weight: 600;
+}
+/* inside a row the urgency is text + icon, not a chip */
+.prow__urgency.urgency--high {
+  color: var(--danger);
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.prow__urgency.urgency--normal,
+.prow__urgency.urgency--low {
+  color: var(--fg-muted);
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.prow__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prow__from {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 32%;
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prow__from > svg {
+  flex: 0 0 auto;
+}
+.prow__hint {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--fg-faint);
+}
+.prow__chev {
+  transition: transform 200ms ease-out;
+}
+.prow--open .prow__chev {
+  transform: rotate(180deg);
+}
+.prow__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px var(--s-16) var(--s-12) calc(var(--s-16) + 66px + var(--s-12));
+}
+.prow__summary {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+.prow__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+  align-items: center;
+}
+
+/* ---- section strip: a number, two lines, and a way in -------------- */
+
+.tile-strip {
+  display: grid;
+  gap: var(--s-12);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.tile-wrap {
+  display: flex;
+}
+.tile {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--s-12);
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: background-color 160ms ease-out, border-color 160ms ease-out,
+    transform 120ms ease-out;
+}
+.tile:hover:not(:disabled) {
+  border-color: #d1d5db;
+  background: var(--bg-subtle);
+}
+.tile:active:not(:disabled) {
+  transform: scale(0.99);
+}
+.tile:disabled {
+  cursor: default;
+}
+.tile--open {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.tile__head {
   display: flex;
   align-items: center;
   gap: var(--s-8);
 }
-.brief-card__icon {
+.tile__icon {
+  flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
   border: 1px solid var(--border);
   background: var(--bg-subtle);
   color: var(--fg-muted);
 }
-.brief-card__title {
-  font-size: 12px;
+.tile--open .tile__icon {
+  border-color: var(--accent-line);
+  background: #fff;
+  color: var(--accent);
+}
+.tile__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.brief-card__count {
-  margin-left: auto;
+.tile__count {
+  flex: 0 0 auto;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 500;
-  color: var(--fg-muted);
-  padding: 2px 9px;
-  border-radius: var(--r-pill);
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
+  line-height: 1;
+  color: var(--fg);
   font-variant-numeric: tabular-nums;
 }
-.brief-card__body {
+.tile__count--off {
+  color: var(--fg-faint);
+}
+.tile__lines {
   display: flex;
   flex-direction: column;
-  gap: var(--s-8);
+  gap: 3px;
+  min-height: 36px;
 }
-.brief-card__quiet {
-  font-size: 13px;
+.tile__line {
+  position: relative;
+  display: block;
+  padding-left: 12px;
+  font-size: 12.5px;
+  line-height: 1.4;
   color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile__dot {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+}
+.tile__dot--warn {
+  background: var(--warn);
+}
+.tile__dot--danger {
+  background: var(--danger);
+}
+.tile__dot--success {
+  background: var(--success);
+}
+.tile__quiet {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--fg-faint);
+}
+/* Darker than --warn/--danger: these sit on --accent-soft when the tile is
+   open, where the standard tones fall just under 4.5:1. */
+.tile__quiet--warn {
+  color: #92400e;
+}
+.tile__quiet--danger {
+  color: #b91c1c;
+}
+.tile__more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-faint);
+}
+.tile:hover:not(:disabled) .tile__more {
+  color: var(--fg-muted);
+}
+.tile--open .tile__more {
+  color: var(--accent);
+}
+.tile__chev {
+  transition: transform 200ms ease-out;
+}
+.tile--open .tile__chev {
+  transform: rotate(180deg);
+}
+
+/* ---- the opened section ------------------------------------------- */
+
+.tpanel {
+  margin-top: var(--s-12);
+  padding: var(--s-12) var(--s-16) var(--s-16);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.tpanel__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  padding-bottom: var(--s-8);
+  border-bottom: 1px solid var(--border);
+}
+.tpanel__close {
+  margin-left: auto;
 }
 
 .brief-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--s-24);
 }
 .brief-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 9px 0;
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
-.brief-row:first-child {
-  border-top: 0;
-  padding-top: 0;
+.brief-row:last-child {
+  border-bottom: 0;
 }
 .brief-row__dot {
   flex: 0 0 auto;
@@ -1802,11 +2104,17 @@ a.btn {
   font-variant-numeric: tabular-nums;
 }
 
+.brief-card__quiet {
+  font-size: 13px;
+  color: var(--fg-muted);
+  padding-top: var(--s-8);
+}
 .brief-card__state {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--s-8);
+  margin-top: var(--s-12);
   padding: var(--s-12);
   border-radius: var(--r-card);
   border: 1px dashed var(--border);
@@ -1829,9 +2137,52 @@ a.btn {
   color: #b91c1c;
 }
 
-@media (max-width: 720px) {
-  .brief-grid {
-    grid-template-columns: minmax(0, 1fr);
+/* Two columns only when there is room for them — a 15-mail inbox should
+   not force a scroll inside a panel that is already inside a scroller. */
+@media (min-width: 900px) {
+  .brief-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .tile-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  /* the row keeps urgency + subject; the sender is the first thing to go */
+  .prow__from {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .prow__hint-text {
+    display: none;
+  }
+  .brief-top__text {
+    flex: 1 1 200px;
+  }
+  .brief-top__note {
+    flex: 1 0 100%;
+  }
+  .brief-top__note::before {
+    content: none;
+  }
+  .tile__head {
+    align-items: flex-start;
+  }
+  .tile__title {
+    white-space: normal;
+  }
+  .focus__summary,
+  .focus__actions {
+    margin-left: 0;
+  }
+  .prow__body {
+    padding-left: var(--s-16);
   }
 }
 

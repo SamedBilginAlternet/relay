@@ -1,6 +1,6 @@
 import { History, MessageSquare, Plug, Sun } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { RUN_SOURCE_KIND } from '../data';
+import { useLayoutEffect, useRef } from 'react';
 import type { Route } from '../lib/router';
 
 type Props = {
@@ -16,8 +16,29 @@ const ITEMS: { hash: string; label: string; match: Route['name'][]; Icon: Lucide
 ];
 
 export function AppHeader({ route, onNavigate }: Props) {
+  const ref = useRef<HTMLElement>(null);
+
+  /*
+    The bar floats over the scrolling content (that is what makes the frosted
+    glass mean anything), so the layout below has to know exactly how tall it
+    is. It is NOT a constant: below 640px the nav wraps onto its own row.
+    Measuring beats guessing — a wrong guess hides the first line of content.
+  */
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const apply = () => {
+      const h = Math.round(el.getBoundingClientRect().height);
+      if (h > 0) document.documentElement.style.setProperty('--header-h', `${h}px`);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
-    <header className="header">
+    <header className="header" ref={ref}>
       <button type="button" className="brand" onClick={() => onNavigate('#/')} aria-label="Relay ana ekran">
         <span className="brand__mark" aria-hidden>
           {/* bayrak devri: nokta -> cubuk -> nokta */}
@@ -54,19 +75,6 @@ export function AppHeader({ route, onNavigate }: Props) {
           );
         })}
       </nav>
-
-      <div className="header__right">
-        <span
-          className={`source-chip source-chip--${RUN_SOURCE_KIND}`}
-          title={
-            RUN_SOURCE_KIND === 'mock'
-              ? 'Veri kaynağı: senaryo (mock). VITE_RUN_SOURCE=api ile gerçek backend’e geçilir.'
-              : 'Veri kaynağı: canlı API'
-          }
-        >
-          {RUN_SOURCE_KIND === 'mock' ? 'Demo veri' : 'Canlı API'}
-        </span>
-      </div>
     </header>
   );
 }

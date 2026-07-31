@@ -1,4 +1,4 @@
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   CalendarDays,
   CheckCircle2,
@@ -10,20 +10,23 @@ import {
   TriangleAlert,
   Undo2,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BriefSectionCard } from '../components/BriefSectionCard';
-import { EmptyState } from '../components/EmptyState';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { SectionPanel, SectionTile } from '../components/BriefSections';
+import type { SectionMeta } from '../components/BriefSections';
 import { InsightCardView } from '../components/InsightCardView';
-import { getBriefSource } from '../data';
+import { PriorityRow } from '../components/PriorityRow';
+import { getBriefSource, RUN_SOURCE_KIND } from '../data';
 import { formatDayMonth } from '../lib/format';
+import { enterProps, expandProps } from '../lib/motion';
 import { useRunStore } from '../store/runStore';
-import type { Brief, InsightCard, SuggestedAction } from '../types/brief';
+import { EMPTY_SECTION } from '../types/brief';
+import type { Brief, BriefSectionKey, InsightCard, SuggestedAction } from '../types/brief';
 
 type Props = { onNavigate: (hash: string) => void };
 
 type Phase = 'loading' | 'refreshing' | 'ready' | 'error';
 
-const SECTIONS = [
+const SECTIONS: SectionMeta[] = [
   {
     key: 'inbox',
     title: 'Gelen kutusu',
@@ -52,7 +55,14 @@ const SECTIONS = [
     connectLabel: 'Google Calendar',
     emptyText: 'Bugün için planlanmış toplantı yok.',
   },
-] as const;
+];
+
+const EMPTY = EMPTY_SECTION;
+
+/** Where the header badge went (issue: "canlı api yazısını sil"): the data
+ *  source is a property of *the brief*, not of the whole product chrome. */
+const SOURCE_NOTE =
+  RUN_SOURCE_KIND === 'api' ? 'Canlı API' : 'Demo veri (senaryo)';
 
 export function TodayScreen({ onNavigate }: Props) {
   const [brief, setBrief] = useState<Brief | null>(null);
@@ -60,7 +70,23 @@ export function TodayScreen({ onNavigate }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [busy, setBusy] = useState<{ cardId: string; tool: string } | null>(null);
+  const [openKey, setOpenKey] = useState<BriefSectionKey | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const openRun = useRunStore((s) => s.openRun);
+  const reduce = useReducedMotion();
+
+  /* The strip sits low on the screen, so a panel opening below it can land
+     off-screen — the click would look like it did nothing. Bring it in. */
+  useEffect(() => {
+    if (!openKey) return;
+    const id = window.setTimeout(() => {
+      panelRef.current?.scrollIntoView({
+        behavior: reduce ? 'auto' : 'smooth',
+        block: 'nearest',
+      });
+    }, 220);
+    return () => window.clearTimeout(id);
+  }, [openKey, reduce]);
 
   const load = useCallback(async (mode: 'initial' | 'refresh') => {
     setPhase(mode === 'initial' ? 'loading' : 'refreshing');
@@ -85,6 +111,8 @@ export function TodayScreen({ onNavigate }: Props) {
     [brief?.priority, dismissed],
   );
 
+  const [focus, ...rest] = priority;
+
   const runAction = async (card: InsightCard, action: SuggestedAction) => {
     setBusy({ cardId: card.id, tool: action.tool });
     setError(null);
@@ -103,6 +131,7 @@ export function TodayScreen({ onNavigate }: Props) {
   const loading = phase === 'loading';
   const refreshing = phase === 'refreshing';
   const showBody = brief != null || loading;
+  const openMeta = SECTIONS.find((m) => m.key === openKey) ?? null;
 
   const liveMessage =
     phase === 'loading'
@@ -117,16 +146,20 @@ export function TodayScreen({ onNavigate }: Props) {
 
   return (
     <div className="page">
-      <div className="page__inner">
-        <div className="page__head brief-head">
-          <div className="page__head-text">
+      <div className="page__inner brief">
+        <motion.div className="brief-top" {...enterProps(0, reduce)}>
+          <div className="brief-top__text">
             <h1 className="t-title">
-              Bugün <span className="brief-head__dot" aria-hidden>·</span>{' '}
-              <span className="brief-head__date">{formatDayMonth(brief?.date ?? null)}</span>
+              Bugün <span className="brief-top__dot" aria-hidden>·</span>{' '}
+              <span className="brief-top__date">{formatDayMonth(brief?.date ?? null)}</span>
             </h1>
-            <p className="t-caption">
-              Seni bekleyen işler tek ekranda. Bir öneriye bas — normal bir Relay akışı başlar,
-              yazma adımı yine onayını ister.
+            <p className="brief-top__meta">
+              <span
+                className={`src-dot src-dot--${RUN_SOURCE_KIND}${phase === 'error' ? ' src-dot--down' : ''}`}
+                aria-hidden
+              />
+              {phase === 'error' ? `${SOURCE_NOTE} — yanıt yok` : SOURCE_NOTE}
+              <span className="brief-top__note">Öneriye basmadan hiçbir şey çalışmaz.</span>
             </p>
           </div>
           <button
@@ -138,7 +171,7 @@ export function TodayScreen({ onNavigate }: Props) {
             <RefreshCw size={14} aria-hidden className={loading || refreshing ? 'spin' : undefined} />
             {refreshing ? 'Yenileniyor…' : 'Yenile'}
           </button>
-        </div>
+        </motion.div>
 
         <p className="sr-only" role="status" aria-live="polite">
           {liveMessage}
@@ -173,81 +206,116 @@ export function TodayScreen({ onNavigate }: Props) {
           The error card above is the whole screen until it loads.
         */}
         {!showBody ? null : (
-        <>
-        {/* ---------------- ÖNCELİKLİ ---------------- */}
-        <section className="brief-priority" aria-labelledby="brief-priority-h">
-          <div className="brief-priority__head">
-            <h2 className="t-label" id="brief-priority-h">
-              <Sparkles size={12} aria-hidden /> Öncelikli
-            </h2>
-            {/* The "suggestion ≠ execution" rule (BRIEF.md §3) belongs here once.
-                Repeating it under every card turned the promise into wallpaper. */}
-            <span className="t-caption">
-              AI katmanının öne çıkardıkları — öneri, eylem değil: tıklanmadan hiçbir şey
-              çalışmaz.
-            </span>
-          </div>
+          <div className="brief-body">
+            {/* ---------------- ÖNCELİKLİ ---------------- */}
+            <section className="brief-prio" aria-labelledby="brief-priority-h">
+              <div className="brief-prio__head">
+                <h2 className="t-label" id="brief-priority-h">
+                  <Sparkles size={12} aria-hidden /> Öncelikli
+                </h2>
+                {!loading && priority.length > 0 && (
+                  <span className="t-caption">{priority.length} başlık</span>
+                )}
+                {!loading && dismissed.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm brief-prio__undo"
+                    onClick={() => setDismissed([])}
+                  >
+                    <Undo2 size={14} aria-hidden />
+                    {dismissed.length} yoksayılanı geri al
+                  </button>
+                )}
+              </div>
 
-          {loading && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div className="skeleton" style={{ height: 148 }} />
-              <div className="skeleton" style={{ height: 148, opacity: 0.6 }} />
-            </div>
-          )}
+              {loading && (
+                <div className="brief-prio__skeleton">
+                  <div className="skeleton" style={{ height: 116 }} />
+                  <div className="skeleton" style={{ height: 44, opacity: 0.6 }} />
+                  <div className="skeleton" style={{ height: 44, opacity: 0.4 }} />
+                </div>
+              )}
 
-          {!loading && priority.length > 0 && (
-            <div className="insight-stack">
-              <AnimatePresence initial={false}>
-                {priority.map((card, i) => (
-                  <InsightCardView
-                    key={card.id}
-                    card={card}
-                    index={i}
-                    busyTool={busy?.cardId === card.id ? busy.tool : null}
-                    onAction={(c, a) => void runAction(c, a)}
-                    onDismiss={(id) => setDismissed((cur) => [...cur, id])}
+              {!loading && focus && (
+                <InsightCardView
+                  key={focus.id}
+                  card={focus}
+                  index={0}
+                  busyTool={busy?.cardId === focus.id ? busy.tool : null}
+                  onAction={(c, a) => void runAction(c, a)}
+                  onDismiss={(id) => setDismissed((cur) => [...cur, id])}
+                />
+              )}
+
+              {!loading && rest.length > 0 && (
+                <ul className="prow-list">
+                  <AnimatePresence initial={false}>
+                    {rest.map((card, i) => (
+                      <PriorityRow
+                        key={card.id}
+                        card={card}
+                        index={i + 1}
+                        busyTool={busy?.cardId === card.id ? busy.tool : null}
+                        onAction={(c, a) => void runAction(c, a)}
+                        onDismiss={(id) => setDismissed((cur) => [...cur, id])}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </ul>
+              )}
+
+              {!loading && priority.length === 0 && (
+                <p className="brief-prio__clear">
+                  <CheckCircle2 size={16} aria-hidden />
+                  {dismissed.length > 0
+                    ? 'Öncelikli liste temizlendi.'
+                    : 'Öne çıkan bir şey yok — bugün acil işaretlenen mail, PR ya da kayıt bulunmadı.'}
+                </p>
+              )}
+            </section>
+
+            {/* ---------------- Bölümler ---------------- */}
+            <section className="brief-sec" aria-labelledby="brief-sections-h">
+              <div className="brief-prio__head">
+                <h2 className="t-label" id="brief-sections-h">
+                  Bölümler
+                </h2>
+                <span className="t-caption">Sayıya bas, listesi açılsın</span>
+              </div>
+
+              <div className="tile-strip">
+                {SECTIONS.map((meta, i) => (
+                  <SectionTile
+                    key={meta.key}
+                    meta={meta}
+                    index={i + 2}
+                    section={brief?.[meta.key] ?? EMPTY}
+                    loading={loading}
+                    open={openKey === meta.key}
+                    tileId={`tile-${meta.key}`}
+                    panelId={`panel-${meta.key}`}
+                    onToggle={() => setOpenKey((cur) => (cur === meta.key ? null : meta.key))}
                   />
                 ))}
+              </div>
+
+              <AnimatePresence initial={false}>
+                {openMeta && (
+                  <motion.div key={openMeta.key} ref={panelRef} {...expandProps(reduce)}>
+                    <SectionPanel
+                      meta={openMeta}
+                      section={brief?.[openMeta.key] ?? EMPTY}
+                      tileId={`tile-${openMeta.key}`}
+                      panelId={`panel-${openMeta.key}`}
+                      onClose={() => setOpenKey(null)}
+                      onGoToConnections={() => onNavigate('#/connections')}
+                      onRetry={() => void load('refresh')}
+                    />
+                  </motion.div>
+                )}
               </AnimatePresence>
-            </div>
-          )}
-
-          {!loading && priority.length === 0 && dismissed.length === 0 && (
-            <EmptyState
-              Icon={CheckCircle2}
-              title="Öne çıkan bir şey yok"
-              description="Bugün acil işaretlenen mail, PR ya da kayıt bulunmadı. Aşağıdaki bölümlerde yine de her şey duruyor."
-            />
-          )}
-
-          {!loading && dismissed.length > 0 && (
-            <div className="brief-dismissed">
-              <span className="t-caption">{dismissed.length} kart yoksayıldı</span>
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDismissed([])}>
-                <Undo2 size={14} aria-hidden />
-                Geri al
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* ---------------- Compact sections ---------------- */}
-        <div className="brief-grid">
-          {SECTIONS.map((meta) => (
-            <BriefSectionCard
-              key={meta.key}
-              title={meta.title}
-              Icon={meta.Icon}
-              connectLabel={meta.connectLabel}
-              emptyText={meta.emptyText}
-              loading={loading}
-              section={brief?.[meta.key] ?? { status: 'ok', items: [] }}
-              onGoToConnections={() => onNavigate('#/connections')}
-              onRetry={() => void load('refresh')}
-            />
-          ))}
-        </div>
-        </>
+            </section>
+          </div>
         )}
       </div>
     </div>
