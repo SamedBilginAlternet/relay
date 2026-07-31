@@ -49,8 +49,20 @@ export type InsightCard = {
   suggestedActions: SuggestedAction[];
 };
 
+/**
+ * The day in a sentence, written after every section came back. Optional on purpose:
+ * when the model is unavailable the backend omits it rather than shipping filler.
+ */
+export type BriefDigest = {
+  summary: string;
+  /** Ordered, with the reason each item earned its place. */
+  priorities: { itemId: string; why: string }[];
+  advice?: string;
+};
+
 export type Brief = {
   date: string;
+  digest?: BriefDigest | null;
   priority: InsightCard[];
   inbox: BriefSection;
   work: BriefSection;

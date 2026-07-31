@@ -1583,6 +1583,35 @@ a.btn {
   gap: var(--s-24);
 }
 
+/* The day in a sentence. It sits above everything because it is the answer to the
+   question the screen exists for; the cards below are the evidence. Quiet by design —
+   a tinted block here would compete with the one card that can actually be acted on. */
+.digest {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: var(--s-12);
+  border-left: 2px solid var(--accent-line);
+}
+.digest__summary {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--fg);
+}
+.digest__advice {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+.digest__advice svg {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: var(--accent);
+}
+
 .brief-prio,
 .brief-sec {
   display: flex;

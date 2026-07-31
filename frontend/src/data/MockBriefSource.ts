@@ -16,6 +16,15 @@ function at(hour: number, minute = 0): string {
 function buildBrief(): Brief {
   return {
     date: new Date().toISOString(),
+    digest: {
+    summary:
+      'Bugün iki şey seni bekliyor: ödeme servisindeki staging hatası ve iki gündür review bekleyen PR. Gerisi bilgilendirme.',
+    priorities: [
+      { itemId: 'gmail:1', why: 'Release bloke; en eski bekleyen konu bu.' },
+      { itemId: 'github-pr:acme/pay#12', why: 'İki gündür sende, CI yeşil.' },
+    ],
+    advice: 'Önce hata kaydını aç, sonra PR review — ikisi de aynı servisi ilgilendiriyor.',
+  },
 
     priority: [
       {

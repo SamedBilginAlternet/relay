@@ -1,5 +1,6 @@
 import type {
   Brief,
+  BriefDigest,
   BriefItem,
   BriefSection,
   BriefSectionStatus,
@@ -94,10 +95,28 @@ function normalizeCard(raw: unknown, index: number): InsightCard {
   };
 }
 
+/** Absent, empty or garbled all mean the same thing: show no summary at all. */
+function normalizeDigest(raw: unknown): BriefDigest | null {
+  const r = asRecord(raw);
+  const summary = asString(r.summary).trim();
+  if (!summary) return null;
+  const priorities = Array.isArray(r.priorities)
+    ? r.priorities
+        .map((entry) => {
+          const p = asRecord(entry);
+          return { itemId: asString(p.itemId), why: asString(p.why) };
+        })
+        .filter((p) => p.itemId && p.why)
+    : [];
+  const advice = asString(r.advice).trim();
+  return { summary, priorities, advice: advice || undefined };
+}
+
 export function normalizeBrief(raw: unknown): Brief {
   const r = asRecord(raw);
   return {
     date: asString(r.date) || new Date().toISOString(),
+    digest: normalizeDigest(r.digest),
     priority: Array.isArray(r.priority) ? r.priority.map(normalizeCard) : [],
     inbox: normalizeSection(r.inbox, 'Gelen kutusu'),
     work: normalizeSection(r.work, 'Üstümdeki işler'),

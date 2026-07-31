@@ -217,6 +217,23 @@ export function TodayScreen({ onNavigate }: Props) {
         */}
         {!showBody ? null : (
           <div className="brief-body">
+            {/* ---------------- GÜNÜN ÖZETİ ---------------- */}
+            {/* Absent whenever the model could not write it — an honest gap beats a
+                sentence that sounds like a summary and says nothing. */}
+            {brief?.digest ? (
+              <motion.section className="digest" aria-labelledby="digest-h" {...enterProps(0, reduce)}>
+                <h2 className="sr-only" id="digest-h">
+                  Günün özeti
+                </h2>
+                <p className="digest__summary">{brief.digest.summary}</p>
+                {brief.digest.advice ? (
+                  <p className="digest__advice">
+                    <Sparkles size={13} aria-hidden /> {brief.digest.advice}
+                  </p>
+                ) : null}
+              </motion.section>
+            ) : null}
+
             {/* ---------------- ÖNCELİKLİ ---------------- */}
             <section className="brief-prio" aria-labelledby="brief-priority-h">
               <div className="brief-prio__head">
