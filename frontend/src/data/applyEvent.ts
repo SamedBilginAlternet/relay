@@ -60,8 +60,10 @@ export function applyEvent(run: Run, event: RunEvent, now: string = new Date().t
       const message: AgentMessage = {
         id,
         stepId: event.stepId ?? null,
-        fromAgent: event.from,
-        toAgent: event.to,
+        // Sozlesme `from/to` der; backend tam entity (`fromAgent/toAgent`)
+        // yayinliyor. Ikisini de kabul et — bir daha bu yuzden bos ekran olmasin.
+        fromAgent: event.fromAgent ?? event.from ?? 'unknown',
+        toAgent: event.toAgent ?? event.to ?? 'unknown',
         content: event.content,
         createdAt: event.createdAt ?? now,
       };

@@ -97,8 +97,8 @@ export type StepFinishedEvent = {
 export type AgentMessageEvent = {
   type: 'agent.message';
   id?: string;
-  from: string;
-  to: string;
+  from?: string; fromAgent?: string;
+  to?: string; toAgent?: string;
   content: string;
   stepId?: string | null;
   createdAt?: string;

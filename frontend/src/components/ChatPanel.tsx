@@ -20,7 +20,7 @@ type Props = {
 const USER_TARGETS = new Set(['kullanıcı', 'user', 'sen', 'you']);
 
 function isToUser(message: AgentMessage): boolean {
-  return USER_TARGETS.has(message.toAgent.trim().toLowerCase());
+  return USER_TARGETS.has((message.toAgent ?? '').trim().toLowerCase());
 }
 
 export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = false }: Props) {
