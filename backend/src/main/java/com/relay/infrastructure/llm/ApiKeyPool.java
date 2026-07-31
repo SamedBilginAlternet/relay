@@ -53,7 +53,20 @@ public class ApiKeyPool {
 
     /** Park a key that just got rate limited. It comes back when the cooldown ends. */
     public synchronized void penalize(String key) {
-        coolingUntil.put(key, clock.now().plus(cooldown));
+        penalize(key, null);
+    }
+
+    /**
+     * Park a key for as long as the provider asked, falling back to the configured cooldown.
+     * Clamped to that cooldown so a hostile or absurd {@code Retry-After} cannot sideline a
+     * key for hours.
+     */
+    public synchronized void penalize(String key, Duration requested) {
+        Duration wait = requested == null || requested.isNegative() || requested.isZero()
+                || requested.compareTo(cooldown) > 0
+                ? cooldown
+                : requested;
+        coolingUntil.put(key, clock.now().plus(wait));
     }
 
     /**

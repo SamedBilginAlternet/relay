@@ -19,6 +19,15 @@ public class JdkHttpTransport implements HttpTransport {
                 .build();
     }
 
+    /** Seconds-form {@code Retry-After} only; the date form is not worth the parsing risk. */
+    private static Duration retryAfter(HttpResponse<String> response) {
+        return response.headers().firstValue("retry-after")
+                .map(String::trim)
+                .filter(value -> value.matches("\\d+"))
+                .map(value -> Duration.ofSeconds(Long.parseLong(value)))
+                .orElse(null);
+    }
+
     @Override
     public Reply post(String url, String apiKey, String jsonBody) {
         try {
@@ -29,7 +38,7 @@ public class JdkHttpTransport implements HttpTransport {
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            return new Reply(response.statusCode(), response.body());
+            return new Reply(response.statusCode(), response.body(), retryAfter(response));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return new Reply(599, "interrupted");

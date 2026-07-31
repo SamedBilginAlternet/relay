@@ -38,6 +38,12 @@ public class Summarizer {
 
     /** Two or three sentences in Turkish, or {@code null} when the model cannot help. */
     public Outcome summarise(Run run, boolean failed) {
+        if (llm.degraded()) {
+            // The fallback writes template filler ("Adımlar yürütüldü; ayrıntılar zaman
+            // çizelgesinde") which reads like the product has nothing to say. Better to
+            // close on the cost line than to fake an answer.
+            return null;
+        }
         try {
             LlmRequest request = LlmRequest.of(
                     LlmPurpose.SUMMARIZE,

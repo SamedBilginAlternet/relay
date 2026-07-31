@@ -106,6 +106,23 @@ class ClosingSummaryTest {
                 .contains("RELAY-14");
     }
 
+    /** The stub writes template filler; an honest cost line beats a fake answer. */
+    @Test
+    void a_degraded_model_writes_no_summary_at_all() {
+        ScriptedLlm degraded = new ScriptedLlm("Relay özeti — bir şeyler oldu", false) {
+            @Override
+            public boolean degraded() {
+                return true;
+            }
+        };
+        Run run = driveOneReadStep(degraded);
+
+        assertThat(run.messages()).last().satisfies(message ->
+                assertThat(message.content()).startsWith("Akış bitti:"));
+        assertThat(run.messages()).noneSatisfy(message ->
+                assertThat(message.content()).contains("Relay özeti"));
+    }
+
     /** A model outage must cost the wording, never the run. */
     @Test
     void a_failing_summary_leaves_the_run_finished_anyway() {

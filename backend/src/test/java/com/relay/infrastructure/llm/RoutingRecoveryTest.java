@@ -102,4 +102,31 @@ class RoutingRecoveryTest {
         assertThat(calls[0]).as("the dead key is never tried again").isEqualTo(1);
         assertThat(client.health().get("keysAvailable")).isEqualTo(0);
     }
+
+    /** Groq usually says how long to wait; honouring it shortens the fallback window. */
+    @Test
+    void a_retry_after_shorter_than_the_cooldown_is_honoured() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        RoutingLlmClient client = routing(
+                (url, key, body) -> new HttpTransport.Reply(429, "{}", Duration.ofSeconds(7)), clock);
+
+        client.complete(request());
+        assertThat(client.degraded()).isTrue();
+
+        clock.advance(Duration.ofSeconds(8));
+        assertThat(client.degraded()).as("parked for seven seconds, not a minute").isFalse();
+    }
+
+    /** An absurd Retry-After must not sideline the only key for hours. */
+    @Test
+    void a_retry_after_longer_than_the_cooldown_is_clamped() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        RoutingLlmClient client = routing(
+                (url, key, body) -> new HttpTransport.Reply(429, "{}", Duration.ofHours(3)), clock);
+
+        client.complete(request());
+        clock.advance(Duration.ofSeconds(61));
+
+        assertThat(client.degraded()).isFalse();
+    }
 }

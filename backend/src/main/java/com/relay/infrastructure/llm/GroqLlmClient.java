@@ -63,9 +63,9 @@ public class GroqLlmClient implements LlmClient {
                     LOG.log(Level.WARNING, "groq key {0} retired ({1}) — provider refused it",
                             ApiKeyPool.mask(key.get()), reply.status());
                 } else {
-                    keys.penalize(key.get());
-                    LOG.log(Level.WARNING, "groq key {0} parked ({1}) — rotating",
-                            ApiKeyPool.mask(key.get()), reply.status());
+                    keys.penalize(key.get(), reply.retryAfter());
+                    LOG.log(Level.WARNING, "groq key {0} parked ({1}, retry-after {2}) — rotating",
+                            ApiKeyPool.mask(key.get()), reply.status(), String.valueOf(reply.retryAfter()));
                 }
                 continue;
             }

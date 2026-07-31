@@ -5,7 +5,16 @@ public interface HttpTransport {
 
     Reply post(String url, String apiKey, String jsonBody);
 
-    record Reply(int status, String body) {
+    /**
+     * @param retryAfter what the provider said on 429 — {@code null} when it said nothing.
+     *                   Parking a key for a flat minute when Groq asked for seven seconds
+     *                   keeps a single-key install in fallback far longer than it has to be.
+     */
+    record Reply(int status, String body, java.time.Duration retryAfter) {
+
+        public Reply(int status, String body) {
+            this(status, body, null);
+        }
 
         public boolean ok() {
             return status >= 200 && status < 300;
