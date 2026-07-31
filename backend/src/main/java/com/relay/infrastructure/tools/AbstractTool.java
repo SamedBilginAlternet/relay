@@ -47,10 +47,26 @@ public abstract class AbstractTool implements Tool {
             return ToolResult.ok(data, elapsed(start), effectiveMode);
         } catch (Exception e) {
             // Never let a provider message carry a token into the log.
-            String message = e.getClass().getSimpleName() + ": " + e.getMessage();
+            String message = describe(e);
             LOG.log(Level.WARNING, "tool {0} failed in {1} mode: {2}", name(), effectiveMode, message);
             return ToolResult.error(message, elapsed(start), effectiveMode);
         }
+    }
+
+    /**
+     * What the user is told when a tool fails.
+     *
+     * <p>A {@link HttpJson.ToolCallException} is already a sentence someone wrote for this
+     * moment ("Jira'da 'RELAY' anahtarlı bir proje yok…"); prefixing it with the class name
+     * put "ToolCallException:" on the timeline in front of it. Anything else is unplanned, so
+     * the type is the most useful thing about it — and its message goes through redaction,
+     * because nobody vetted what a stray exception put in there.
+     */
+    static String describe(Exception e) {
+        if (e instanceof HttpJson.ToolCallException) {
+            return e.getMessage();
+        }
+        return e.getClass().getSimpleName() + ": " + HttpJson.redact(String.valueOf(e.getMessage()));
     }
 
     /** Does the connection carry what this provider needs? */

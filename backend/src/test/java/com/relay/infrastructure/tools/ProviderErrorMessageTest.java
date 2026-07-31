@@ -83,6 +83,25 @@ class ProviderErrorMessageTest {
                 .getMessage()).contains("leaked ****");
     }
 
+    /**
+     * The timeline read "jira.createIssue hata verdi: ToolCallException: Jira'da 'RELAY'
+     * anahtarlı bir proje yok" — a Java class name in front of a sentence written for a user.
+     */
+    @Test
+    void a_deliberate_message_reaches_the_timeline_without_a_class_name_in_front() {
+        assertThat(AbstractTool.describe(new HttpJson.ToolCallException("Jira'da 'RELAY' projesi yok.")))
+                .isEqualTo("Jira'da 'RELAY' projesi yok.");
+    }
+
+    /** An unplanned failure keeps its type — and still gives nothing away. */
+    @Test
+    void an_unexpected_failure_keeps_its_type_and_loses_its_secrets() {
+        String message = AbstractTool.describe(
+                new IllegalStateException("bad header Basic ATATT3xFfGF0dGVtcHRlZHRva2Vu"));
+
+        assertThat(message).startsWith("IllegalStateException: ").doesNotContain("ATATT");
+    }
+
     @Test
     void the_status_and_the_body_travel_with_the_exception() {
         HttpJson.ToolCallException failure = HttpJson.failure(400, "x.atlassian.net", "{\"a\":1}");
