@@ -39,6 +39,22 @@ public class ApiExceptionHandler {
     }
 
     /**
+     * A body that is missing, empty or not JSON is the caller's mistake too.
+     *
+     * <p>{@code POST /api/runs} with no body at all answered 500 "Beklenmeyen bir hata
+     * oluştu" — which reads as "Relay is broken" for a request Relay understood perfectly
+     * well and simply cannot act on. Spring's own message names the parser and the offset,
+     * so it stays in the log.
+     */
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> unreadableBody(
+            org.springframework.http.converter.HttpMessageNotReadableException e) {
+        LOG.log(Level.DEBUG, "unreadable request body", e);
+        return body(HttpStatus.BAD_REQUEST, "bad_request",
+                "İstek gövdesi okunamadı: geçerli bir JSON gövdesi gönderin.");
+    }
+
+    /**
      * Anything unhandled is a bug on our side, so the caller gets a stable sentence and
      * the detail goes to the log. Exception messages carry whatever the failing layer put
      * in them — a provider body, a query, occasionally a credential — and none of that
