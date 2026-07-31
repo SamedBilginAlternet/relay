@@ -1,4 +1,4 @@
-import { History, MessageSquare, Plug, Zap } from 'lucide-react';
+import { History, MessageSquare, Plug } from 'lucide-react';
 import { RUN_SOURCE_KIND } from '../data';
 import type { Route } from '../lib/router';
 
@@ -18,9 +18,16 @@ export function AppHeader({ route, onNavigate }: Props) {
     <header className="header">
       <button type="button" className="brand" onClick={() => onNavigate('#/')} aria-label="Relay ana ekran">
         <span className="brand__mark" aria-hidden>
-          <Zap size={15} />
+          {/* bayrak devri: nokta -> cubuk -> nokta */}
+          <svg viewBox="0 0 64 64" width="15" height="15">
+            <circle cx="17" cy="38" r="7" fill="currentColor" />
+            <rect x="20" y="23.5" width="24" height="8" rx="4" fill="currentColor" transform="rotate(-14 32 27.5)" />
+            <circle cx="47" cy="20" r="7" fill="currentColor" />
+          </svg>
         </span>
-        Relay
+        <span aria-hidden>
+          <span className="brand__r">r</span>elay
+        </span>
       </button>
 
       <nav className="nav" aria-label="Ana gezinme">

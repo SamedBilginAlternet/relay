@@ -3,7 +3,7 @@ import { CopyButton } from './CopyButton';
 
 type Props = { title: string; value: unknown };
 
-/** `--surface-hi` background, JetBrains Mono 13px, no syntax colouring, copy button. */
+/** `--bg-subtle` background, JetBrains Mono 13px, no syntax colouring, copy button. */
 export function ParamBlock({ title, value }: Props) {
   const json = prettyJson(value);
   return (

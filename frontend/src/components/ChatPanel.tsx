@@ -138,7 +138,7 @@ export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = fal
         )}
 
         {run && run.status === 'awaiting_approval' && (
-          <div className="chat-system" style={{ color: 'var(--warn)', borderColor: 'rgba(245,165,36,0.4)' }}>
+          <div className="chat-system" style={{ color: 'var(--warn)', borderColor: 'rgba(180,83,9,0.35)' }}>
             Onayın bekleniyor — akış panelinde “Onayla” veya “Reddet”.
           </div>
         )}
