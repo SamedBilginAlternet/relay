@@ -154,10 +154,10 @@ public class BriefService {
                 ? calendarItems(calendarResult.data()) : List.of();
 
         // The priority lane looks at what the user can act on. Calendar is context, not a task.
-        List<BriefItem> analysed = new ArrayList<>();
-        analysed.addAll(inboxItems);
-        analysed.addAll(workItems);
-        analysed.addAll(codeItems);
+        // Interleaved, not concatenated: the insight layer only reads the first handful, and
+        // a full inbox used to consume every slot — live, fifteen mails pushed the assigned
+        // Jira issue and six pull requests out of the priority lane entirely.
+        List<BriefItem> analysed = interleave(inboxItems, workItems, codeItems);
 
         InsightService.Result insight = insights.analyze(analysed, projectKeyFrom(workItems));
 
@@ -367,6 +367,29 @@ public class BriefService {
     }
 
     // ---- normalisation ----------------------------------------------------
+
+    /**
+     * Round-robins the sections so every source reaches the insight layer.
+     *
+     * <p>Order matters downstream: the classifier reads only the first items, so a busy
+     * inbox otherwise decides the whole priority lane on its own.
+     */
+    @SafeVarargs
+    private static List<BriefItem> interleave(List<BriefItem>... sections) {
+        List<BriefItem> out = new ArrayList<>();
+        int longest = 0;
+        for (List<BriefItem> section : sections) {
+            longest = Math.max(longest, section.size());
+        }
+        for (int index = 0; index < longest; index++) {
+            for (List<BriefItem> section : sections) {
+                if (index < section.size()) {
+                    out.add(section.get(index));
+                }
+            }
+        }
+        return out;
+    }
 
     private List<BriefItem> gmailItems(JsonNode data, Instant now) {
         List<BriefItem> out = new ArrayList<>();
