@@ -2,17 +2,21 @@ package com.relay.application.brief;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.relay.application.port.ConnectionRepository;
 import com.relay.application.port.LlmClient;
 import com.relay.application.port.Tool;
 import com.relay.application.port.ToolRegistry;
+import com.relay.domain.Connection;
 import com.relay.infrastructure.llm.StubLlmClient;
 import com.relay.infrastructure.tools.FixtureStore;
 import com.relay.infrastructure.tools.GitHubTool;
+import com.relay.infrastructure.tools.GmailTool;
 import com.relay.infrastructure.tools.JiraTool;
 import com.relay.infrastructure.tools.SlackTool;
 import com.relay.infrastructure.tools.ToolRegistryImpl;
 import com.relay.support.TestDoubles;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +37,12 @@ class BriefServiceTest {
     }
 
     private BriefService serviceWith(ToolRegistry registry, TestDoubles.FixedClock clock, LlmClient llm) {
-        return new BriefService(registry, new TestDoubles.InMemoryConnectionRepository(),
+        return serviceWith(registry, clock, llm, new TestDoubles.InMemoryConnectionRepository());
+    }
+
+    private BriefService serviceWith(ToolRegistry registry, TestDoubles.FixedClock clock, LlmClient llm,
+                                     ConnectionRepository connections) {
+        return new BriefService(registry, connections,
                 new InsightService(llm, registry), new DigestService(llm), llm, clock, Runnable::run,
                 Duration.ofSeconds(8), Duration.ofSeconds(60), "Europe/Istanbul", "RELAY");
     }
@@ -160,6 +169,36 @@ class BriefServiceTest {
         });
         // The highest urgency lands on top.
         assertThat(priority(brief).get(0).get("urgency")).isEqualTo("high");
+    }
+
+    /**
+     * Live, every "Jira ticket aç" card carried {@code projectKey: RELAY} — the config
+     * default — while the connected Jira only had KAN. Approving the card produced a 404
+     * instead of a ticket. Nothing in today's brief pointed at a project, so the connection
+     * is the only place left that knows.
+     */
+    @Test
+    void aSuggestionFilesAgainstTheConnectedProjectNotTheConfigDefault() {
+        // No jira.listMyIssues: the work lane is empty, exactly like the deployed instance.
+        ToolRegistry registry = new ToolRegistryImpl(List.of(
+                new GmailTool.ListToday("replay", FIXTURES, null),
+                new JiraTool.CreateIssue("replay", FIXTURES)));
+        TestDoubles.InMemoryConnectionRepository connections = new TestDoubles.InMemoryConnectionRepository();
+        connections.save(Connection.of("jira", Map.of("baseUrl", "https://x.atlassian.net",
+                "email", "a@b.c", "apiToken", "t", "projectKey", "kan"), Instant.parse("2026-07-31T20:00:00Z")));
+
+        Map<String, Object> brief = serviceWith(registry, new TestDoubles.FixedClock(),
+                new StubLlmClient(registry), connections).brief();
+
+        List<Map<String, Object>> created = priority(brief).stream()
+                .flatMap(card -> ((List<?>) card.get("suggestedActions")).stream())
+                .map(BriefServiceTest::asMap)
+                .filter(action -> "jira.createIssue".equals(action.get("tool")))
+                .toList();
+
+        assertThat(created).isNotEmpty();
+        assertThat(created).allSatisfy(action ->
+                assertThat(asMap(action.get("params")).get("projectKey")).isEqualTo("KAN"));
     }
 
     @Test

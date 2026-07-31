@@ -587,6 +587,15 @@ public class BriefService {
     private static final java.time.format.DateTimeFormatter JIRA_STAMP =
             java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss[.SSS]Z");
 
+    /**
+     * Which project a "Jira ticket aç" suggestion should target.
+     *
+     * <p>An issue already in today's brief is the best evidence — that is where this person's
+     * work lives. Next best is the project key on the Jira connection: the user typed it, so
+     * it exists and they can write to it. {@code defaultProjectKey} is last on purpose. It is
+     * a config default ("RELAY") that matched no real project on the deployed instance, so
+     * every suggestion came pre-loaded with a project key Jira answers 404 to.
+     */
     private String projectKeyFrom(List<BriefItem> workItems) {
         for (BriefItem item : workItems) {
             Object key = item.ref().get("projectKey");
@@ -594,7 +603,11 @@ public class BriefService {
                 return String.valueOf(key);
             }
         }
-        return defaultProjectKey;
+        String configured = connections.findByProvider("jira")
+                .map(connection -> connection.getOrDefault("projectKey",
+                        connection.getOrDefault("defaultProject", "")))
+                .orElse("");
+        return configured.isBlank() ? defaultProjectKey : configured.trim().toUpperCase(Locale.ROOT);
     }
 
     private String baseUrlOf(String provider) {
