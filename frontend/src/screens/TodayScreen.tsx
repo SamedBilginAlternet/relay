@@ -111,7 +111,17 @@ export function TodayScreen({ onNavigate }: Props) {
     [brief?.priority, dismissed],
   );
 
-  const [focus, ...rest] = priority;
+  /*
+    The big slot has to earn itself. A low-urgency FYI with nothing to run is
+    not "what to do next" — blowing it up to a hero card just teaches people
+    that the biggest thing on the screen means nothing. On a quiet day every
+    insight is a row and the screen gets shorter, which is the honest answer.
+  */
+  const first: InsightCard | undefined = priority[0];
+  const worthFocus =
+    first != null && (first.urgency !== 'low' || first.suggestedActions.length > 0);
+  const focus = worthFocus ? first : null;
+  const rest = worthFocus ? priority.slice(1) : priority;
 
   const runAction = async (card: InsightCard, action: SuggestedAction) => {
     setBusy({ cardId: card.id, tool: action.tool });
@@ -254,7 +264,7 @@ export function TodayScreen({ onNavigate }: Props) {
                       <PriorityRow
                         key={card.id}
                         card={card}
-                        index={i + 1}
+                        index={focus ? i + 1 : i}
                         busyTool={busy?.cardId === card.id ? busy.tool : null}
                         onAction={(c, a) => void runAction(c, a)}
                         onDismiss={(id) => setDismissed((cur) => [...cur, id])}
