@@ -106,7 +106,10 @@ public abstract class JiraTool extends AbstractTool {
         protected JsonNode call(JsonNode params, Connection connection) throws Exception {
             String jql = params.path("jql").asText();
             int max = params.path("maxResults").asInt(10);
-            String url = base(connection) + "/rest/api/3/search?jql=" + HttpJson.encode(jql)
+            // /rest/api/3/search was REMOVED by Atlassian (HTTP 410, CHANGE-2046).
+            // The replacement is /rest/api/3/search/jql, which takes the same query
+            // parameters but returns `isLast` instead of `total` for pagination.
+            String url = base(connection) + "/rest/api/3/search/jql?jql=" + HttpJson.encode(jql)
                     + "&maxResults=" + max + "&fields=summary,status,assignee,priority";
             return HttpJson.send("GET", url, headers(connection), null);
         }

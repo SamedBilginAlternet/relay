@@ -79,10 +79,12 @@ public class ConnectionService {
      * in live mode it proves the credentials.
      */
     public Map<String, Object> test(String provider) {
+        // Prefer search/list style probes: they need no real entity key, so the test
+        // proves credentials instead of failing on a fabricated issue id (KAN vs RELAY-1).
         Tool probe = tools.all().stream()
                 .filter(tool -> tool.provider().equals(provider))
                 .filter(tool -> tool.risk() == RiskLevel.READ)
-                .findFirst()
+                .min((a, b) -> Boolean.compare(!isKeyless(a), !isKeyless(b)))
                 .orElseThrow(() -> new IllegalArgumentException("no read tool registered for " + provider));
 
         Connection connection = connections.findByProvider(provider).orElse(null);
@@ -97,6 +99,11 @@ public class ConnectionService {
         out.put("error", result.error());
         out.put("sample", result.ok() ? Json.preview(Json.toPlain(result.data()), 400) : null);
         return out;
+    }
+
+    private static boolean isKeyless(Tool tool) {
+        String n = tool.name().toLowerCase();
+        return n.contains("search") || n.contains("list");
     }
 
     private com.fasterxml.jackson.databind.JsonNode probeParams(Tool probe) {
