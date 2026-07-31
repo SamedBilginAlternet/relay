@@ -70,6 +70,12 @@ public class ToolAgent {
 
         Connection connection = connections.findByProvider(tool.provider()).orElse(null);
 
+        String invented = ungroundedIdentifier(run, step, tool, params.params(), connection);
+        if (invented != null) {
+            journal.say(run, step.id(), agent, AgentRole.COORDINATOR, invented);
+            return StepOutcome.failed(invented, params.tokens(), params.costUsd());
+        }
+
         journal.say(run, step.id(), agent, AgentRole.COORDINATOR,
                 tool.name() + " çağrılıyor: " + Json.preview(step.params(), 240));
 
@@ -115,6 +121,64 @@ public class ToolAgent {
         payload.put("text", response.content());
         journal.say(run, step.id(), agent, AgentRole.VERIFIER, "Metin üretildi, doğrulamaya gidiyor.");
         return StepOutcome.ok(payload, response.totalTokens(), response.costUsd());
+    }
+
+    // ---- grounding --------------------------------------------------------
+
+    /**
+     * Refuses to write to an entity nobody ever mentioned.
+     *
+     * <p>Asked to "close this", the planner happily produced
+     * {@code jira.updateIssue {issueKey: RELAY-1}} — a key it made up. Jira answered 404,
+     * which was the lucky outcome: on a tenant where that key exists, Relay would have
+     * closed a stranger's issue. So an identifier on a writing step has to come from
+     * somewhere real — the goal, an earlier step's result, or the connection settings.
+     *
+     * @return the message to fail with, or {@code null} when everything checks out
+     */
+    private String ungroundedIdentifier(Run run, Step step, Tool tool, JsonNode params,
+                                        Connection connection) {
+        if (tool.risk() == com.relay.domain.RiskLevel.READ) {
+            return null;
+        }
+        String haystack = (run.goal() + " " + Json.preview(previousResults(run, step), 4000)
+                + " " + (connection == null ? "" : String.join(" ", connection.config().values())))
+                .toLowerCase();
+
+        var fields = params.fields();
+        while (fields.hasNext()) {
+            var field = fields.next();
+            if (!isIdentifier(field.getKey()) || !field.getValue().isTextual()) {
+                continue;
+            }
+            String value = field.getValue().asText().trim();
+            if (value.isEmpty() || value.contains(" ") || haystack.contains(value.toLowerCase())) {
+                continue;
+            }
+            return tool.name() + " için uydurulmuş tanımlayıcı: " + field.getKey() + "=" + value
+                    + ". Bu kayıt ne hedefte ne de önceki adımların sonucunda geçiyor —"
+                    + " önce onu bulan bir arama adımı gerekiyor.";
+        }
+        return null;
+    }
+
+    /**
+     * Fields naming a <em>container</em> to write into rather than a record to change:
+     * a project to create an issue in, a channel to post to, a repository to comment under.
+     * Those come from connection defaults or from the user's own setup, so demanding that
+     * the goal mention them would block ordinary work. Getting one wrong costs a 400, not
+     * a stranger's issue.
+     */
+    private static final java.util.Set<String> CONTAINER_FIELDS = java.util.Set.of(
+            "projectkey", "project", "repo", "repository", "owner", "channel", "channelid");
+
+    /** Names that point at one specific, already existing record. */
+    private static boolean isIdentifier(String field) {
+        String name = field.toLowerCase();
+        if (CONTAINER_FIELDS.contains(name)) {
+            return false;
+        }
+        return name.endsWith("key") || name.endsWith("id") || name.endsWith("number");
     }
 
     // ---- parameters -------------------------------------------------------

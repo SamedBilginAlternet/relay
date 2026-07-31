@@ -127,6 +127,9 @@ public class Planner {
                 Rules:
                 - Use ONLY the tools listed. If a step needs no tool, set toolName to null.
                 - Every tool step must carry draft params that fit that tool's schema.
+                - NEVER invent an identifier — issue keys, pull request numbers, message ids.
+                  Use one only if the goal spells it out. Otherwise the plan MUST start with a
+                  search/list step, and the writing step depends on what that step found.
                 - Prefer reading before writing. Keep the plan under 6 steps.
                 - Answer with JSON only, matching the given schema. No prose.
                 """;
