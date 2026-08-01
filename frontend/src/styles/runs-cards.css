@@ -119,6 +119,25 @@
 }
 
 /*
+  Zebra (crew.css set the precedent for lists in this product). `--bg` and
+  `--surface` are both #FFFFFF — a page of cards had no colour of its own to
+  separate itself from, only the 1px line each card already draws — so five in
+  a row read as one pale block. Every second card steps back to `--bg-subtle`;
+  the hairline and the amber gate edge stay exactly as legible on either tone.
+
+  The inner button's hover still has to read as *forward* of its card, not
+  just a colour swap with no direction. On a striped card that means stepping
+  past `--bg-subtle` to `--surface` — white — instead of using the same tone
+  the plain cards hover to.
+*/
+.run-card:nth-child(even) {
+  background: var(--bg-subtle);
+}
+.run-card:nth-child(even) .run-card__open:hover {
+  background: var(--surface);
+}
+
+/*
   The whole card is the control, so the button is the card: one tab stop, one
   hit area, and a hover state that cannot disagree with what is clickable.
   `Karar ver` is a word on it, not a second button — a nested control leading
