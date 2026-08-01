@@ -82,6 +82,7 @@ public class JpaRunRepository implements RunRepository {
             stepEntity.setAttempts(step.attempts());
             stepEntity.setParamsLocked(step.paramsLocked());
             stepEntity.setPausedBy(step.pausedBy() == null ? null : step.pausedBy().wire());
+            stepEntity.setWarning(step.warning());
         }
         entity.getSteps().removeIf(s -> !keptSteps.contains(s.getId()));
 
@@ -188,6 +189,7 @@ public class JpaRunRepository implements RunRepository {
             step.paramsLocked(s.isParamsLocked());
             step.pausedBy(s.getPausedBy() == null
                     ? null : PauseReason.valueOf(s.getPausedBy().toUpperCase(Locale.ROOT)));
+            step.warning(s.getWarning());
             steps.add(step);
         }
         run.replaceSteps(steps);

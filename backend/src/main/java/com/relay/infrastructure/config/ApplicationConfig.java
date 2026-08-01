@@ -10,6 +10,7 @@ import com.relay.application.cost.CostMeter;
 import com.relay.application.orchestrator.AgentJournal;
 import com.relay.application.playbook.PlaybookService;
 import com.relay.application.orchestrator.Coordinator;
+import com.relay.application.orchestrator.PlanCoverage;
 import com.relay.application.orchestrator.Planner;
 import com.relay.application.orchestrator.RunService;
 import com.relay.application.orchestrator.ToolAgent;
@@ -85,9 +86,9 @@ public class ApplicationConfig {
     @Bean
     public Coordinator coordinator(RunRepository runs, Planner planner, ToolAgent toolAgent, Verifier verifier,
                                    PolicyEngine policyEngine, CostMeter costMeter, EventPublisher events,
-                                   AgentJournal journal, Clock clock, Summarizer summarizer) {
+                                   AgentJournal journal, Clock clock, Summarizer summarizer, ToolRegistry tools) {
         return new Coordinator(runs, planner, toolAgent, verifier, policyEngine, costMeter, events, journal,
-                clock, summarizer);
+                clock, summarizer, new PlanCoverage(tools));
     }
 
     /** Runs are driven off the request thread — POST /api/runs returns immediately. */

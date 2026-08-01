@@ -48,6 +48,7 @@ public class Coordinator {
     private final AgentJournal journal;
     private final Clock clock;
     private final Summarizer summarizer;
+    private final PlanCoverage coverage;
     private final RunLocks locks = new RunLocks();
     /**
      * Runs whose owner pressed Durdur, mapped to whoever pressed it.
@@ -65,9 +66,18 @@ public class Coordinator {
         this(runs, planner, toolAgent, verifier, policyEngine, costMeter, events, journal, clock, null);
     }
 
+    /** Without a coverage check the plan is trusted as-is — the pre-#175 behaviour. */
     public Coordinator(RunRepository runs, Planner planner, ToolAgent toolAgent, Verifier verifier,
                        PolicyEngine policyEngine, CostMeter costMeter, EventPublisher events,
                        AgentJournal journal, Clock clock, Summarizer summarizer) {
+        this(runs, planner, toolAgent, verifier, policyEngine, costMeter, events, journal, clock,
+                summarizer, null);
+    }
+
+    public Coordinator(RunRepository runs, Planner planner, ToolAgent toolAgent, Verifier verifier,
+                       PolicyEngine policyEngine, CostMeter costMeter, EventPublisher events,
+                       AgentJournal journal, Clock clock, Summarizer summarizer, PlanCoverage coverage) {
+        this.coverage = coverage;
         this.summarizer = summarizer;
         this.runs = runs;
         this.planner = planner;
@@ -181,6 +191,7 @@ public class Coordinator {
             run.status(RunStatus.PLANNING);
             runs.save(run);
             List<Step> steps = planner.plan(run);
+            warnWhenPlanDriftsFromGoal(run, steps);
             run.status(RunStatus.RUNNING);
             runs.save(run);
             events.publish(run.id(), RunEvent.of(RunEvent.RUN_PLANNED, Map.of("steps", stepViews(steps))));
@@ -325,6 +336,52 @@ public class Coordinator {
         // ("koşulu sağlayan mail yoktu, kayıt açılmadı") and closes DONE, with the closing
         // summary saying why nothing was written.
         finish(run, anyFailed || (nothingRan && anyRejected) ? RunStatus.FAILED : RunStatus.DONE);
+    }
+
+    /**
+     * Says out loud, deterministically, where the plan and the goal disagree.
+     *
+     * <p>Run {@code 85f1b3be} (2026-08-01): a goal that named the Notion decision log and
+     * quoted a note to append was planned as a single {@code jira.updateIssue} — the
+     * planner keyword-matched "KAN-32" and "tamamlandı" inside the note's payload. The
+     * gate showed a plausible Jira write, a human approved it, and KAN-32 was wrongly
+     * closed (#175). The mirror case is #145's: a goal naming the mailbox and Jira got a
+     * plan covering a quarter of it, and the run closed green.
+     *
+     * <p><b>Loud, not blocking — deliberately.</b> The journal gets one line per finding,
+     * and each unrequested write carries its sentence onto the step, where the gate draws
+     * it in amber; the write gate every WRITE already passes through is where a human will
+     * meet it. Parking the whole run before the walk is #145's full design — a new pause
+     * reason and a new UI state — and a heuristic this young has not yet earned the right
+     * to stop work: its false positives cost an amber sentence today, and would cost a
+     * parked run there.
+     */
+    private void warnWhenPlanDriftsFromGoal(Run run, List<Step> steps) {
+        if (coverage == null) {
+            return;
+        }
+        PlanCoverage.Assessment drift = coverage.assess(run.goal(), steps);
+        for (String provider : drift.missing()) {
+            String name = PlanCoverage.label(provider);
+            journal.say(run, null, AgentRole.COORDINATOR, AgentRole.USER,
+                    "Uyarı: hedefte " + name + " anılıyor ama planda hiçbir " + name
+                            + " adımı yok. Plan hedefin o kısmını karşılamıyor olabilir.");
+        }
+        if (drift.unrequestedWrites().isEmpty()) {
+            return;
+        }
+        for (String provider : drift.unrequestedWrites()) {
+            journal.say(run, null, AgentRole.COORDINATOR, AgentRole.USER,
+                    "Uyarı: plan, hedefte anılmayan bir yüzeye yazıyor: "
+                            + PlanCoverage.label(provider) + ".");
+        }
+        for (Step step : steps) {
+            String provider = coverage.writeProvider(step);
+            if (provider != null && drift.unrequestedWrites().contains(provider)) {
+                step.warning("Bu adım hedefte anılmayan bir yüzeye yazıyor ("
+                        + PlanCoverage.label(provider) + "). Eminsen onayla.");
+            }
+        }
     }
 
     private void runStep(Run run, Step step) {

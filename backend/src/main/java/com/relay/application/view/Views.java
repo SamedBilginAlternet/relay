@@ -38,6 +38,10 @@ public final class Views {
         // everywhere else — the reason also sits in `result`, but the screen should not
         // have to know the skip record's shape to print one sentence.
         map.put("skipReason", step.skipReason());
+        // The coverage check's sentence — "this write targets a surface the goal never
+        // named". Null on the many steps it has nothing to say about; when present, the
+        // gate draws it where the approving human cannot miss it.
+        map.put("warning", step.warning());
         map.put("result", step.result());
         map.put("error", step.error());
         map.put("tokens", step.tokens());

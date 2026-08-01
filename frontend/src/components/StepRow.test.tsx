@@ -149,6 +149,56 @@ it('a_skipped_step_shows_its_reason_without_being_opened', () => {
   expect(screen.getByText(/Atlandı: Bugünkü maillerde iş talebi bulunamadı\./)).toBeTruthy();
 });
 
+/**
+ * The live incident behind `warning` (2026-08-01, run 85f1b3be): a goal asking for a note
+ * on the Notion decision log was planned as a Jira status change — the planner executed
+ * the note's own payload — and the human at the gate approved it, because the gate showed
+ * a plausible write and nothing else. The coverage check's sentence must be on the gate
+ * itself: it is the one line a person who reads nothing else has to trip over.
+ */
+it('the_gate_draws_the_drift_warning_where_the_approving_human_reads', () => {
+  render(
+    <ul>
+      <StepRow
+        step={step({
+          status: 'awaiting_approval',
+          pausedBy: 'policy',
+          toolName: 'jira.updateIssue',
+          params: { issueKey: 'KAN-32', status: 'Done' },
+          warning: 'Bu adım hedefte anılmayan bir yüzeye yazıyor (Jira). Eminsen onayla.',
+        })}
+        index={0}
+        expanded={false}
+        onToggle={() => {}}
+        onApprove={() => {}}
+        onReject={() => {}}
+      />
+    </ul>,
+  );
+
+  expect(
+    screen.getByText(/Bu adım hedefte anılmayan bir yüzeye yazıyor \(Jira\)\. Eminsen onayla\./),
+  ).toBeTruthy();
+});
+
+it('a_step_without_a_warning_shows_no_drift_sentence', () => {
+  // Both optionalities at once: `warning` absent (pre-migration server) on a parked step.
+  render(
+    <ul>
+      <StepRow
+        step={step({ status: 'awaiting_approval', pausedBy: 'policy' })}
+        index={0}
+        expanded={false}
+        onToggle={() => {}}
+        onApprove={() => {}}
+        onReject={() => {}}
+      />
+    </ul>,
+  );
+
+  expect(screen.queryByText(/hedefte anılmayan/)).toBeNull();
+});
+
 it('an_opened_skipped_step_explains_itself_instead_of_dumping_the_skip_record', () => {
   show(
     step({

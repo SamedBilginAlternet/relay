@@ -3,6 +3,7 @@ package com.relay.support;
 import com.relay.application.cost.CostMeter;
 import com.relay.application.orchestrator.AgentJournal;
 import com.relay.application.orchestrator.Coordinator;
+import com.relay.application.orchestrator.PlanCoverage;
 import com.relay.application.orchestrator.Planner;
 import com.relay.application.orchestrator.RunService;
 import com.relay.application.orchestrator.Summarizer;
@@ -58,7 +59,8 @@ public final class OrchestratorHarness {
                 new ToolAgent(b.tools, llm, connections, journal, clock),
                 new Verifier(llm),
                 new PolicyEngine(policies, b.tools),
-                costMeter, events, journal, clock, b.summarizer);
+                costMeter, events, journal, clock, b.summarizer,
+                new PlanCoverage(b.tools));
         this.service = new RunService(runs, coordinator, journal, clock, Runnable::run,
                 b.budgetUsd, b.tools);
     }

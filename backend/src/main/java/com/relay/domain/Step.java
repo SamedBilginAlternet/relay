@@ -51,6 +51,17 @@ public class Step {
      * lifted the ceiling.
      */
     private PauseReason pausedBy;
+    /**
+     * The coverage check's one sentence about this step, set at planning time — "this write
+     * targets a surface the goal never named". {@code null} on every step the check had
+     * nothing to say about.
+     *
+     * <p>On the step rather than only in the journal because the step is what a person
+     * reads at the approval gate: run {@code 85f1b3be} was approved by a human who saw a
+     * plausible-looking Jira write and nothing telling them the goal had asked for Notion.
+     * Persisted — approval is a separate request and the run is read back in between.
+     */
+    private String warning;
     private Instant startedAt;
     private Instant finishedAt;
     private long tokens;
@@ -351,6 +362,15 @@ public class Step {
 
     public void error(String error) {
         this.error = error;
+    }
+
+    /** The plan-coverage warning on this step, or {@code null} when there is none. */
+    public String warning() {
+        return warning;
+    }
+
+    public void warning(String warning) {
+        this.warning = warning;
     }
 
     public Instant startedAt() {

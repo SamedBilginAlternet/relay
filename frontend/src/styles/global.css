@@ -1397,6 +1397,27 @@ a.btn {
   gap: 6px;
   padding-bottom: 2px;
 }
+/* The plan-coverage sentence — "bu adım hedefte anılmayan bir yüzeye yazıyor". Amber like
+   the rest of the gate (waiting-on-you colour), but weighted and boxed: the routine gate
+   note is furniture, this line is the finding, and a human who reads nothing else must
+   trip over it before the Onayla button. */
+.gate__warning {
+  width: 100%;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--warn);
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-radius: var(--r-btn);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.gate__warning svg {
+  flex: none;
+  margin-top: 2px;
+}
 .gate__reason {
   display: flex;
   gap: var(--s-8);

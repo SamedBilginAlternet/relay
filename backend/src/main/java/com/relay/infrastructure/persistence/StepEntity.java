@@ -92,6 +92,10 @@ public class StepEntity {
     @Column(name = "paused_by", length = 16)
     private String pausedBy;
 
+    /** The plan-coverage warning shown at the gate — see {@code Step.warning}. */
+    @Column(columnDefinition = "text")
+    private String warning;
+
     public UUID getId() {
         return id;
     }
@@ -266,5 +270,13 @@ public class StepEntity {
 
     public void setPausedBy(String pausedBy) {
         this.pausedBy = pausedBy;
+    }
+
+    public String getWarning() {
+        return warning;
+    }
+
+    public void setWarning(String warning) {
+        this.warning = warning;
     }
 }

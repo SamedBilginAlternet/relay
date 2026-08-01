@@ -210,6 +210,16 @@ export function StepRow({
 
       {showGate && (
         <div className="gate">
+          {/* The coverage check's sentence: this write targets a surface the goal never
+              named. Amber — the "needs your judgement" colour — and above everything else
+              in the gate, because run 85f1b3be was approved by a person who saw a
+              plausible Jira write and no hint that the goal had asked for Notion. */}
+          {step.warning && !budgetGate && (
+            <span className="gate__warning">
+              <TriangleAlert size={14} aria-hidden />
+              {step.warning}
+            </span>
+          )}
           <span className="gate__note">
             {budgetGate ? <Wallet size={14} aria-hidden /> : <ShieldQuestion size={14} aria-hidden />}
             {budgetGate

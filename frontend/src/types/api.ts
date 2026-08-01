@@ -45,6 +45,15 @@ export type Step = {
    * silent data loss when it is wrong, so the reason must be readable, not buried.
    */
   skipReason?: string | null;
+  /**
+   * The plan-coverage check's one sentence about this step — "bu adım hedefte anılmayan
+   * bir yüzeye yazıyor". Set at planning time on a write whose provider the goal never
+   * named (a goal asking for a Notion note once came back as a plan that closed a Jira
+   * issue, and the gate said nothing). `null` or absent on every step the check had no
+   * complaint about; when present, the gate must draw it — it is the one line a human who
+   * reads nothing else has to trip over.
+   */
+  warning?: string | null;
   result: unknown | null;
   error: string | null;
   tokens: number;
