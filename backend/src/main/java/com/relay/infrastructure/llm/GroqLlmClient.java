@@ -63,14 +63,20 @@ public class GroqLlmClient implements LlmClient {
         }
         // The big model is out of budget for now. A smaller one still writes a usable
         // message, and a usable message beats the offline fallback's summary of nothing.
+        String smallError = null;
         if (smallModel != null && smallKeys != null) {
             Attempt small = attempt(request, smallModel, smallKeys);
             if (small.response() != null) {
                 LOG.log(Level.INFO, "groq answered on {0} — {1} is rate limited", smallModel, model);
                 return small.response();
             }
+            smallError = small.error();
         }
-        throw new LlmUnavailableException("all groq keys exhausted (" + big.error() + ")");
+        // Both tiers, both named. The two models have separate limits, so "everything is
+        // exhausted" and "the big model is exhausted and the small one was never tried"
+        // are different situations and used to read the same on the health endpoint.
+        throw new LlmUnavailableException("all groq keys exhausted (" + model + ": " + big.error()
+                + (smallError == null ? "" : "; " + smallModel + ": " + smallError) + ")");
     }
 
     private record Attempt(LlmResponse response, String error) {
@@ -79,7 +85,12 @@ public class GroqLlmClient implements LlmClient {
     /** Anything shaped like a key, in case a provider ever echoes one back at us. */
     private static final java.util.regex.Pattern KEY_LIKE =
             java.util.regex.Pattern.compile("(?i)gsk_[A-Za-z0-9_-]+");
-    private static final int MAX_HINT = 180;
+    /**
+     * Long enough to keep the tail of Groq's sentence. At 180 the line stopped one clause
+     * short — "…tokens per day (TPD): Limit 100000, Used 99134, …" — and the clause it cut
+     * was "Please try again in 32m41s", which is the only part anyone reads it for.
+     */
+    private static final int MAX_HINT = 300;
 
     /**
      * The provider's own sentence about a refusal, appended to {@code lastError}.
