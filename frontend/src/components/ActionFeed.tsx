@@ -14,10 +14,14 @@ import type { InsightCard, SuggestedAction } from '../types/brief';
 
 type RowProps = {
   card: InsightCard;
-  /** Stagger slot — the wave has to read as one, so it counts across the feed. */
+  /**
+   * Place in the feed, 0-based. It is both the stagger slot — the wave has to
+   * read as one, so it counts across the whole feed — and, plus one, the number
+   * the user sees. Those used to be two props and they disagreed: with a
+   * meeting on top, the meeting was drawn first with no number and the row
+   * under it still called itself "1", so the list appeared to start at zero.
+   */
   index: number;
-  /** What the user sees: this job's place in the day, 1-based. */
-  rank: number;
   /** `digest.priorities[].why` — why this one is here now. Often absent. */
   why?: string | null;
   busyTool: string | null;
@@ -60,7 +64,7 @@ function extraActions(card: InsightCard): SuggestedAction[] {
  * from — stays one click down, because a feed that shows everything is the
  * section grid again with different borders.
  */
-export function ActionRow({ card, index, rank, why, busyTool, onAction, onDismiss }: RowProps) {
+export function ActionRow({ card, index, why, busyTool, onAction, onDismiss }: RowProps) {
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
   const bodyId = useId();
@@ -87,7 +91,7 @@ export function ActionRow({ card, index, rank, why, busyTool, onAction, onDismis
           onClick={() => setOpen((v) => !v)}
         >
           <span className="arow__rank" aria-hidden>
-            {rank}
+            {index + 1}
           </span>
 
           <span className="arow__text">
@@ -204,9 +208,11 @@ type MeetingProps = {
  * whole screen was rewritten for, and the prep flow makes it real: it reads the
  * event, finds the records and mail its title points at, and cites them.
  *
- * It carries no rank number. The numbered list is work that is *on* the user;
- * a meeting is an appointment, and giving it the top number would push a real
- * record out of the slot the eye reads first.
+ * It is numbered like everything else in the list. It used to wear a clock in
+ * the circle instead, which made the row under it — the one labelled "1" — look
+ * like the first thing on a list that had already started. The clock is still
+ * on the row, in the badge that says "Takvim"; what a meeting is stays legible
+ * without spending the one place on the row that says where you are.
  */
 export function MeetingRow({ index, title, detail, onPrepare, busy }: MeetingProps) {
   const reduce = useReducedMotion();
@@ -215,8 +221,8 @@ export function MeetingRow({ index, title, detail, onPrepare, busy }: MeetingPro
     <motion.li className="arow arow--meet" {...feedRowProps(index, reduce)}>
       <div className="arow__line">
         <div className="arow__open arow__open--static">
-          <span className="arow__rank arow__rank--meet" aria-hidden>
-            <CalendarClock size={14} />
+          <span className="arow__rank" aria-hidden>
+            {index + 1}
           </span>
           <span className="arow__text">
             <span className="arow__head">
@@ -281,11 +287,18 @@ export function GapRow({ index, status, provider, scope, reason, onAction }: Gap
     >
       <div className="arow__line">
         <div className="arow__open arow__open--static">
-          <span className="arow__rank arow__rank--gap" aria-hidden>
-            {failed ? <TriangleAlert size={14} /> : <Plug size={14} />}
+          <span className="arow__rank" aria-hidden>
+            {index + 1}
           </span>
           <span className="arow__text">
             <span className="arow__head">
+              {/* The icon moved off the number circle and into a badge, where it
+                  keeps its word next to it — the row is numbered like the rest
+                  of the list now, and an amber edge on its own is not a label. */}
+              <span className="src-badge">
+                {failed ? <TriangleAlert size={12} aria-hidden /> : <Plug size={12} aria-hidden />}
+                Bağlantı
+              </span>
               <span className="arow__title">
                 {provider} {failed ? 'yanıt vermedi' : 'bağlı değil'}
               </span>

@@ -83,6 +83,18 @@ function minutesOfDay(meta?: string | null): number | null {
   return hour * 60 + minute;
 }
 
+/**
+ * The day in one sentence, counted off the rows the user can see.
+ *
+ * "tanesi" rather than a suffix, the same choice the server makes: Turkish
+ * vowel harmony would need 2'si, 3'ü, 6'sı… and a wrong suffix reads as sloppy.
+ */
+function dayHeadline(rows: number, urgent: number): string {
+  if (rows === 0) return 'Bugün seni bekleyen bir şey görünmüyor.';
+  const sentence = `Bugün ${rows} iş seni bekliyor`;
+  return urgent > 0 ? `${sentence}, ${urgent} tanesi acil.` : `${sentence}.`;
+}
+
 /** Where the header badge went (issue: "canlı api yazısını sil"): the data
  *  source is a property of *the brief*, not of the whole product chrome. */
 const SOURCE_NOTE =
@@ -246,6 +258,26 @@ export function TodayScreen({ onNavigate }: Props) {
     [playbooks, meetingRow, canPrepare],
   );
 
+  /*
+    The one number on this screen.
+
+    There used to be three, none of which explained the others: the headline
+    said 9 (everything that arrived today), the section label said 5 (what the
+    model chose to act on) and the drawer said 19 (rows across all four source
+    lists). The product's whole claim is "gözünün önünde", and a screen that
+    cannot answer "kaç işim var" out loud does not make it.
+
+    The contract is now: the number IS the list. Every row in the feed counts
+    once — the meeting, each job, each missing connection — because every one
+    of them is something the user has to deal with today, and every one of them
+    carries the matching ordinal. The server's own `today.headline` counts
+    arrivals instead, so it is no longer shown; that number's honest home is the
+    "Tümünü gör" line, which says how many records were read.
+  */
+  const rowCount = (meetingRow ? 1 : 0) + priority.length + gaps.length;
+  const urgentCount = priority.filter((card) => card.urgency === 'high').length;
+  const headline = dayHeadline(rowCount, urgentCount);
+
   /** How much is behind the closed grid, so the disclosure is not a mystery box. */
   const sectionTotal = useMemo(
     () =>
@@ -319,7 +351,7 @@ export function TodayScreen({ onNavigate }: Props) {
         : phase === 'error'
           ? (error ?? 'Brifing yüklenemedi.')
           : brief
-            ? `Brifing hazır. ${brief.today ? `${brief.today.headline} ` : ''}${priority.length} yapılacak iş.`
+            ? `Brifing hazır. ${headline}`
             : '';
 
   return (
@@ -341,7 +373,9 @@ export function TodayScreen({ onNavigate }: Props) {
               rows that are already visible, the breakdown is on the "Tümünü
               gör" line, and the reason a job is first rides on that job's row.
             */}
-            {brief?.today ? <p className="tally__headline">{brief.today.headline}</p> : null}
+            {!loading && brief != null ? (
+              <p className="tally__headline">{headline}</p>
+            ) : null}
 
             <p className="brief-top__meta">
               <span
@@ -415,9 +449,7 @@ export function TodayScreen({ onNavigate }: Props) {
                 <h2 className="t-label" id="brief-priority-h">
                   <ListChecks size={12} aria-hidden /> Yapılacak işler
                 </h2>
-                {!loading && priority.length > 0 && (
-                  <span className="t-caption">{priority.length} iş</span>
-                )}
+                {!loading && rowCount > 0 && <span className="t-caption">{rowCount} iş</span>}
                 {!loading && dismissed.length > 0 && (
                   <button
                     type="button"
@@ -438,7 +470,10 @@ export function TodayScreen({ onNavigate }: Props) {
                 </div>
               )}
 
-              {!loading && priority.length === 0 && (
+              {/* Nothing in the feed at all — not "no cards, but a meeting and
+                  two broken connections", which is what `priority.length` alone
+                  used to mean here while the list underneath was not empty. */}
+              {!loading && rowCount === 0 && (
                 <p className="brief-prio__clear">
                   <CheckCircle2 size={16} aria-hidden />
                   {dismissed.length > 0
@@ -447,7 +482,7 @@ export function TodayScreen({ onNavigate }: Props) {
                 </p>
               )}
 
-              {!loading && (priority.length > 0 || gaps.length > 0 || meetingRow != null) && (
+              {!loading && rowCount > 0 && (
                 <ul className="arow-list">
                   <AnimatePresence initial={false}>
                     {meetingRow && (
@@ -467,7 +502,6 @@ export function TodayScreen({ onNavigate }: Props) {
                         key={card.id}
                         card={card}
                         index={meetingRow ? i + 1 : i}
-                        rank={i + 1}
                         why={whyById.get(card.id) ?? null}
                         busyTool={busy?.cardId === card.id ? busy.tool : null}
                         onAction={(c, a) => void runAction(c, a)}
@@ -515,8 +549,11 @@ export function TodayScreen({ onNavigate }: Props) {
                   {sectionsOpen ? 'Listeleri gizle' : 'Tümünü gör'}
                 </span>
                 <span className="secs__sub">
+                  {/* The second counter on the screen, so it has to say what it
+                      counts: these are the rows that were READ, not the jobs
+                      that came out of them. */}
                   Gelen kutusu, üstümdeki işler, kod, takvim
-                  {!loading && sectionTotal > 0 ? ` · ${sectionTotal} kayıt` : ''}
+                  {!loading && sectionTotal > 0 ? ` · ${sectionTotal} kayıt tarandı` : ''}
                 </span>
                 {!loading && gaps.length > 0 && (
                   <span className="secs__warn">
