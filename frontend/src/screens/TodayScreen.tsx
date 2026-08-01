@@ -2,23 +2,26 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   GitPullRequest,
   Inbox,
+  ListChecks,
+  Plug,
   RefreshCw,
   Sparkles,
   TriangleAlert,
   Undo2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActionRow, GapRow, MeetingRow } from '../components/ActionFeed';
 import { PlaybookShelf, SectionPanel, SectionTile } from '../components/BriefSections';
 import type { SectionMeta } from '../components/BriefSections';
-import { InsightCardView, SOURCE_META } from '../components/InsightCardView';
-import { PriorityRow } from '../components/PriorityRow';
 import { getBriefSource, RUN_SOURCE_KIND } from '../data';
 import { getPlaybookSource } from '../data/PlaybookSource';
 import type { Playbook } from '../data/PlaybookSource';
 import { formatDayMonth } from '../lib/format';
+import { SOURCE_META } from '../lib/insight';
 import { enterProps, expandProps } from '../lib/motion';
 import { useRunStore } from '../store/runStore';
 import { EMPTY_SECTION } from '../types/brief';
@@ -68,6 +71,27 @@ const SECTIONS: SectionMeta[] = [
 
 const EMPTY = EMPTY_SECTION;
 
+/** The written-down flow that reads a meeting and finds what it is about. */
+const MEETING_PREP_ID = 'toplanti-hazirligi';
+
+/**
+ * "14:00" → 840 minutes past midnight; anything else → null.
+ *
+ * The brief gives a meeting a start time in the user's own zone and nothing
+ * else — no end, no duration. That is enough to tell a meeting that has not
+ * started from one that has, and not enough for anything cleverer, so nothing
+ * cleverer is attempted here. An unreadable clock returns null and the meeting
+ * is treated as still ahead: guessing it is over would delete it from the day.
+ */
+function minutesOfDay(meta?: string | null): number | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec((meta ?? '').trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
 /* Same icons the cards use, so one thing never wears two faces on one screen.
    `calendar` is the one the insight cards have no equivalent for — a meeting is
    never an insight — and it borrows the tile's icon rather than inventing one. */
@@ -96,6 +120,10 @@ export function TodayScreen({ onNavigate }: Props) {
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [busy, setBusy] = useState<{ cardId: string; tool: string } | null>(null);
   const [openKey, setOpenKey] = useState<BriefSectionKey | null>(null);
+  /* The four-section grid, closed until asked for. It answers "where did this
+     come from", which is a question about the plumbing — the screen's own
+     question is "what do I do now", and that is the feed above. */
+  const [sectionsOpen, setSectionsOpen] = useState(false);
   const [focusItemId, setFocusItemId] = useState<string | null>(null);
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
   const [playbookPhase, setPlaybookPhase] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -114,7 +142,10 @@ export function TodayScreen({ onNavigate }: Props) {
         behavior: reduce ? 'auto' : 'smooth',
         block: 'nearest',
       });
-    }, 220);
+      // Two 200ms expansions can be in flight (the drawer, then the panel
+      // inside it), so this waits out both rather than measuring a row that
+      // has not stopped moving.
+    }, 420);
     return () => window.clearTimeout(id);
   }, [openKey, reduce]);
 
@@ -181,16 +212,75 @@ export function TodayScreen({ onNavigate }: Props) {
   }, [brief?.digest]);
 
   /*
-    The big slot has to earn itself. A low-urgency FYI with nothing to run is
-    not "what to do next" — blowing it up to a hero card just teaches people
-    that the biggest thing on the screen means nothing. On a quiet day every
-    insight is a row and the screen gets shorter, which is the honest answer.
+    A section that could not be fetched is work too — the kind that has to be
+    done before any of the rest can be. It used to live as a card inside the
+    grid; with the grid closed by default that would have hidden the one thing
+    a half-configured account most needs to see, so it rides in the feed.
   */
-  const first: InsightCard | undefined = priority[0];
-  const worthFocus =
-    first != null && (first.urgency !== 'low' || first.suggestedActions.length > 0);
-  const focus = worthFocus ? first : null;
-  const rest = worthFocus ? priority.slice(1) : priority;
+  const gaps = useMemo(
+    () =>
+      SECTIONS.map((meta) => ({ meta, section: brief?.[meta.key] ?? EMPTY })).filter(
+        (entry) => entry.section.status !== 'ok',
+      ),
+    [brief],
+  );
+
+  /*
+    The next meeting that has not started yet — one row, never a list.
+
+    The prep flow reads *today's* meeting itself; a row per event would fire the
+    same run three times over and say three different things about which one it
+    was. One row, named, is the honest amount.
+  */
+  const nextMeeting = useMemo(() => {
+    const section = brief?.calendar;
+    if (!section || section.status !== 'ok') return null;
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    return (
+      section.items
+        .map((item) => ({ item, at: minutesOfDay(item.meta) }))
+        .filter((entry) => entry.at == null || entry.at >= nowMinutes)
+        .sort((a, b) => (a.at ?? Number.MAX_SAFE_INTEGER) - (b.at ?? Number.MAX_SAFE_INTEGER))[0] ??
+      null
+    );
+  }, [brief?.calendar]);
+
+  /* No flow, no button: a meeting row that promises preparation it cannot run
+     is worse than a meeting row that only says a meeting is coming. */
+  const meetingPrep = playbooks.find((p) => p.id === MEETING_PREP_ID) ?? null;
+  const canPrepare = meetingPrep != null && meetingPrep.runnable;
+  const meetingRow = nextMeeting
+    ? {
+        title: nextMeeting.item.title,
+        detail: [
+          [nextMeeting.item.meta, nextMeeting.item.subtitle].filter(Boolean).join(' · '),
+          'başlamadan önce ilgili kayıtlar ve mailler toplansın',
+        ]
+          .filter(Boolean)
+          .join(' — '),
+      }
+    : null;
+
+  /* The shelf is the catalogue; the row above is the same flow at the moment it
+     is worth running. Showing both would be the same button twice. */
+  const shelfPlaybooks = useMemo(
+    () =>
+      meetingRow && canPrepare
+        ? playbooks.filter((p) => p.id !== MEETING_PREP_ID)
+        : playbooks,
+    [playbooks, meetingRow, canPrepare],
+  );
+
+  /** How much is behind the closed grid, so the disclosure is not a mystery box. */
+  const sectionTotal = useMemo(
+    () =>
+      SECTIONS.reduce((sum, meta) => {
+        const section = brief?.[meta.key] ?? EMPTY;
+        return sum + (section.status === 'ok' ? section.items.length : 0);
+      }, 0),
+    [brief],
+  );
 
   const runAction = async (card: InsightCard, action: SuggestedAction) => {
     setBusy({ cardId: card.id, tool: action.tool });
@@ -236,6 +326,9 @@ export function TodayScreen({ onNavigate }: Props) {
     contains every one of them and links out to the real thing.
   */
   const openHighlight = (highlight: BriefHighlight) => {
+    // The lists live behind a disclosure now; naming a row has to open it too,
+    // or the click lands on something that is not on the screen.
+    setSectionsOpen(true);
     setOpenKey(HIGHLIGHT_SECTION[highlight.source] ?? 'inbox');
     setFocusItemId(highlight.itemId);
   };
@@ -244,6 +337,18 @@ export function TodayScreen({ onNavigate }: Props) {
     setOpenKey((cur) => (cur === key ? null : key));
     // Opening a section by hand is a different intent — drop the old mark.
     setFocusItemId(null);
+  };
+
+  const toggleSections = () => {
+    setSectionsOpen((cur) => {
+      if (cur) {
+        // Closing the drawer closes what was open inside it; reopening to a
+        // panel the user cannot remember choosing is its own small betrayal.
+        setOpenKey(null);
+        setFocusItemId(null);
+      }
+      return !cur;
+    });
   };
 
   const loading = phase === 'loading';
@@ -259,7 +364,7 @@ export function TodayScreen({ onNavigate }: Props) {
         : phase === 'error'
           ? (error ?? 'Brifing yüklenemedi.')
           : brief
-            ? `Brifing hazır. ${brief.today ? `${brief.today.headline} ` : ''}${priority.length} öncelikli kart.`
+            ? `Brifing hazır. ${brief.today ? `${brief.today.headline} ` : ''}${priority.length} yapılacak iş.`
             : '';
 
   return (
@@ -407,14 +512,18 @@ export function TodayScreen({ onNavigate }: Props) {
               </motion.section>
             ) : null}
 
-            {/* ---------------- ÖNCELİKLİ ---------------- */}
+            {/* ---------------- YAPILACAK İŞLER ---------------- */}
+            {/* The screen's spine (issue #30). One row per job — what it is, why
+                now, and the action itself, already on the screen. Where it came
+                from is a badge on the row; it was a section heading until today,
+                which answered a question nobody had asked. */}
             <section className="brief-prio" aria-labelledby="brief-priority-h">
               <div className="brief-prio__head">
                 <h2 className="t-label" id="brief-priority-h">
-                  <Sparkles size={12} aria-hidden /> Öncelikli
+                  <ListChecks size={12} aria-hidden /> Yapılacak işler
                 </h2>
                 {!loading && priority.length > 0 && (
-                  <span className="t-caption">{priority.length} başlık</span>
+                  <span className="t-caption">{priority.length} iş</span>
                 )}
                 {!loading && dismissed.length > 0 && (
                   <button
@@ -430,93 +539,140 @@ export function TodayScreen({ onNavigate }: Props) {
 
               {loading && (
                 <div className="brief-prio__skeleton">
-                  <div className="skeleton" style={{ height: 116 }} />
-                  <div className="skeleton" style={{ height: 44, opacity: 0.6 }} />
-                  <div className="skeleton" style={{ height: 44, opacity: 0.4 }} />
+                  <div className="skeleton" style={{ height: 68 }} />
+                  <div className="skeleton" style={{ height: 68, opacity: 0.6 }} />
+                  <div className="skeleton" style={{ height: 68, opacity: 0.4 }} />
                 </div>
-              )}
-
-              {!loading && focus && (
-                <InsightCardView
-                  key={focus.id}
-                  card={focus}
-                  index={0}
-                  why={whyById.get(focus.id) ?? null}
-                  busyTool={busy?.cardId === focus.id ? busy.tool : null}
-                  onAction={(c, a) => void runAction(c, a)}
-                  onDismiss={(id) => setDismissed((cur) => [...cur, id])}
-                />
-              )}
-
-              {!loading && rest.length > 0 && (
-                <ul className="prow-list">
-                  <AnimatePresence initial={false}>
-                    {rest.map((card, i) => (
-                      <PriorityRow
-                        key={card.id}
-                        card={card}
-                        index={focus ? i + 1 : i}
-                        why={whyById.get(card.id) ?? null}
-                        busyTool={busy?.cardId === card.id ? busy.tool : null}
-                        onAction={(c, a) => void runAction(c, a)}
-                        onDismiss={(id) => setDismissed((cur) => [...cur, id])}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </ul>
               )}
 
               {!loading && priority.length === 0 && (
                 <p className="brief-prio__clear">
                   <CheckCircle2 size={16} aria-hidden />
                   {dismissed.length > 0
-                    ? 'Öncelikli liste temizlendi.'
-                    : 'Öne çıkan bir şey yok — bugün acil işaretlenen mail, PR ya da kayıt bulunmadı.'}
+                    ? 'Yapılacak liste temizlendi.'
+                    : 'Bekleyen bir iş yok — bugün acil işaretlenen mail, PR ya da kayıt bulunmadı.'}
                 </p>
+              )}
+
+              {!loading && (priority.length > 0 || gaps.length > 0 || meetingRow != null) && (
+                <ul className="arow-list">
+                  <AnimatePresence initial={false}>
+                    {meetingRow && (
+                      <MeetingRow
+                        key="meeting"
+                        index={0}
+                        title={meetingRow.title}
+                        detail={meetingRow.detail}
+                        busy={starting === MEETING_PREP_ID}
+                        onPrepare={
+                          canPrepare ? () => void startPlaybook(MEETING_PREP_ID) : null
+                        }
+                      />
+                    )}
+                    {priority.map((card, i) => (
+                      <ActionRow
+                        key={card.id}
+                        card={card}
+                        index={meetingRow ? i + 1 : i}
+                        rank={i + 1}
+                        why={whyById.get(card.id) ?? null}
+                        busyTool={busy?.cardId === card.id ? busy.tool : null}
+                        onAction={(c, a) => void runAction(c, a)}
+                        onDismiss={(id) => setDismissed((cur) => [...cur, id])}
+                      />
+                    ))}
+                    {gaps.map((gap, i) => (
+                      <GapRow
+                        key={`gap-${gap.meta.key}`}
+                        index={priority.length + i + (meetingRow ? 1 : 0)}
+                        status={gap.section.status === 'error' ? 'error' : 'unavailable'}
+                        provider={gap.meta.connectLabel}
+                        scope={gap.meta.title}
+                        reason={gap.section.reason}
+                        onAction={() =>
+                          gap.section.status === 'error'
+                            ? void load('refresh')
+                            : onNavigate('#/connections')
+                        }
+                      />
+                    ))}
+                  </AnimatePresence>
+                </ul>
               )}
             </section>
 
-            {/* ---------------- Bölümler ---------------- */}
-            <section className="brief-sec" aria-labelledby="brief-sections-h">
-              <div className="brief-prio__head">
-                <h2 className="t-label" id="brief-sections-h">
-                  Bölümler
-                </h2>
-                <span className="t-caption">Sayıya bas, listesi açılsın</span>
-              </div>
-
-              <div className="tile-strip">
-                {SECTIONS.map((meta, i) => (
-                  <SectionTile
-                    key={meta.key}
-                    meta={meta}
-                    index={i + 2}
-                    section={brief?.[meta.key] ?? EMPTY}
-                    loading={loading}
-                    open={openKey === meta.key}
-                    tileId={`tile-${meta.key}`}
-                    panelId={`panel-${meta.key}`}
-                    onToggle={() => toggleSection(meta.key)}
-                  />
-                ))}
-              </div>
+            {/* ---------------- Kaynak listeleri (ikincil) ---------------- */}
+            {/* Closed by default and deliberately not deleted: partial success,
+                the `unavailable`/`error` states and the full lists all hang off
+                it. The gaps themselves are promoted into the feed above, so a
+                missing integration is visible with this drawer shut. */}
+            <section className="secs" aria-labelledby="secs-h">
+              <h2 className="sr-only" id="secs-h">
+                Kaynak listeleri
+              </h2>
+              <button
+                type="button"
+                className={`secs__toggle${sectionsOpen ? ' secs__toggle--open' : ''}`}
+                aria-expanded={sectionsOpen}
+                aria-controls="secs-body"
+                onClick={toggleSections}
+              >
+                <ChevronDown size={16} aria-hidden className="secs__chev" />
+                <span className="secs__label">
+                  {sectionsOpen ? 'Listeleri gizle' : 'Tümünü gör'}
+                </span>
+                <span className="secs__sub">
+                  Gelen kutusu, üstümdeki işler, kod, takvim
+                  {!loading && sectionTotal > 0 ? ` · ${sectionTotal} kayıt` : ''}
+                </span>
+                {!loading && gaps.length > 0 && (
+                  <span className="secs__warn">
+                    <Plug size={12} aria-hidden />
+                    {gaps.length} bağlantı eksik
+                  </span>
+                )}
+              </button>
 
               <AnimatePresence initial={false}>
-                {openMeta && (
-                  <motion.div key={openMeta.key} ref={panelRef} {...expandProps(reduce)}>
-                    <SectionPanel
-                      meta={openMeta}
-                      section={brief?.[openMeta.key] ?? EMPTY}
-                      tileId={`tile-${openMeta.key}`}
-                      panelId={`panel-${openMeta.key}`}
-                      focusItemId={focusItemId}
-                      onClose={() => {
-                        setOpenKey(null);
-                        setFocusItemId(null);
-                      }}
-                      onGoToConnections={() => onNavigate('#/connections')}
-                      onRetry={() => void load('refresh')}
-                    />
+                {sectionsOpen && (
+                  <motion.div key="secs" {...expandProps(reduce)}>
+                    <div className="secs__body" id="secs-body">
+                      <div className="tile-strip">
+                        {SECTIONS.map((meta, i) => (
+                          <SectionTile
+                            key={meta.key}
+                            meta={meta}
+                            index={i}
+                            section={brief?.[meta.key] ?? EMPTY}
+                            loading={loading}
+                            open={openKey === meta.key}
+                            tileId={`tile-${meta.key}`}
+                            panelId={`panel-${meta.key}`}
+                            onToggle={() => toggleSection(meta.key)}
+                          />
+                        ))}
+                      </div>
+
+                      <AnimatePresence initial={false}>
+                        {openMeta && (
+                          <motion.div key={openMeta.key} ref={panelRef} {...expandProps(reduce)}>
+                            <SectionPanel
+                              meta={openMeta}
+                              section={brief?.[openMeta.key] ?? EMPTY}
+                              tileId={`tile-${openMeta.key}`}
+                              panelId={`panel-${openMeta.key}`}
+                              focusItemId={focusItemId}
+                              onClose={() => {
+                                setOpenKey(null);
+                                setFocusItemId(null);
+                              }}
+                              onGoToConnections={() => onNavigate('#/connections')}
+                              onRetry={() => void load('refresh')}
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -526,7 +682,7 @@ export function TodayScreen({ onNavigate }: Props) {
             {/* Last on the screen on purpose: everything above answers "what
                 happened", this answers "what can I start". Issue #15. */}
             <PlaybookShelf
-              playbooks={playbooks}
+              playbooks={shelfPlaybooks}
               loading={playbookPhase === 'loading'}
               error={playbookError}
               starting={starting}

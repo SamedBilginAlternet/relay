@@ -21,6 +21,35 @@ export function enterProps(index: number, reduce: boolean | null) {
   };
 }
 
+/**
+ * A row in the action feed: the standard entrance, plus what it does when the
+ * list around it changes.
+ *
+ * The layout half is `position` only, and 220ms: the feed reorders when a job
+ * is dismissed or a refresh comes back in a different order, and rows sliding
+ * to their new places is the difference between "the list changed" and "did I
+ * misread it?". Full `layout` would animate size too, which on a row with
+ * clipped text means the text reflows mid-flight — that is the jitter this
+ * deliberately does not buy. It gets its OWN transition so the reorder never
+ * inherits the entrance's stagger delay; a row that waits 160ms before moving
+ * looks broken. Off entirely under `prefers-reduced-motion`: someone who asked
+ * for no movement did not ask for slower movement.
+ */
+export function feedRowProps(index: number, reduce: boolean | null) {
+  const base = enterProps(index, reduce);
+  return {
+    ...base,
+    layout: reduce ? (false as const) : ('position' as const),
+    transition: {
+      ...base.transition,
+      layout: {
+        duration: reduce ? 0.001 : 0.22,
+        ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+      },
+    },
+  };
+}
+
 /** 200ms open/close for inline detail (DESIGN.md §4). */
 export function expandProps(reduce: boolean | null) {
   return {

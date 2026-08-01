@@ -1823,95 +1823,227 @@ a.btn {
   color: var(--success);
 }
 
-/* ---- the one card ------------------------------------------------- */
+/* ---- the feed: one row per job (issue #30) ------------------------- */
+/*                                                                     */
+/* The row carries WHAT (title, source demoted to a badge), WHY NOW    */
+/* (the digest's reason, else the summary) and the action itself, in   */
+/* one 64px line. The hero card that used to sit on top of these rows  */
+/* is gone: a screen whose first answer is a big card and whose second */
+/* is a thin line teaches that only the card matters, and on a day     */
+/* with four equally live jobs that is simply false.                   */
 
-.focus {
+.arow-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: var(--s-16);
   border: 1px solid var(--border);
   border-radius: var(--r-card);
   background: var(--surface);
   box-shadow: var(--shadow);
+  overflow: hidden;
 }
-/* urgency is a left edge + a labelled chip — never colour alone */
-.focus--high {
-  box-shadow: inset 3px 0 0 0 var(--danger), var(--shadow);
-  border-color: rgba(220, 38, 38, 0.28);
+.arow {
+  position: relative;
+  background: var(--surface);
+  transition: background-color 160ms ease-out;
 }
-.focus--normal {
-  box-shadow: inset 3px 0 0 0 var(--accent-line), var(--shadow);
+.arow + .arow {
+  border-top: 1px solid var(--border);
 }
-.focus--low {
-  box-shadow: inset 3px 0 0 0 var(--border), var(--shadow);
+.arow:hover,
+.arow--open {
+  background: var(--bg-subtle);
 }
-.focus__head {
+/* urgency is a left edge AND a labelled chip — never colour alone */
+.arow--high::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--danger);
+}
+.arow__line {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--s-12);
+  padding-right: var(--s-16);
 }
-.focus__source {
+.arow__open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  min-height: 64px;
+  padding: 10px var(--s-8) 10px var(--s-16);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.arow__open--static {
+  cursor: default;
+}
+/* The day's order, said out loud. A feed whose ranking is invisible is a
+   list; the number is what makes "start at the top" a real instruction. */
+.arow__rank {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--r-btn);
-  border: 1px solid var(--accent-line);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1;
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+}
+.arow:first-child .arow__rank {
+  border-color: var(--accent-line);
   background: var(--accent-soft);
   color: var(--accent);
 }
-.focus__who {
+.arow__text {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
-.focus__title {
-  font-size: 16px;
+.arow__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  min-width: 0;
+}
+/* Where the section heading went: a badge, worn by the row it describes. */
+.src-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--fg-muted);
+}
+.arow__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14.5px;
   font-weight: 600;
   line-height: 1.35;
   color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.focus__from {
-  font-size: 13px;
-  color: var(--fg-muted);
-}
-/* Why this one is first. Deliberately NOT styled like `.digest__advice` above
-   it — same page, same voice, but this one is bound to a card, so it lives
-   inside the card's indent and stays subordinate to the title. */
-.focus__why {
+.arow__why {
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin-left: 44px;
-  font-size: 13px;
-  line-height: 1.45;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
   color: var(--fg-muted);
 }
-.focus__why > svg {
+.arow__why > svg {
   flex: 0 0 auto;
-  margin-top: 2px;
   color: var(--accent);
 }
-.focus__summary {
-  margin-left: 44px;
-  font-size: 14px;
+.arow__why-text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.arow__chev {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--fg-faint);
+  transition: transform 200ms ease-out;
+}
+.arow--open .arow__chev {
+  transform: rotate(180deg);
+}
+.arow__do {
+  flex: 0 0 auto;
+}
+.arow__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 var(--s-16) var(--s-12) calc(var(--s-16) + 24px + var(--s-12));
+}
+.arow__meta {
+  font-size: 12px;
+  color: var(--fg-faint);
+}
+.arow__summary {
+  font-size: 13.5px;
   line-height: 1.5;
   color: var(--fg-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
-.focus__actions {
+.arow__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-8);
   align-items: center;
-  margin-left: 44px;
+}
+
+/* The next meeting. Quiet edge, no rank number, no urgency chip: it is an
+   appointment, not something waiting on the user, and the only reason it is
+   in this list at all is that there is finally something to click on it. */
+.arow--meet::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent-line);
+}
+.arow--meet .arow__rank,
+.arow:first-child.arow--meet .arow__rank {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* A missing integration, wearing the same row as the work it is blocking —
+   because with the section grid closed this is the only place it can be
+   seen, and "seen" has to mean "as loud as a job", not "as a footnote". */
+.arow--gap {
+  background: var(--bg-subtle);
+}
+.arow--gap::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--warn);
+}
+.arow--gap-error::before {
+  background: var(--danger);
+}
+.arow--gap .arow__rank {
+  border-style: dashed;
+  border-color: rgba(180, 83, 9, 0.4);
+  background: #fff8eb;
+  color: #92400e;
+}
+.arow--gap-error .arow__rank {
+  border-style: solid;
+  border-color: rgba(220, 38, 38, 0.4);
+  background: #fef2f2;
+  color: #b91c1c;
 }
 
 .urgency {
@@ -1927,8 +2059,18 @@ a.btn {
   font-weight: 600;
   white-space: nowrap;
 }
+/* Inside a row the chip rides next to a badge, so it matches the badge. */
+.urgency--sm {
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+/* --danger on its own tint is 4.41:1 — under AA, and this chip is now on every
+   urgent row instead of once per screen. red-700 on the same tint is 5.9:1;
+   the 3px edge beside it still uses the token, so the colour language is one. */
 .urgency--high {
-  color: var(--danger);
+  color: #b91c1c;
   border-color: rgba(220, 38, 38, 0.35);
   background: #fef2f2;
 }
@@ -1948,150 +2090,81 @@ a.btn {
   border-color: var(--accent);
 }
 
-/* ---- the rest: one line each -------------------------------------- */
+/* ---- the source lists, folded away (issue #30) --------------------- */
+/*                                                                     */
+/* Not deleted, just secondary: partial success, the unavailable/error  */
+/* states and every full list hang off this drawer. What could not be   */
+/* fetched is ALSO a row in the feed above, so shutting the drawer      */
+/* hides lists, never a broken integration.                             */
 
-.prow-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.secs {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  overflow: hidden;
 }
-.prow + .prow {
-  border-top: 1px solid var(--border);
-}
-.prow__btn {
+.secs__toggle {
   display: flex;
   align-items: center;
-  gap: var(--s-12);
+  gap: var(--s-8);
+  flex-wrap: wrap;
   width: 100%;
-  min-height: 48px;
-  padding: 4px var(--s-16);
-  background: transparent;
-  border: 0;
+  min-height: 44px;
+  padding: 10px var(--s-16);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-subtle);
   text-align: left;
   cursor: pointer;
-  transition: background-color 160ms ease-out;
+  transition: background-color 160ms ease-out, border-color 160ms ease-out;
 }
-.prow__btn:hover {
-  background: var(--bg-subtle);
+.secs__toggle:hover {
+  border-color: #d1d5db;
+  background: #fff;
 }
-.prow--open .prow__btn {
-  background: var(--bg-subtle);
+.secs__toggle--open {
+  border-style: solid;
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
 }
-.prow__urgency {
+.secs__chev {
   flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  width: 66px;
-  font-size: 12px;
-  font-weight: 600;
-}
-/* inside a row the urgency is text + icon, not a chip */
-.prow__urgency.urgency--high {
-  color: var(--danger);
-  background: transparent;
-  border: 0;
-  padding: 0;
-}
-.prow__urgency.urgency--normal,
-.prow__urgency.urgency--low {
   color: var(--fg-muted);
-  background: transparent;
-  border: 0;
-  padding: 0;
-}
-.prow__title {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--fg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.prow__from {
-  flex: 0 1 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  max-width: 32%;
-  font-size: 12px;
-  color: var(--fg-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.prow__from > svg {
-  flex: 0 0 auto;
-}
-/* The ordering reason takes the sender's slot rather than a line of its own:
-   the screen was just cut from 2680px to 844px and a second line per row would
-   hand a third of that back. Same 48px row, better answer in it. */
-.prow__why {
-  flex: 0 1 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  max-width: 38%;
-  font-size: 12px;
-  color: var(--fg-muted);
-}
-.prow__why > svg {
-  flex: 0 0 auto;
-  color: var(--accent);
-}
-.prow__why-text {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.prow__hint {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--fg-faint);
-}
-.prow__chev {
   transition: transform 200ms ease-out;
 }
-.prow--open .prow__chev {
+.secs__toggle--open .secs__chev {
   transform: rotate(180deg);
+  color: var(--accent);
 }
-.prow__body {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 2px var(--s-16) var(--s-12) calc(var(--s-16) + 66px + var(--s-12));
+.secs__label {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
 }
-.prow__meta {
+.secs__sub {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--fg-muted);
+}
+.secs__warn {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
-  color: var(--fg-faint);
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(180, 83, 9, 0.35);
+  background: #fff8eb;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #92400e;
 }
-.prow__summary {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--fg-muted);
-}
-.prow__actions {
+.secs__body {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-8);
-  align-items: center;
+  flex-direction: column;
+  gap: var(--s-12);
+  padding-top: var(--s-12);
 }
 
 /* ---- section strip: a number, two lines, and a way in -------------- */
@@ -2514,37 +2587,42 @@ a.btn {
 }
 
 @media (max-width: 760px) {
-  /* the row keeps urgency + subject; the sender is the first thing to go */
-  .prow__from {
-    display: none;
+  /*
+    Under 760 there is no room for a title and a button on one line, so the
+    action drops beneath the row it belongs to rather than shrinking into an
+    icon. "One click" survives the breakpoint; a 28px mystery glyph would not.
+  */
+  .arow__line {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding-right: 0;
   }
-  /* The reason does not go with it — it is the one thing on this row the user
-     cannot reconstruct from the title. There is no width left to share, so it
-     drops under the title and the row grows by one 12px line, on this
-     breakpoint only. */
-  .prow__btn {
-    flex-wrap: wrap;
-    padding-block: 6px;
+  .arow__open {
+    min-height: 56px;
+    padding: 10px var(--s-12);
   }
-  /* basis auto + a nowrap title = a hypothetical size wide enough to push the
-     chevron onto its own line; from zero the title just shrinks, as it did
-     before wrapping was allowed at all */
-  .prow__title {
-    flex: 1 1 0;
+  .arow__do {
+    align-self: flex-start;
+    margin: 0 var(--s-12) var(--s-12) calc(var(--s-12) + 24px + var(--s-12));
   }
-  .prow__why {
-    order: 1;
-    flex: 1 0 100%;
-    max-width: 100%;
-    align-items: flex-start;
-    padding-left: calc(66px + var(--s-12));
+  .arow__body {
+    padding: 0 var(--s-12) var(--s-12) calc(var(--s-12) + 24px + var(--s-12));
   }
-  .prow__why > svg {
-    margin-top: 2px;
-  }
-  .prow__why-text {
+  /* Nothing left to share the line with, so the title gets two of them —
+     a subject clipped at 20 characters is not a subject. */
+  .arow__title {
     white-space: normal;
-    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .arow__head {
+    flex-wrap: wrap;
+    gap: 6px var(--s-8);
+  }
+  .arow__why-text {
+    white-space: normal;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -2552,9 +2630,6 @@ a.btn {
 }
 
 @media (max-width: 520px) {
-  .prow__hint-text {
-    display: none;
-  }
   .brief-top__text {
     flex: 1 1 200px;
   }
@@ -2570,16 +2645,10 @@ a.btn {
   .tile__title {
     white-space: normal;
   }
-  .focus__why,
-  .focus__summary,
-  .focus__actions {
-    margin-left: 0;
-  }
-  .prow__body {
-    padding-left: var(--s-16);
-  }
-  .prow__why {
-    padding-left: 0;
+  /* The drawer's caption is the first thing to go: the label and the missing
+     connection chip are what the closed state has to say. */
+  .secs__sub {
+    flex: 1 0 100%;
   }
 }
 
