@@ -210,6 +210,13 @@ public class Coordinator {
                 continue;
             }
 
+            Step refused = policy.ask() ? rejectedEarlier(run, step) : null;
+            if (refused != null) {
+                rejectStep(run, step, "dayandığı " + refused.ordinal() + ". adım reddedildi ("
+                        + refused.title() + "), bu yazma onun sonucunu duyuracaktı");
+                continue;
+            }
+
             // Money first, permission second. The other way round, a run that had already
             // blown its budget parked on the write gate and told the user it was asking for
             // a writing permission — so they read the wrong reason and, before the pause
@@ -478,6 +485,32 @@ public class Coordinator {
         data.put("reason", reason);
         data.put("pausedBy", cause.wire());
         events.publish(run.id(), RunEvent.of(RunEvent.STEP_AWAITING, data));
+    }
+
+    /**
+     * The write earlier in this plan that the person already said no to.
+     *
+     * <p>Live: a {@code jira.createIssue} step was rejected ("this is a fault report, not a
+     * work request") and the very next step asked to approve posting <em>"Yeni iş talebi
+     * var"</em> to the team channel — an announcement of a record that does not exist. The
+     * gate's whole promise is that what you read is what gets sent, and no caption added to
+     * that card could have made its text true.
+     *
+     * <p>So a refusal ends the writing part of the plan rather than being noted on the next
+     * card. A person at a gate approves; asking them to be the one who notices that step 3
+     * died is asking them to do the checking the product exists to do. Reads are left alone —
+     * they change nothing outside Relay, and the closing summary is better for having them.
+     *
+     * <p>Plans carry no declared dependencies, so this is deliberately blunt: an unrelated
+     * later write is stopped too. That direction of error costs the user a second run; the
+     * other direction posts something untrue to their team.
+     */
+    private static Step rejectedEarlier(Run run, Step step) {
+        return run.steps().stream()
+                .filter(other -> other.ordinal() < step.ordinal())
+                .filter(other -> other.status() == StepStatus.REJECTED)
+                .findFirst()
+                .orElse(null);
     }
 
     private void rejectStep(Run run, Step step, String reason) {
