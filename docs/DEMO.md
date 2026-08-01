@@ -126,6 +126,17 @@ Bitirirken tamamlayıcı ol, jüri bunu sever: *"n8n kullanan bir ekip Relay'i o
 **"İnternet ya da hesaplarınız ölürse?"**
 > Çift sigorta. Birinci kademe: `TOOLS_MODE=replay` — araç çağrıları kayıtlı gerçek yanıtlarla oynar, ağ gerekmez; onay kapısı ve akış birebir aynı çalışır. İkinci kademe: frontend mock modu — backend bile ölse arayüz senaryoyu uçtan uca oynatır. Groq tarafında da çoklu anahtar rotasyonu var; hepsi tükenirse deterministik stub'a düşer ve arayüz bunu açıkça söyler. Demo hiçbir tekil noktaya bağlı değil.
 
+### Panel ekranından okunan sorular
+
+`#/panel` jüriye açık bir sekme ve rakamları biz koyduk. Bu iki soru **gelecek**; hazırlıksız
+yakalanmak, kötü rakamdan daha pahalı.
+
+**"Panelinizde 106 akışın 50'si tamamlanmış. Akışlarınızın yarısı bitmiyor mu?"**
+> Doğru okudunuz, ve rakamın çoğu bizim tanımımız: 29 akış **onay bekliyor** — çünkü kapıyı geçmek için insan gerekiyor, ve o insan o gün geri dönmediyse akış orada durur. Bu bizim yarım kalmış işimiz değil, ürünün varsayılanı; sessizce tamamlanan bir akış bizim için başarısızlık olurdu. Geriye 23 hata kalıyor ve onları savunmuyoruz: çoğu 48 saatlik entegrasyon işi — yanlış proje anahtarı, kanala davet edilmemiş bot. Ölçtüğümüz şey de bu zaten; ölçmeseydik bu ekran olmazdı.
+
+**Söylenmeyecek:** *"o rakam test verisi"* — 106 akışın içinde jüriye gösterdiğimiz akış da var.
+Rakamı sahiplen; ölçtüğün bir sayıyı reddetmek, ölçüm iddiasını da düşürür.
+
 **Yedek sorular (gelirse):**
 - *"Neden Groq?"* → Hız: plan 5 saniyenin altında gelmeli, Groq'un çıkarımı bunu sağlıyor. `LlmClient` arayüz — sağlayıcı tek sınıfla değişir.
 - *"Silme işlemleri?"* → **Bugün silen tek bir aracımız yok** — 18 aracın 12'si okuma, 6'sı yazma, sıfırı silme. Motorda `DESTRUCTIVE` → `yasak` kuralı duruyor ve `Politikalar` ekranı bunu açıkça yazıyor: *"şu an kayıtlı hiçbir aracın riski silme değil."* Kuralı önce yazdık, öznesini bilerek eklemedik: 48 saatte geri alınamayan bir işlem eklemek, onay kapısının test edilmediği tek yerdir. **Üçüncü ayağı slogana çevirme** — jüri "hangi silme aracınız var?" der ve cevap "hiçbiri" olur; o an cümle bir slogan gibi duyulur. İkili kur: okuma otomatik, yazma onaylı.
