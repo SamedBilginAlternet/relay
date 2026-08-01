@@ -147,7 +147,8 @@ class ToolResultProjectionTest {
                 new CalendarCreateEventTool("replay", FIXTURES, null, "Europe/Istanbul"),
                 new SheetsTool.AppendRow("replay", FIXTURES, null),
                 new SheetsTool.ReadRange("replay", FIXTURES, null),
-                new NotionTool.CreatePage("replay", FIXTURES));
+                new NotionTool.CreatePage("replay", FIXTURES),
+                new NotionTool.AppendToPage("replay", FIXTURES));
 
         for (AbstractTool tool : tools) {
             JsonNode recorded = FIXTURES.load(tool.name(), Json.object());

@@ -178,6 +178,15 @@ export const PROVIDERS: ProviderDef[] = [
           'ÖNEMLİ: aynı sayfada sağ üstteki ••• → Connections menüsünden bu integration’ı ' +
           'ekleyin. Paylaşılmayan bir sayfayı Notion, token doğru olsa bile yok sayar.',
       },
+      {
+        key: 'defaultPageId',
+        label: 'Varsayılan not sayfası (opsiyonel)',
+        placeholder: 'notion.so/… sayfa adresi ya da 32 karakterlik kimlik',
+        hint:
+          'notion.appendToPage hedef verilmediğinde notu bu sayfanın sonuna ekler — karar ' +
+          'kütüğü gibi büyüyen tek sayfa. Adresi olduğu gibi yapıştırabilirsin; kimlik içinden ' +
+          'okunur. Bu sayfanın da ••• → Connections menüsünden integration ile paylaşılması gerekir.',
+      },
     ],
   },
 ];

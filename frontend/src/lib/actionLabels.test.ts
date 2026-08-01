@@ -49,6 +49,7 @@ describe('actionLabel', () => {
       'github.listMyPullRequests',
       'github.listMyIssues',
       'notion.createPage',
+      'notion.appendToPage',
       'slack.postMessage',
       'slack.listChannels',
       'calendar.listToday',

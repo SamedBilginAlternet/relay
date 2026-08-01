@@ -81,10 +81,17 @@ Sonra **Reinstall to Workspace** → yeni `xoxb-...` token. Kanal tarafında bir
 
 ## 4. Notion (integration token — OAuth yok)
 
-Relay'in tek yazma aracı olan sağlayıcı: `notion.createPage`. Okuma aracı **yok** ve
-bilerek yok — okuyan bir araç her sabah briefte iki model turu daha demektir, yazan bir
-araç ise yalnız kullanıldığı akışta ~100 token. Notion'dan okuma isteniyorsa bu bir ürün
-kararıdır, eksik değil.
+Yalnız yazan sağlayıcı — iki aracı da yazar: `notion.createPage` (yeni sayfa) ve
+`notion.appendToPage` (var olan sayfanın sonuna not). Okuma aracı **yok** ve bilerek yok —
+okuyan bir araç her sabah briefte iki model turu daha demektir, yazan bir araç ise yalnız
+kullanıldığı akışta ~100 token. Notion'dan okuma isteniyorsa bu bir ürün kararıdır, eksik
+değil.
+
+**`notion.appendToPage` için kurulumda yeni hiçbir şey yok:** aynı `ntn_...` token, aynı
+*Insert content* yetkisi. Tek opsiyonel yenilik aşağıdaki `defaultPageId` ayarı — "karar
+kütüğü" gibi büyüyen tek sayfanız varsa bir kez girin, her "notu kütüğe ekle" adımı hedefini
+oradan alsın. Araç sayfaya yalnız **ekler** (`PATCH /v1/blocks/{page_id}/children`):
+sayfadaki hiçbir bloğu değiştiremez, silemez, başlığa dokunamaz.
 
 **Nereden:** [notion.so/my-integrations](https://www.notion.so/my-integrations) →
 *New integration* → tipi **Internal**, yetenekleri **Insert content** (+ istenirse *Read
@@ -96,6 +103,7 @@ content*) → **Internal Integration Secret** kopyalanır (`ntn_...`).
 |---|---|---|
 | `token` | evet | `ntn_...` — Internal Integration Secret |
 | `parentDatabaseId` | hayır | Sayfaların açılacağı varsayılan veritabanının 32 karakterlik kimliği |
+| `defaultPageId` | hayır | `notion.appendToPage`'in notu ekleyeceği varsayılan sayfa — kimlik ya da sayfa adresi (kimlik adresin içinden okunur). Bu sayfanın da integration ile **paylaşılmış** olması gerekir |
 
 `parentDatabaseId` girilmezse her adımda hedef veritabanını modelin bulması gerekir ve
 bulamaz — bu alanı bir kez doldurmak, akışın her seferinde çalışması demektir. Kimlik,
@@ -134,9 +142,12 @@ Notlar:
 - Sayfa başlığı, veritabanının ilk sütununun *adına* göre değil `title` kimliğine göre
   yazılır — sütunun adı "Name", "Ad" ya da "Başlık" olabilir, hiçbiri fark etmez.
 - `content` düz metin ya da hafif markdown olabilir: `# `, `## `, `### ` başlıklar ve
-  `- ` maddeler bloklara çevrilir, gerisi paragraf olur.
-- `notion.createPage` **WRITE** risklidir → politika motoru onay kapısını kendiliğinden
-  açar, ayrıca kural yazmak gerekmez.
+  `- ` maddeler bloklara çevrilir, gerisi paragraf olur. İki araç da aynı çeviriciyi
+  kullanır — "içerik" yeni sayfada da, eklenen notta da aynı anlama gelir.
+- `notion.createPage` ve `notion.appendToPage` **WRITE** risklidir → politika motoru onay
+  kapısını kendiliğinden açar, ayrıca kural yazmak gerekmez.
+- `object_not_found` iki araçta da aynı Türkçe cümleyle durur (yukarıdaki kutu): eklenmek
+  istenen sayfa paylaşılmamışsa ekranda id'yi değil paylaşımı kontrol etmen yazar.
 - Bağlantı yoksa araç replay moduna düşer ve demo yine baştan sona çalışır.
 
 ---

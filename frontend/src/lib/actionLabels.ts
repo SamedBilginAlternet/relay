@@ -48,6 +48,7 @@ const LABELS: Record<string, string> = {
 
   // Notion
   'notion.createPage': 'Notion’a not aç',
+  'notion.appendToPage': 'Notion sayfasına ekle',
 
   // Calendar
   'calendar.listToday': 'Bugünün toplantılarını getir',

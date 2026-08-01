@@ -79,6 +79,7 @@ onay kapısı, aynı şeffaflık. Yani Bugün ekranı yeni bir motor değil, mot
 | `github.listMyIssues` | READ | `assignee:@me` |
 | `github.addComment` | WRITE | Onay ister |
 | `github.createIssue` | WRITE | Onay ister — Jira'sız ekipte "maili işe çevir"in bittiği yer. **Brifingde yok** |
+| `notion.appendToPage` | WRITE | Var olan sayfanın sonuna not — karar kütüğü. Yalnız ekler, mevcut bloklara dokunamaz. **Brifingde yok** |
 | `jira.createIssue` | WRITE | Onay ister — Bugün ekranının ana eylemi |
 | `jira.listMyIssues` | READ | `assignee = currentUser()` |
 

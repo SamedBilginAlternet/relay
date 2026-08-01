@@ -167,6 +167,7 @@ const MOCK_TOOLS: [string, RiskLevel][] = [
   ['jira.listMyIssues', 'read'],
   ['jira.searchIssues', 'read'],
   ['jira.updateIssue', 'write'],
+  ['notion.appendToPage', 'write'],
   ['notion.createPage', 'write'],
   ['sheets.appendRow', 'write'],
   ['sheets.readRange', 'read'],

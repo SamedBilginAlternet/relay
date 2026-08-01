@@ -45,6 +45,7 @@ const LABELS: Record<string, string> = {
 
   // Notion
   parentdatabaseid: 'Veritabanı',
+  pageid: 'Sayfa',
   content: 'İçerik',
 
   // Gmail

@@ -307,7 +307,8 @@ public class ToolAgent {
             "repository", List.of("repo", "defaultRepo"),
             "parentdatabaseid", List.of("parentDatabaseId", "defaultDatabaseId"),
             "spreadsheetid", List.of("defaultSpreadsheetId"),
-            "sheetname", List.of("defaultSheetName"));
+            "sheetname", List.of("defaultSheetName"),
+            "pageid", List.of("defaultPageId"));
 
     /** One field the model addressed wrongly, and what was done about it. */
     private record Grounding(JsonNode params, String note) {
@@ -442,16 +443,20 @@ public class ToolAgent {
      * goal mention them would block ordinary work. Getting one wrong costs a 400, not a
      * stranger's issue.
      *
-     * <p>{@code parentDatabaseId} and {@code spreadsheetId} have to be named here rather than
-     * left to {@link #isIdentifier}'s "ends with id" rule. By that rule they read as pointers
-     * at one existing record — and a Notion database id is a 32-character uuid, a spreadsheet
-     * id a 44-character token out of a URL, neither of which anybody types into a goal. Every
-     * single page creation and every appended row would be refused as ungrounded. They are
-     * containers: the database the page opens in, the file the row goes into, not the record.
+     * <p>{@code parentDatabaseId}, {@code spreadsheetId} and {@code pageId} have to be named
+     * here rather than left to {@link #isIdentifier}'s "ends with id" rule. By that rule they
+     * read as pointers at one existing record — and a Notion id is a 32-character uuid, a
+     * spreadsheet id a 44-character token out of a URL, neither of which anybody types into a
+     * goal. Every page creation, every appended row and every appended note would be refused
+     * as ungrounded. They are containers: the database the page opens in, the file the row
+     * goes into, the log page the note lands on — not the record being changed. {@code
+     * pageId} earns the label the same way the other two did: Notion has no reading tool, so
+     * the only honest sources for it are the goal and the connection's {@code defaultPageId},
+     * and a page is a container of blocks exactly as a database is a container of pages.
      */
     private static final java.util.Set<String> CONTAINER_FIELDS = java.util.Set.of(
             "projectkey", "project", "repo", "repository", "owner", "channel", "channelid",
-            "parentdatabaseid", "spreadsheetid", "sheetname");
+            "parentdatabaseid", "spreadsheetid", "sheetname", "pageid");
 
     /**
      * Did the run really see this value, as a value — or does it just happen to sit inside a
