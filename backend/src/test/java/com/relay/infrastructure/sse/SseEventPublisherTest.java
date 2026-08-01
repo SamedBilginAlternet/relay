@@ -8,7 +8,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -110,6 +112,40 @@ class SseEventPublisherTest {
                 .as("what is kept is the newest four hundred, not the first four hundred")
                 .isEqualTo(Map.of("n", 601));
         assertThat(latecomer.frames.get(399).data()).isEqualTo(Map.of("n", 1000));
+    }
+
+    /**
+     * The backlog is written by the thread driving the run and read by the servlet thread of
+     * whoever just connected. It used to be appended to outside the lock that guarded the
+     * read, on a deque that says in its own javadoc it is not thread safe.
+     */
+    @Test
+    void an_event_published_while_a_client_subscribes_is_neither_lost_nor_duplicated() throws Exception {
+        SseEventPublisher publisher = new SseEventPublisher();
+        UUID runId = UUID.randomUUID();
+        int total = 500;
+        RecordingEmitter watching = new RecordingEmitter();
+        CountDownLatch started = new CountDownLatch(1);
+
+        Thread driver = new Thread(() -> {
+            started.countDown();
+            for (int i = 1; i <= total; i++) {
+                publisher.publish(runId, RunEvent.of(RunEvent.AGENT_MESSAGE, Map.of("n", i)));
+            }
+        }, "publishing");
+        driver.start();
+        started.await();
+        publisher.subscribe(runId, watching);
+        driver.join();
+
+        List<Integer> seen = watching.frames.stream()
+                .map(frame -> (Integer) ((Map<?, ?>) frame.data()).get("n"))
+                .toList();
+        assertThat(seen).isNotEmpty();
+        assertThat(seen)
+                .as("from wherever it joined, every event once, in order, up to the last one published")
+                .containsExactlyElementsOf(
+                        IntStream.rangeClosed(seen.get(0), total).boxed().toList());
     }
 
     @Test
