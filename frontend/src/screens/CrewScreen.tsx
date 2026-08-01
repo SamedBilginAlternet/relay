@@ -399,32 +399,6 @@ export function CrewScreen() {
               )}
             </div>
 
-            {/*
-              The rule that keeps every row above honest. Dashed, like the matching block
-              on Politikalar: it is a rule, not a member.
-
-              It stays on every tab that lists derived members — a reader parked on the
-              Jira tab is exactly the reader who needs to be told that the list cannot be
-              hand-edited. It is off on `Çekirdek`, where it would be false: the fixed five
-              are not derived from any tool, and the block underneath them says so itself.
-            */}
-            {tab !== CORE && (
-              <section className="crew-rule" aria-labelledby="crew-rule-head">
-                <h2 className="t-title" id="crew-rule-head">
-                  Bu listeye elle üye eklenemez
-                </h2>
-                <p className="t-caption">
-                  Bir üyenin var olabilmesi için en az bir <b>kayıtlı aracı</b> olması gerekir;
-                  kaynak yalnızca araç kayıt defteridir. Yeni bir sağlayıcının aracı yazıldığı
-                  gün uzmanı kendiliğinden burada belirir — adı{' '}
-                  <code className="t-mono">Tool.provider()</code>'dan, yetkisi{' '}
-                  <code className="t-mono">risk()</code> ve politika tablosundan gelir. Bu yüzden
-                  arkasında sistem olmayan bir unvan bu ekranda hiç görünmez. Yetki burada
-                  yalnızca gösterilir; değiştirildiği yer <a href="#/politikalar">Politikalar</a>{' '}
-                  ekranıdır.
-                </p>
-              </section>
-            )}
           </>
         )}
       </div>

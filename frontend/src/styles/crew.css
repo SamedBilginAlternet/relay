@@ -321,21 +321,6 @@
   color: var(--fg-faint);
 }
 
-/* ---- the rule under the list ---------------------------------------- */
-
-.crew-rule {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-8);
-  padding: var(--s-16);
-  border: 1px dashed var(--border);
-  border-radius: var(--r-card);
-  background: var(--bg-subtle);
-}
-.crew-rule .t-caption {
-  margin: 0;
-}
-
 /* Below the desktop width the counts have no room beside the name, so they go
    back to a line of their own — flush left with the tools they are counted from,
    and with nothing left to be separated from. The columns are dropped on the

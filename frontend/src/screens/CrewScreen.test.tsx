@@ -286,21 +286,20 @@ it('a_tab_counts_the_tools_behind_it_and_the_toolless_core_carries_no_number', a
 });
 
 /**
- * The rule is what stops a reader thinking a member can be hired, so it rides
- * every tab that lists derived members — not only the first one. It is off on
- * the core tab, where it would be false about the rows underneath it.
+ * The rule block itself was removed at the owner's request (#164) — a paragraph of
+ * governance prose on a screen people visit to see who does what. The FACT it stated
+ * still holds and is still enforced: membership derives from the tool registry alone.
+ * What remains on screen saying so is the section head's own "araç kayıt defterinden"
+ * caption; what remains in the product is that there is simply no way to add a member.
+ * This test holds the removal — the paragraph must not creep back as a fifth block.
  */
-it('the_rule_that_no_member_is_hand_written_stays_on_every_derived_tab', async () => {
+it('the_governance_paragraph_stays_gone', async () => {
   crew = { core: CORE, members: [member()] };
 
   render(<CrewScreen />);
 
-  expect(await screen.findByText(/Bu listeye elle üye eklenemez/)).toBeTruthy();
-  await openTab(/Jira/);
-  expect(screen.getByText(/Bu listeye elle üye eklenemez/)).toBeTruthy();
-
-  await openTab(/Sabit çekirdek/);
-  await waitFor(() => expect(screen.queryByText(/Bu listeye elle üye eklenemez/)).toBeNull());
+  await screen.findByRole('tab', { name: /Tümü/ });
+  expect(screen.queryByText(/Bu listeye elle üye eklenemez/)).toBeNull();
 });
 
 /** `#/ekip` is the address the nav points at; nothing else may swallow it. */
