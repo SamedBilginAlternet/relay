@@ -1,5 +1,56 @@
 /* Relay — design tokens straight from docs/DESIGN.md (v2, light) */
 
+/* ------------------------------------------------------------------ */
+/* v3 — console, not dashboard                                        */
+/*                                                                     */
+/* Read from what agent-native interfaces settled on in 2026 (the     */
+/* Codex app, AG-UI's pattern set): the screen is a work surface, not  */
+/* a report. Three rules come out of it, and everything below is one   */
+/* of the three.                                                       */
+/*                                                                     */
+/* 1. PROSE IS SANS, MACHINE FACT IS MONO. A tool id, a parameter, a   */
+/*    model name, a price, a duration — these are not sentences and    */
+/*    setting them like sentences is why the screen read as a form.    */
+/*    The eye can then skip the machine layer, or read only it.        */
+/*                                                                     */
+/* 2. THREE SURFACES, HAIRLINE BORDERS. Canvas, panel, inset. Depth    */
+/*    comes from the step between them, not from shadow — a page of    */
+/*    floating cards is what "classic web dashboard" looks like.       */
+/*                                                                     */
+/* 3. THE ACCENT MEANS STATE, NOT DECORATION. Purple is running,       */
+/*    waiting, chosen. Nothing is purple for being nice.               */
+/* ------------------------------------------------------------------ */
+
+:root {
+  /* The step between surfaces, used instead of a shadow. */
+  --line: rgba(17, 17, 17, 0.09);
+  --line-soft: rgba(17, 17, 17, 0.06);
+  /* Machine text: one size, one colour, everywhere it appears. */
+  --fg-machine: #3f3f46;
+  --machine-size: 12.5px;
+  --r-inset: 8px;
+}
+
+/*
+  Every machine fact on the screen, set the same way. A reader who wants
+  the prose can skim past this layer; one who wants the receipt reads only
+  it. Ligatures off: `->` in a tool id must stay two characters.
+*/
+.t-mono,
+.tool-chip,
+.draft__field dd,
+.draft__tool,
+.step__duration,
+.a2a__from,
+.a2a__to,
+code,
+kbd {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
+}
+
+
 /* A provider's mark sits inline with the name it belongs to, never alone. */
 .src-badge,
 .tool-chip,
