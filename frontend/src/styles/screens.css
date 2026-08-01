@@ -595,11 +595,21 @@
      3px clear of the option inside it, so the row already has a gutter and a
      second one would only be eighteen more pixels of page. */
   padding: 1px var(--s-16);
-  border-top: 1px solid var(--line-soft);
+  /* Kept 1px but drawn transparent: the zebra band below took over the row
+     rhythm, and at a 32px pitch stripe + hairline is two separators saying
+     one thing. Transparent rather than removed so the #154 height ledger
+     above stays true to the pixel. */
+  border-top: 1px solid transparent;
 }
 .pol-list .pol-row:first-child {
   border-top: 0;
   padding-top: 1px;
+}
+/* Zebra (owner's call, all tabular lists): every second row steps back to
+   `--bg-subtle`, the product's one-step-back colour. The deviated row keeps
+   its own voice — `.pol-row--off`'s amber inset edge draws over any fill. */
+.pol-list .pol-row:nth-child(even) {
+  background: var(--bg-subtle);
 }
 /* The scan column. It is the RISK, not the provider: inside the Jira tab the
    provider's mark would be seven identical logos, and the `jira.` in front of

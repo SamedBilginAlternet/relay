@@ -658,8 +658,20 @@
 .panel-reject--muted {
   border-left-color: var(--fg-faint);
 }
-.panel-reject:hover {
+/*
+  Zebra (owner's call, all tabular lists): every second line of evidence
+  steps back to `--bg-subtle`. The stripe rides the row's slot in the list —
+  `nth-child` on the `li`, painted on the card it holds — so refusals and
+  write-offs alternate the same way. Charts are not lists; they get none.
+*/
+.panel-rejects > li:nth-child(even) > .panel-reject {
   background: var(--bg-subtle);
+}
+/* One step past the stripe, because `--bg-subtle` IS the stripe now: a hover
+   that matched it would go dark on odd rows and mute on even ones. */
+.panel-reject:hover,
+.panel-rejects > li:nth-child(even) > .panel-reject:hover {
+  background: rgba(17, 17, 17, 0.045);
 }
 .panel-reject:active {
   transform: scale(0.995);

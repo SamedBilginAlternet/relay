@@ -133,6 +133,24 @@
 .crew-row:last-child {
   padding-bottom: 0;
 }
+/*
+  Zebra (owner's call, all tabular lists): every second member steps back to
+  `--bg-subtle`. The hairline above stays — a member is three lines tall, and
+  across name, duty and a wrapping row of tool chips the crisp `--line` rule
+  is what says where one member ends; a 4-value tint edge alone would not.
+  The band spans the block's content width, the same width the hairlines run.
+
+  The mark and the tool chips are drawn one step BACK from their row
+  (`--bg-subtle` on `--surface`). On a striped row that step vanishes, so
+  they flip to `--surface` — still one step away from what they sit on.
+*/
+.crew-row:nth-child(even) {
+  background: var(--bg-subtle);
+}
+.crew-row:nth-child(even) .crew-row__mark,
+.crew-row:nth-child(even) .crew-tool {
+  background: var(--surface);
+}
 
 /* The provider's own mark, so the row is recognised before it is read. */
 .crew-row__mark {
