@@ -287,7 +287,9 @@ okuyabilen sistem. İzin akışı da aynı akşam boş ön koşulu üç gerekçe
 hiçbir şey yazmadan kapattı ($0,0012) — "boş gün" sorusunun canlı cevabı.
 
 Projektör/HDMI arızasında §4'ün önerdiği yedek: [`assets/relay-b2b-demo.mp4`](assets/relay-b2b-demo.mp4)
-— 56 saniye. Ortası donuk ekran görüntüsü değil, gerçek bir Sohbet koşusunun kaydı: hedef
-canlı yazılıyor, plan akıyor, doğrulayıcı hatalı bir veri filtresini yakalayıp kendi
-kendini düzeltiyor, onay kapısı gerçek parametrelerle açılıyor ve Onayla'ya tıklanıyor.
-Ücretli hiçbir araç kullanılmadan kurgulandı.
+— 45 saniye. Ortası donuk ekran görüntüsü değil, gerçek bir Sohbet koşusunun kaydı: hedef
+canlı yazılıyor, plan akıyor, onay kapısı gerçek parametrelerle açılıyor, Onayla'ya
+tıklanıyor ve Slack'e gerçek bir mesaj gidiyor. Altyazılar ürünün kendi Inter fontuyla,
+kendi kart/vurgu diliyle — jenerik altyazı kutusu değil. Ücretli hiçbir araç kullanılmadan
+kurgulandı. Slack/Notion tarafında mesajın gerçekten ulaştığını gösteren bir kesit yok —
+o kanıt canlı demoda ekrana alınmalı ya da ayrıca eklenmeli.
