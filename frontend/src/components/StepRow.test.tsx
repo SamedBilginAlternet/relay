@@ -106,3 +106,25 @@ it('opening_a_step_is_still_what_shows_the_parameters', () => {
   fireEvent.click(screen.getByRole('button'));
   expect(onToggle).toEqual(['aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee']);
 });
+
+/**
+ * A step parked at the gate is not working. Live it read "27 dk 56 sn" beside a
+ * step whose tool had already returned and which was waiting on a person — true
+ * as elapsed time, false as everything a duration means on this screen, where
+ * every other row's figure is how long a tool took.
+ */
+it('a_parked_step_says_it_is_waiting_rather_than_working', () => {
+  const started = new Date(Date.now() - 90_000).toISOString();
+  render(
+    <ul>
+      <StepRow
+        step={step({ status: 'awaiting_approval', startedAt: started, finishedAt: null })}
+        index={0}
+        expanded={false}
+        onToggle={() => {}}
+      />
+    </ul>,
+  );
+
+  expect(screen.getByText(/bekliyor/)).toBeTruthy();
+});

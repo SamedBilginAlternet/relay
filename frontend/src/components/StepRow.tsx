@@ -56,8 +56,10 @@ export function StepRow({
 
   // Live duration while the step is running.
   useEffect(() => {
-    if (step.status !== 'running') return;
-    const id = setInterval(() => forceTick((n) => n + 1), 500);
+    if (step.status !== 'running' && step.status !== 'awaiting_approval') return;
+    // A parked step ticks too, but once a second and as a wait — half-second
+    // updates on something nobody is watching would be a repaint for nothing.
+    const id = setInterval(() => forceTick((n) => n + 1), step.status === 'running' ? 500 : 1000);
     return () => clearInterval(id);
   }, [step.status]);
 
@@ -65,7 +67,18 @@ export function StepRow({
     if (rejecting) reasonRef.current?.focus();
   }, [rejecting]);
 
-  const duration = stepDuration(step.startedAt, step.finishedAt);
+  /*
+    A step parked at the gate is not working. Live it read "27 dk 56 sn" next to
+    a step whose tool had already returned and which was waiting on a person —
+    the number was true as elapsed time and false as everything a duration means
+    on this screen, where every other row's figure is how long a tool took.
+
+    So a parked step shows how long it has been waiting, said as waiting. The
+    two are different facts and they now read as different facts.
+  */
+  const waiting = step.status === 'awaiting_approval';
+  const duration = waiting ? null : stepDuration(step.startedAt, step.finishedAt);
+  const waited = waiting ? stepDuration(step.startedAt, null) : null;
   const awaiting = step.status === 'awaiting_approval';
   const showGate = awaiting && !readOnly;
   /**
@@ -171,7 +184,9 @@ export function StepRow({
         </span>
 
         <span className="step__right">
-          <span className="step__duration">{duration ?? '—'}</span>
+          <span className="step__duration">
+            {waited ? `${waited} bekliyor` : (duration ?? '—')}
+          </span>
           <motion.span
             animate={{ rotate: expanded ? 180 : 0 }}
             transition={{ duration: reduce ? 0 : 0.2, ease: 'easeOut' }}
