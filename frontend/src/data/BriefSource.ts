@@ -1,4 +1,4 @@
-import type { Brief, SuggestedAction } from '../types/brief';
+import type { Brief, InsightCard, SuggestedAction } from '../types/brief';
 
 /**
  * Everything the Bugün screen is allowed to know about the backend.
@@ -16,6 +16,9 @@ export interface BriefSource {
   /**
    * `POST /api/runs/from-suggestion` — turns a suggested action into a normal
    * Relay run. Same plan, same approval gate, same transparency.
+   *
+   * Takes the whole card, not its id: the flow has to start knowing which item it
+   * is about, and the id alone says nothing the agent can write a sentence from.
    */
-  startFromSuggestion(cardId: string, action: SuggestedAction): Promise<{ runId: string }>;
+  startFromSuggestion(card: InsightCard, action: SuggestedAction): Promise<{ runId: string }>;
 }

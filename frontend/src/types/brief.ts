@@ -47,6 +47,8 @@ export type InsightCard = {
   urgency: InsightUrgency;
   summary: string;
   suggestedActions: SuggestedAction[];
+  /** Deep link to the item in its own system. Rides along into the run's goal. */
+  url?: string;
 };
 
 /**

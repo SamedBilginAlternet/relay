@@ -286,7 +286,9 @@ export function TodayScreen({ onNavigate }: Props) {
     setBusy({ cardId: card.id, tool: action.tool });
     setError(null);
     try {
-      const { runId } = await getBriefSource().startFromSuggestion(card.id, action);
+      // The whole card, not its id: the flow has to know what it is about before it
+      // starts — an agent handed only "Cevap yaz" wrote a draft titled "Re: Cevap".
+      const { runId } = await getBriefSource().startFromSuggestion(card, action);
       // Same engine as always: navigate into the run view and let it stream.
       onNavigate('#/sohbet');
       await openRun(runId);

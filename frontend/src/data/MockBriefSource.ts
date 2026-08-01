@@ -1,4 +1,4 @@
-import type { Brief, SuggestedAction } from '../types/brief';
+import type { Brief, InsightCard, InsightSource, SuggestedAction } from '../types/brief';
 import type { BriefSource } from './BriefSource';
 import type { RunSource } from './RunSource';
 
@@ -269,11 +269,35 @@ export class MockBriefSource implements BriefSource {
   }
 
   async startFromSuggestion(
-    _cardId: string,
+    card: InsightCard,
     action: SuggestedAction,
   ): Promise<{ runId: string }> {
     await delay(200);
     // A suggestion is just a pre-filled goal — the engine underneath is unchanged.
-    return this.runSource.createRun(`${action.label} · ${action.tool}`);
+    // The goal used to be the label and the tool name, which is what the server was
+    // given too; the demo would have gone on showing the bug after the fix.
+    return this.runSource.createRun(mockGoal(card, action));
   }
+}
+
+/** What the item is called on this screen. */
+const KIND: Record<InsightSource, string> = {
+  gmail: 'Gmail maili',
+  jira: 'Jira kaydı',
+  github: 'GitHub kaydı',
+};
+
+/** `jira:KAN-42` → `KAN-42`. A mail's id is opaque and names nothing. */
+function handle(card: InsightCard): string {
+  if (card.source === 'gmail') return '';
+  const at = card.id.indexOf(':');
+  return at < 0 ? '' : card.id.slice(at + 1);
+}
+
+/** The sentence the backend builds, mirrored so the demo reads like the real thing. */
+function mockGoal(card: InsightCard, action: SuggestedAction): string {
+  const named = [KIND[card.source], handle(card), `"${card.title}"`, card.from ? `(${card.from})` : '']
+    .filter(Boolean)
+    .join(' ');
+  return `${action.label} — ${named}. Özet: ${card.summary}`;
 }

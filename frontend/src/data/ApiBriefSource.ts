@@ -96,6 +96,7 @@ function normalizeCard(raw: unknown, index: number): InsightCard {
     suggestedActions: Array.isArray(r.suggestedActions)
       ? r.suggestedActions.map(normalizeAction)
       : [],
+    url: asString(r.url) || undefined,
   };
 }
 
@@ -182,6 +183,30 @@ export function normalizeBrief(raw: unknown): Brief {
   };
 }
 
+/**
+ * What the card was about, in the fields the run's goal is built from.
+ *
+ * The card is already on the screen — the row the user pressed carries the title,
+ * the sender and the sentence explaining why it is there — and none of it used to
+ * leave the browser. So a flow started from "Cevap yaz" knew only "Cevap yaz", and
+ * the draft it wrote was titled after the button.
+ *
+ * It is a headline, not the item: the summary is one line the backend clips again,
+ * and the mail's body is never in it. `itemId` is the same id the card is keyed by,
+ * which is how the backend names a record (`jira:KAN-42`) and finds the message a
+ * reply has to read (`gmail:18f2…`).
+ */
+function suggestionContext(card: InsightCard) {
+  return {
+    itemId: card.id,
+    source: card.source,
+    title: card.title,
+    from: card.from ?? '',
+    summary: card.summary,
+    url: card.url ?? '',
+  };
+}
+
 /** Real backend: REST only — the brief is a snapshot, not a stream. */
 export class ApiBriefSource implements BriefSource {
   readonly kind = 'api' as const;
@@ -234,16 +259,17 @@ export class ApiBriefSource implements BriefSource {
   }
 
   async startFromSuggestion(
-    cardId: string,
+    card: InsightCard,
     action: SuggestedAction,
   ): Promise<{ runId: string }> {
     const body = await this.request<{ runId?: string; id?: string }>('/runs/from-suggestion', {
       method: 'POST',
       body: JSON.stringify({
-        cardId,
+        cardId: card.id,
         tool: action.tool,
         label: action.label,
         params: action.params,
+        context: suggestionContext(card),
       }),
     });
     const runId = body?.runId ?? body?.id;
