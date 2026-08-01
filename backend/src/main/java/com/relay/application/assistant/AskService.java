@@ -475,8 +475,40 @@ public class AskService {
     }
 
     private static String withNotes(String answer, List<Found> found) {
-        String notes = notes(found);
-        return notes.isBlank() ? answer : answer + "\n\n" + notes;
+        StringBuilder notes = new StringBuilder(notes(found));
+        String silent = silent(found);
+        if (!silent.isBlank()) {
+            if (notes.length() > 0) {
+                notes.append(' ');
+            }
+            notes.append(silent);
+        }
+        return notes.length() == 0 ? answer : answer + "\n\n" + notes;
+    }
+
+    /**
+     * A source that answered with nothing, named next to the ones that answered with
+     * something.
+     *
+     * <p>Live, "jira'da bende ne var ve PR'larım ne durumda" listed one pull request and said
+     * nothing at all about Jira, which had come back empty. Read as an answer, that is a
+     * claim about GitHub and silence about the board — and silence is where the reader puts
+     * their own assumption. "Jira'da bulamadım ama şunu buldum" is the honest shape.
+     */
+    private static String silent(List<Found> found) {
+        List<String> quiet = new ArrayList<>();
+        for (Found one : found) {
+            if (OK.equals(one.status()) && one.sources().isEmpty() && !quiet.contains(one.provider())) {
+                quiet.add(one.provider());
+            }
+        }
+        if (quiet.isEmpty()) {
+            return "";
+        }
+        // Turkish suffixes differ per provider name (Jira'da, Gmail'de, GitHub'da), so the
+        // names are listed after a colon rather than inflected into a sentence.
+        return (quiet.size() == 1 ? "Bu kaynakta eşleşen bir şey yok: " : "Bu kaynaklarda eşleşen bir şey yok: ")
+                + String.join(", ", quiet) + ".";
     }
 
     // ---- answer -----------------------------------------------------------

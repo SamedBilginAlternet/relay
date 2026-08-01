@@ -309,6 +309,31 @@ class AskServiceTest {
         assertThat(llm.of(LlmPurpose.ASK_ANSWER).get(0).user()).doesNotContain("Sprint retro");
     }
 
+    /**
+     * Live, "jira'da bende ne var ve PR'larım ne durumda" listed one pull request and said
+     * nothing at all about Jira, which had come back empty. Silence about a source that was
+     * asked is where the reader puts their own assumption.
+     */
+    @Test
+    void aSourceThatFoundNothingIsNamedNextToTheOneThatFoundSomething() {
+        TestDoubles.ScriptedLlmClient llm = new TestDoubles.ScriptedLlmClient(Map.of(
+                LlmPurpose.ASK_ROUTE, """
+                        {"lookups":[{"tool":"jira.searchIssues","query":"status != Done",
+                                     "explanation":"Açık kayıtlara baktım."},
+                                    {"tool":"gmail.search","query":"subject:502 newer_than:7d",
+                                     "explanation":"502 maillerini aradım."}]}""",
+                LlmPurpose.ASK_ANSWER, "Jira'da üç kayıt var [1]."));
+
+        Map<String, Object> answer = serviceWith(List.of(
+                new JiraTool.SearchIssues("replay", FIXTURES), new EmptySearch()), llm)
+                .ask("502 hatası ne durumda?");
+
+        assertThat(answer.get("status")).isEqualTo("ok");
+        assertThat(answer.get("answer")).asString()
+                .contains("Jira'da üç kayıt var [1].")
+                .contains("eşleşen bir şey yok").contains("Gmail");
+    }
+
     // ---- partial success --------------------------------------------------
 
     @Test
