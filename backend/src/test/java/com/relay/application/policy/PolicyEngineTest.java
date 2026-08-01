@@ -14,6 +14,16 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Governance is what Relay is asked to demonstrate, and one of its three defaults was never
+ * run: no registered tool declares {@code DESTRUCTIVE}, so "silme yasak" existed as a switch
+ * branch and a sentence in the docs and nowhere else. {@code forbidden} was only ever proven
+ * through an <em>unknown</em> tool name, which is a different rule entirely.
+ *
+ * <p>So a destructive tool is registered here on purpose. It also carries the decision that
+ * came with it: an operator may make a destructive tool stricter, never fully automatic —
+ * between a mistyped policy and an irreversible delete there is always a person.
+ */
 class PolicyEngineTest {
 
     private TestDoubles.InMemoryPolicyRepository policies;
@@ -25,7 +35,8 @@ class PolicyEngineTest {
         ToolRegistry registry = new ToolRegistryImpl(List.of(
                 new JiraTool.SearchIssues("replay", fixtures),
                 new JiraTool.UpdateIssue("replay", fixtures),
-                new SlackTool.PostMessage("replay", fixtures)));
+                new SlackTool.PostMessage("replay", fixtures),
+                new TestDoubles.DestructiveTool()));
         policies = new TestDoubles.InMemoryPolicyRepository();
         engine = new PolicyEngine(policies, registry);
     }
@@ -42,6 +53,18 @@ class PolicyEngineTest {
     void writeToolsAskForApproval() {
         assertThat(engine.evaluate("jira.updateIssue").mode()).isEqualTo(PolicyMode.ASK);
         assertThat(engine.evaluate("slack.postMessage").ask()).isTrue();
+    }
+
+    @Test
+    void a_destructive_tool_is_forbidden_without_anyone_configuring_it() {
+        PolicyDecision decision = engine.evaluate("jira.deleteIssue");
+
+        assertThat(decision.forbidden()).isTrue();
+        // Nobody wrote a policy row: the refusal comes from the tool's own risk level.
+        assertThat(decision.explicit()).isFalse();
+        assertThat(decision.reason()).contains("destructive");
+        assertThat(decision.auto()).isFalse();
+        assertThat(decision.ask()).isFalse();
     }
 
     @Test
@@ -73,7 +96,12 @@ class PolicyEngineTest {
         policies.save(new ToolPolicy("jira", "jira.updateIssue", PolicyMode.AUTO));
         List<PolicyEngine.EffectivePolicy> effective = engine.effectivePolicies();
 
-        assertThat(effective).hasSize(3);
+        assertThat(effective).hasSize(4);
+        assertThat(effective).anySatisfy(policy -> {
+            assertThat(policy.toolName()).isEqualTo("jira.deleteIssue");
+            assertThat(policy.mode()).isEqualTo(PolicyMode.FORBIDDEN);
+            assertThat(policy.overridden()).isFalse();
+        });
         assertThat(effective).anySatisfy(policy -> {
             assertThat(policy.toolName()).isEqualTo("jira.updateIssue");
             assertThat(policy.mode()).isEqualTo(PolicyMode.AUTO);

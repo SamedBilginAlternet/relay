@@ -285,6 +285,51 @@ public final class TestDoubles {
         }
     }
 
+    /**
+     * A tool that declares {@link com.relay.domain.RiskLevel#DESTRUCTIVE}.
+     *
+     * <p>Relay ships fifteen tools and not one of them is destructive, so the third default of
+     * the policy engine — {@code DESTRUCTIVE → forbidden}, the "silme yasak" claim — had no way
+     * of being exercised at all, in the product or in a test. The word did not appear anywhere
+     * under {@code src/test} while {@code docs/NASIL-CALISIYOR.md} called the mode tested.
+     * This is the tool that makes the claim checkable; it counts its calls so a test can prove
+     * the answer is "never ran" rather than "ran and was written down".
+     */
+    public static class DestructiveTool implements com.relay.application.port.Tool {
+        public int calls;
+
+        @Override
+        public String name() {
+            return "jira.deleteIssue";
+        }
+
+        @Override
+        public String description() {
+            return "deletes an issue for good — test double, nothing like it is registered";
+        }
+
+        @Override
+        public com.fasterxml.jackson.databind.JsonNode schema() {
+            var schema = com.relay.application.json.Json.object();
+            schema.put("type", "object");
+            schema.putArray("required").add("issueKey");
+            schema.putObject("properties").putObject("issueKey").put("type", "string");
+            return schema;
+        }
+
+        @Override
+        public com.relay.domain.RiskLevel risk() {
+            return com.relay.domain.RiskLevel.DESTRUCTIVE;
+        }
+
+        @Override
+        public com.relay.application.port.ToolResult execute(
+                com.fasterxml.jackson.databind.JsonNode params, Connection connection) {
+            calls++;
+            return com.relay.application.port.ToolResult.ok(params, 1, "live");
+        }
+    }
+
     /** Records every SSE frame so assertions can read the timeline. Safe to publish into
      * from several threads: the concurrency tests do exactly that. */
     public static class RecordingEventPublisher implements EventPublisher {
