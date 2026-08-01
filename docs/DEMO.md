@@ -290,6 +290,7 @@ Projektör/HDMI arızasında §4'ün önerdiği yedek: [`assets/relay-b2b-demo.m
 — 45 saniye. Ortası donuk ekran görüntüsü değil, gerçek bir Sohbet koşusunun kaydı: hedef
 canlı yazılıyor, plan akıyor, onay kapısı gerçek parametrelerle açılıyor, Onayla'ya
 tıklanıyor ve Slack'e gerçek bir mesaj gidiyor. Altyazılar ürünün kendi Inter fontuyla,
-kendi kart/vurgu diliyle — jenerik altyazı kutusu değil. Ücretli hiçbir araç kullanılmadan
-kurgulandı. Slack/Notion tarafında mesajın gerçekten ulaştığını gösteren bir kesit yok —
+kendi kart/vurgu diliyle — jenerik altyazı kutusu değil. Kurgu [OpenCut](https://github.com/opencut-app/opencut-classic)
+(açık kaynak, ücretsiz) ile yapıldı: 9 sahne timeline'a sürüklenip export edildi.
+Slack/Notion tarafında mesajın gerçekten ulaştığını gösteren bir kesit yok —
 o kanıt canlı demoda ekrana alınmalı ya da ayrıca eklenmeli.
