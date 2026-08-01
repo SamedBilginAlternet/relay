@@ -419,5 +419,6 @@ Jüri buradan sorar; hazırlıklı olmak lazım.
   yönlendirme çağrısı yok, çünkü dakikalık token bütçesi en kıt kaynak.
 - **Onay kapısı adım bazlıdır**, akış bazlı değil: dört yazma adımı olan bir akış dört kez
   sorar. "Hepsini onayla" yok.
-- **Bugün önbelleği global ve 60 saniyelik.** Bağlantı değiştirdikten sonra ekran bir dakika
-  eski kalabilir; `POST /api/brief/refresh` bunu atlar.
+- **Bugün önbelleği global ve 180 saniyelik** (`BRIEF_CACHE_SECONDS`, varsayılan 180 sn — üç
+  dakika). Her önbellek ıskası bir sınıflandırma çağrısı demek, süre bu yüzden uzun. Bağlantı
+  değiştirdikten sonra ekran üç dakika eski kalabilir; `POST /api/brief/refresh` bunu atlar.
