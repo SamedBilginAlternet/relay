@@ -65,9 +65,10 @@ class DestructiveStepTest {
         assertThat(rig.tool().calls).as("the provider was never called").isZero();
         assertThat(rig.step().status()).isEqualTo(StepStatus.REJECTED);
         assertThat(rig.step().decision()).isEqualTo(Decision.REJECTED);
-        assertThat(rig.step().rejectReason()).contains("policy forbidden").contains("destructive");
+        // The grounds are named in the language the timeline is read in (#81).
+        assertThat(rig.step().rejectReason()).contains("policy forbidden").contains("yıkıcı riski");
         assertThat(rig.run().messages()).anySatisfy(message ->
-                assertThat(message.content()).startsWith("YASAK — ").contains("destructive"));
+                assertThat(message.content()).startsWith("YASAK — ").contains("yıkıcı riski"));
     }
 
     /**
