@@ -1645,6 +1645,26 @@ a.btn {
   color: var(--fg);
 }
 
+/*
+  The day in words, under the counted line. Deliberately lighter and smaller
+  than the headline: the number above it is arithmetic and cannot be wrong,
+  this one is a model's reading of the day, and the type says which is which.
+  Bounded so a model that writes six sentences instead of three cannot push
+  the first action off the screen.
+*/
+.tally__summary {
+  margin: 0 0 8px;
+  max-width: 68ch;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
 /* Where the old header badge lives now: the data source describes the
    brief, not the whole product chrome. */
 .brief-top__meta {

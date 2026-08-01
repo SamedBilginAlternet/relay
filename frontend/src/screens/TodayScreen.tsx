@@ -297,6 +297,9 @@ export function TodayScreen({ onNavigate }: Props) {
   const rowCount = (meetingRow ? 1 : 0) + priority.length + gaps.length;
   const urgentCount = priority.filter((card) => card.urgency === 'high').length;
   const headline = dayHeadline(rowCount, urgentCount);
+  /* Trimmed, because a model asked for three sentences occasionally writes six
+     and the list has to stay above the fold. */
+  const summary = (brief?.digest?.summary ?? '').trim();
 
   /*
     Which row gets the screen's one filled button (issue #78).
@@ -422,6 +425,21 @@ export function TodayScreen({ onNavigate }: Props) {
             {!loading && brief != null ? (
               <p className="tally__headline">{headline}</p>
             ) : null}
+
+            {/*
+              And then the day in words. The counted line above cannot be wrong
+              — it is arithmetic over the rows on screen — but it also cannot
+              say *what* the day is about, and "6 iş seni bekliyor" is not a
+              briefing. This sentence names the two or three things that matter,
+              which is the whole reason someone opens this screen first.
+
+              One paragraph, never the advice line under it: "önce şunu, sonra
+              bunu" is what the numbered list below already says by being
+              ordered. And nothing at all when the model could not write it —
+              the counted line still stands on its own, so a spent token budget
+              costs a sentence, not the screen.
+            */}
+            {!loading && summary ? <p className="tally__summary">{summary}</p> : null}
 
             <p className="brief-top__meta">
               <span

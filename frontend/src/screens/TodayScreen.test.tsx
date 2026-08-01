@@ -41,6 +41,21 @@ afterEach(() => {
   getBrief.mockReset();
 });
 
+/** A brief with nothing in it but the fields the header reads. */
+function briefWith(overrides: Partial<Brief> = {}): Brief {
+  return {
+    date: '2026-08-01',
+    today: null,
+    digest: null,
+    priority: [],
+    inbox: { status: 'ok', items: [] },
+    work: { status: 'ok', items: [] },
+    code: { status: 'ok', items: [] },
+    calendar: { status: 'ok', items: [] },
+    ...overrides,
+  };
+}
+
 async function renderFailing(error: unknown) {
   getBrief.mockRejectedValue(error);
   render(<TodayScreen onNavigate={() => {}} />);
@@ -103,4 +118,41 @@ it('the_column_is_declared_the_same_way_as_every_other_screen', async () => {
 
   const inner = container.querySelector('.page > .page__inner');
   expect(inner?.classList.contains('page__inner--app')).toBe(true);
+});
+
+/**
+ * The counted line cannot be wrong — it is arithmetic over the rows on screen —
+ * but it cannot say what the day is *about* either, and "6 iş seni bekliyor" is
+ * not a briefing. #58 deleted four layers that all repeated the list; this one
+ * sentence is the one that was asked for back.
+ */
+it('the_day_is_said_in_words_as_well_as_in_numbers', async () => {
+  getBrief.mockResolvedValue(
+    briefWith({
+      digest: {
+        summary: 'Bugün ödeme adımında hata alan bir sipariş ve bekleyen bir PR var.',
+        priorities: [],
+        advice: 'Önce ödeme hatasını çöz, sonra PR’a bak.',
+      },
+    }),
+  );
+
+  render(<TodayScreen onNavigate={() => {}} />);
+
+  expect(
+    await screen.findByText('Bugün ödeme adımında hata alan bir sipariş ve bekleyen bir PR var.'),
+  ).toBeTruthy();
+  // The advice is what the ordered list says by being ordered (#58).
+  expect(screen.queryByText(/Önce ödeme hatasını çöz/)).toBeNull();
+});
+
+/** A spent token budget costs a sentence, not the screen: the counts stand alone. */
+it('no_written_summary_leaves_the_counted_line_standing', async () => {
+  getBrief.mockResolvedValue(briefWith({ digest: null }));
+
+  const { container } = render(<TodayScreen onNavigate={() => {}} />);
+  await screen.findAllByText(/Bugün seni bekleyen bir şey görünmüyor/);
+
+  expect(container.querySelector('.tally__headline')).toBeTruthy();
+  expect(container.querySelector('.tally__summary')).toBeNull();
 });
