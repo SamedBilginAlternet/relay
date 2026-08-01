@@ -212,10 +212,14 @@ export class ApiRunSource implements RunSource {
       es.onopen = () => {
         attempt = 0;
         handlers.onStatus('live');
-        // The server does replay its backlog on reconnect, but only the last 400 frames of
-        // it, so a long outage can still leave a hole. The refetch closes that hole; the
+        // Every open, not only the ones after a drop. The server's replay comes out of a
+        // buffer that lives in the API process, so a deploy while a run waits on a person
+        // leaves a stream with nothing to say — and the screen sat there with an approval
+        // badge over an empty timeline, twice, on ordinary restarts. The run itself is on
+        // disk; fetching it is what guarantees the screen is never blank. It also closes
+        // the hole a long outage leaves, since only the last 400 frames are replayed. The
         // reducer is what makes the overlap harmless.
-        if (hadDrop) resync();
+        resync();
       };
 
       const dispatch = (type: RunEvent['type']) => (ev: MessageEvent<string>) => {

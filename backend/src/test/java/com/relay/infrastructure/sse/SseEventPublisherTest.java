@@ -3,7 +3,13 @@ package com.relay.infrastructure.sse;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.relay.application.port.RunEvent;
+import com.relay.domain.PauseReason;
+import com.relay.domain.Run;
+import com.relay.domain.RunStatus;
+import com.relay.domain.Step;
+import com.relay.support.TestDoubles;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +17,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -197,6 +204,39 @@ class SseEventPublisherTest {
 
         assertThat(confused.frames.get(0).text()).contains(":replay-from-start");
         assertThat(confused.names()).containsExactly(RunEvent.RUN_PLANNED, RunEvent.STEP_STARTED);
+    }
+
+    /**
+     * Happened twice during QA, on ordinary deploys: the buffer dies with the process, and
+     * every run that was parked on a human came back with a stream that answered keepalives
+     * and nothing else. The steps are on disk; losing memory need not lose the story.
+     */
+    @Test
+    void a_client_reconnecting_after_restart_still_sees_the_pending_step() {
+        TestDoubles.InMemoryRunRepository runs = new TestDoubles.InMemoryRunRepository();
+        Run run = Run.create("Jira'da blocker'ları bul", Instant.parse("2026-08-01T09:00:00Z"), 0.5);
+        Step step = Step.create(run.id(), 1, "Kaydı aç", "jira-agent", "jira.createIssue",
+                Map.of("projectKey", "KAN", "summary", "QA oturum testi"));
+        step.markAwaitingApproval(PauseReason.POLICY);
+        run.addStep(step);
+        run.status(RunStatus.AWAITING_APPROVAL);
+        runs.save(run);
+
+        // A publisher that has never heard of this run: the process it was started in is gone.
+        SseEventPublisher afterRestart = new SseEventPublisher(runs);
+        RecordingEmitter reconnected = new RecordingEmitter();
+        afterRestart.subscribe(run.id(), reconnected);
+
+        assertThat(reconnected.names())
+                .as("an awaiting run whose stream says nothing is a screen that died in silence")
+                .containsExactly(RunEvent.RUN_PLANNED, RunEvent.STEP_AWAITING, RunEvent.RUN_COST);
+        assertThat(reconnected.frames.get(1).data())
+                .asInstanceOf(InstanceOfAssertFactories.MAP)
+                .containsEntry("stepId", step.id().toString())
+                .containsEntry("params", Map.of("projectKey", "KAN", "summary", "QA oturum testi"));
+        assertThat(afterRestart.subscriberCount())
+                .as("the run is still waiting on a person, so the line stays open")
+                .isEqualTo(1);
     }
 
     @Test

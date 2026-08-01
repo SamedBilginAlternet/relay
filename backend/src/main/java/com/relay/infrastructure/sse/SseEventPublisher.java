@@ -2,6 +2,8 @@ package com.relay.infrastructure.sse;
 
 import com.relay.application.port.EventPublisher;
 import com.relay.application.port.RunEvent;
+import com.relay.application.port.RunRepository;
+import com.relay.domain.Run;
 import java.io.IOException;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
@@ -16,6 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -41,13 +44,22 @@ public class SseEventPublisher implements EventPublisher {
     private static final long TIMEOUT_MS = 30 * 60 * 1000L;
 
     private final Map<UUID, Channel> channels = new ConcurrentHashMap<>();
+    /** Where a story that is no longer in memory is read back from. Null in unit tests. */
+    private final RunRepository runs;
     private final ScheduledExecutorService heartbeat = Executors.newSingleThreadScheduledExecutor(runnable -> {
         Thread thread = new Thread(runnable, "sse-heartbeat");
         thread.setDaemon(true);
         return thread;
     });
 
+    /** A publisher with no memory beyond this process. Only the fan-out tests want this. */
     public SseEventPublisher() {
+        this(null);
+    }
+
+    @Autowired
+    public SseEventPublisher(RunRepository runs) {
+        this.runs = runs;
         heartbeat.scheduleAtFixedRate(this::ping, 20, 20, TimeUnit.SECONDS);
     }
 
@@ -87,6 +99,7 @@ public class SseEventPublisher implements EventPublisher {
      */
     SseEmitter subscribe(UUID runId, SseEmitter emitter, Long resumeFrom) {
         Channel channel = channels.computeIfAbsent(runId, key -> new Channel());
+        rebuildIfForgotten(runId, channel);
         Watcher watcher = new Watcher(emitter);
         List<Frame> replay;
         boolean over;
@@ -153,6 +166,40 @@ public class SseEventPublisher implements EventPublisher {
     }
 
     // -----------------------------------------------------------------------
+
+    /**
+     * Fills an empty channel from the database before anyone is served from it.
+     *
+     * <p>The buffer is process memory. A restart therefore left every run that was waiting
+     * on a human with a stream that answered nothing but keepalives — the screen kept its
+     * "Onay bekliyor" badge over an empty timeline, and no reconnect could fix it, because
+     * there was nothing in memory left to reconnect to. The steps and the agent chatter are
+     * on disk; losing the buffer does not have to mean losing the story.
+     *
+     * <p>The read happens outside the lock and is thrown away if the channel filled up in
+     * the meantime, so the driving thread never waits on a query.
+     */
+    private void rebuildIfForgotten(UUID runId, Channel channel) {
+        if (runs == null || !channel.isEmpty()) {
+            return;
+        }
+        Run run = runs.findById(runId).orElse(null);
+        if (run == null) {
+            return;
+        }
+        List<RunEvent> story = RunReplay.of(run);
+        boolean over = run.status().terminal();
+        if (story.isEmpty() && !over) {
+            return;
+        }
+        synchronized (channel) {
+            if (!channel.history.isEmpty()) {
+                return;
+            }
+            story.forEach(channel::record);
+            channel.over |= over;
+        }
+    }
 
     /**
      * Writes one frame to one client, in order.
@@ -278,6 +325,12 @@ public class SseEventPublisher implements EventPublisher {
         private long lastId;
         /** Guarded by this channel's monitor. */
         private boolean over;
+
+        boolean isEmpty() {
+            synchronized (this) {
+                return history.isEmpty();
+            }
+        }
 
         /** Caller holds the monitor. */
         Frame record(RunEvent event) {
