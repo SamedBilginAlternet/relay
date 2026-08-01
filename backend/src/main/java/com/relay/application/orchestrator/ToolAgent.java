@@ -247,9 +247,17 @@ public class ToolAgent {
      * Refuses to send a message that reports activity instead of findings.
      *
      * <p>This is the last gate before a provider call, and it is deliberately dumb: it
-     * matches known placeholder phrasing rather than judging quality. The fallback model
-     * writes exactly those phrases, so when Groq is rate limited the run stops here with a
-     * reason instead of posting "adımlar yürütüldü" into someone's Slack channel.
+     * matches known placeholder phrasing rather than judging quality. The offline stub writes
+     * exactly those phrases, so when every configured tier is unavailable at once the run
+     * stops here with a reason instead of posting "adımlar yürütüldü" into someone's Slack
+     * channel.
+     *
+     * <p>The reason used to name {@code GROQ_API_KEYS} specifically — accurate when Groq was
+     * the only tier, misleading once a primary/fallback/third chain existed: an operator
+     * reading "GROQ_API_KEYS" while the primary tier was actually Gemini went and checked the
+     * wrong console, the exact failure mode {@code RoutingLlmClient}'s own error messages were
+     * fixed to avoid. {@link LlmClient#name()} names whoever actually answered instead, so the
+     * message stays correct no matter which provider is in which slot today.
      *
      * @return the message to fail with, or {@code null} when the content carries something
      */
@@ -265,8 +273,9 @@ public class ToolAgent {
             }
             if (com.relay.application.text.Filler.looksLikeFiller(field.getValue().asText())) {
                 return tool.name() + " için içerik üretilemedi: " + field.getKey()
-                        + " alanı yalnızca şablon metin taşıyor. Dil modeli yedekteyse"
-                        + " (GROQ_API_KEYS) gerçek içerik yazılamaz — mesaj gönderilmedi.";
+                        + " alanı yalnızca şablon metin taşıyor. Yapılandırılmış dil modeli"
+                        + " katmanlarının hiçbiri (şu an yanıtlayan: " + llm.name() + ") gerçek"
+                        + " içerik yazamadı — mesaj gönderilmedi.";
             }
         }
         return null;
