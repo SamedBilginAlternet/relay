@@ -271,7 +271,9 @@ public class Coordinator {
         // screen contradicted it. Saying a run succeeded when it did no work is the one thing
         // this product cannot afford to get wrong, so it closes as failed and the trail says
         // which rule or which person stopped it.
-        finish(run, anyFailed ? RunStatus.FAILED : RunStatus.DONE);
+        boolean nothingRan = run.steps().stream().noneMatch(s -> s.status() == StepStatus.DONE);
+        boolean anyRejected = run.steps().stream().anyMatch(s -> s.status() == StepStatus.REJECTED);
+        finish(run, anyFailed || (nothingRan && anyRejected) ? RunStatus.FAILED : RunStatus.DONE);
     }
 
     private void runStep(Run run, Step step) {
