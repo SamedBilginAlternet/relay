@@ -126,7 +126,7 @@ Minimum edits:
 | `POSTGRES_PASSWORD` | the first string you just generated — **required** |
 | `APP_ENCRYPTION_KEY` | the second one, ≥ 32 chars — **required** |
 | `CORS_ALLOWED_ORIGINS` | `https://<APP_DOMAIN>` |
-| `GROQ_API_KEYS` | comma-separated Groq keys. Empty = the API runs on `StubLlmClient` |
+| `GROQ_API_KEYS` | comma-separated Groq keys. Empty = the API runs on `StubLlmClient`. Groq counts tokens per **organisation**, so extra keys from the same account add no quota — see `docs/INTEGRATIONS.md` §5.1 |
 | `GROQ_MODEL` | e.g. `llama-3.3-70b-versatile` |
 | `TOOLS_MODE` | `replay` for a side-effect-free demo, `live` for real Jira/Slack calls. Those are the only two values `ToolsMode.parse` knows — **anything else, including `stub`, silently becomes `replay`** |
 | `WEB_PORT` / `API_PORT` | only if 8086/8087 were taken in §1 |

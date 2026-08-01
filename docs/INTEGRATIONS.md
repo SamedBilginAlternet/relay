@@ -117,11 +117,41 @@ Refresh token bağlantı config'ine şifreli yazılır; ilk izinden sonra bir da
 
 ---
 
+### 5.1 Groq kotası: neden beş anahtar bir anahtar kadar
+
+Canlıda beş anahtarın beşi bir saniye içinde 429 aldı ve ürün stub'a düştü. Sebep
+anahtar sayısı değil:
+
+```
+Rate limit reached for model `llama-3.3-70b-versatile`
+in organization `org_…` service tier `on_demand`
+on tokens per day (TPD): Limit 100000, Used 99134
+```
+
+Limit **kuruluşa** yazılı. Bir Groq hesabında ürettiğin beş anahtar aynı günlük
+100.000 token'ı paylaşır; altıncısını üretmek hiçbir şey eklemez. Rotasyon yalnız
+iki durumda işe yarar: dakikalık bir sıçramayı yaymak, ve **farklı hesaplardan**
+gelen anahtarlar arasında geçiş yapmak.
+
+Kota bittiğinde ne yapılır, ucuzdan pahalıya:
+
+1. Beklemek. TPD kayan bir penceredir; Groq cevabında kaç dakika kaldığını yazar ve
+   `/api/health/details` bunu olduğu gibi gösterir.
+2. Farklı e-posta ile ikinci (üçüncü) bir Groq hesabı açıp anahtarlarını
+   `GROQ_API_KEYS`'e eklemek. Her hesap kendi 100k'sıyla gelir ve havuz artık
+   gerçekten rotasyon yapar: tükenen kuruluşun anahtarı sağlayıcının söylediği süre
+   boyunca beklemede kalır (`ApiKeyPool.MAX_PARK`, en fazla 1 saat), trafik sağlam
+   olana gider.
+3. Dev Tier'a geçmek. Aynı anahtarlar, çok daha yüksek limit.
+
+Bir demo günü ölçüsü: bir brifing yenilemesi ~2.300 token. 100k/gün ≈ 40 yenileme
+artı akışlar. QA yükünü demo gününde canlıya bindirmeyin.
+
 ## 5. Ortam değişkenleri (Coolify)
 
 | Değişken | Zorunlu | Not |
 |---|---|---|
-| `GROQ_API_KEYS` | evet | virgülle ayrılmış; biri 429 alınca sıradakine geçilir |
+| `GROQ_API_KEYS` | evet | virgülle ayrılmış; biri 429 alınca sıradakine geçilir. **Aynı hesabın anahtarlarını çoğaltmak kota kazandırmaz** — Groq token limitini _kuruluş_ başına sayar, anahtar başına değil. Gerçek kazanç için anahtarların farklı Groq hesaplarından gelmesi gerekir (§5.1) |
 | `POSTGRES_PASSWORD` | evet | boş bırakılırsa postgres imajı hiç açılmaz |
 | `ENCRYPTION_KEY` | evet | bağlantı config'lerinin AES-GCM anahtarı |
 | `TOOLS_MODE` | hayır | `live` (varsayılan) / `replay` — demo sigortası |
