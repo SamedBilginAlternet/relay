@@ -32,6 +32,16 @@ import org.springframework.stereotype.Component;
  */
 public abstract class GmailTool extends GoogleTool {
 
+    /**
+     * Every Gmail tool answers in Relay's own shape: each {@code call} reads the headers and
+     * the body it needs and builds the reply, so a Google message resource — with its label
+     * ids, its part tree and its base64 payloads — never reaches the result.
+     */
+    @Override
+    protected JsonNode project(JsonNode raw) {
+        return raw;
+    }
+
     protected static final String API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
     protected GmailTool(ToolsMode mode, FixtureStore fixtures, GoogleOAuth oauth) {

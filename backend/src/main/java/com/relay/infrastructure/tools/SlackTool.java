@@ -1,6 +1,7 @@
 package com.relay.infrastructure.tools;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.relay.application.json.Json;
 import com.relay.application.text.Placeholder;
@@ -110,6 +111,26 @@ public abstract class SlackTool extends AbstractTool {
                     + "&types=" + types;
             return checked(HttpJson.send("GET", url, headers(connection), null));
         }
+
+        /**
+         * A channel is a name, an id, whether it is private and how many people are in it.
+         * Slack's own answer also carries the creator, the topic, the purpose, the shared-team
+         * ids and the timestamps of all of them — none of which anything here reads.
+         */
+        @Override
+        protected JsonNode project(JsonNode raw) {
+            ObjectNode out = Json.object();
+            out.put("ok", raw.path("ok").asBoolean(true));
+            ArrayNode channels = out.putArray("channels");
+            for (JsonNode channel : raw.path("channels")) {
+                ObjectNode item = channels.addObject();
+                item.put("id", channel.path("id").asText(""));
+                item.put("name", channel.path("name").asText(""));
+                item.put("num_members", channel.path("num_members").asInt(0));
+                item.put("is_private", channel.path("is_private").asBoolean(false));
+            }
+            return out;
+        }
     }
 
     // ------------------------------------------------------------- postMessage
@@ -191,6 +212,30 @@ public abstract class SlackTool extends AbstractTool {
             }
             return checked(HttpJson.send("POST", "https://slack.com/api/chat.postMessage",
                     headers(connection), body));
+        }
+
+        /**
+         * What was posted, where, and when — the three things the trail has to be able to
+         * answer. Slack echoes the whole message back with its blocks, its bot profile, the
+         * team id and the app id; a run's record of "we sent this" needs none of it.
+         */
+        @Override
+        protected JsonNode project(JsonNode raw) {
+            ObjectNode out = Json.object();
+            out.put("ok", raw.path("ok").asBoolean(true));
+            out.put("channel", raw.path("channel").asText(""));
+            out.put("ts", raw.path("ts").asText(""));
+            ObjectNode message = out.putObject("message");
+            message.put("text", raw.path("message").path("text").asText(""));
+            String username = raw.path("message").path("username").asText("");
+            if (!username.isBlank()) {
+                message.put("username", username);
+            }
+            String bot = raw.path("message").path("bot_id").asText("");
+            if (!bot.isBlank()) {
+                message.put("bot_id", bot);
+            }
+            return out;
         }
     }
 }

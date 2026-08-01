@@ -48,6 +48,11 @@ class JiraAssigneeTest {
         }
 
         @Override
+        protected JsonNode project(JsonNode raw) {
+            return raw;
+        }
+
+        @Override
         protected JsonNode call(JsonNode params, Connection connection) {
             return Json.object();
         }

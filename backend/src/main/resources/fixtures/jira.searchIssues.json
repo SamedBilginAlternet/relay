@@ -1,6 +1,6 @@
 {
   "total": 3,
-  "jql": "{{jql}}",
+  "isLast": true,
   "issues": [
     {
       "key": "RELAY-14",

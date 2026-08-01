@@ -1,6 +1,7 @@
 package com.relay.infrastructure.tools;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.relay.application.json.Json;
 import com.relay.domain.Connection;
@@ -496,6 +497,114 @@ public abstract class JiraTool extends AbstractTool {
         return doc;
     }
 
+    // ----------------------------------------------------------- projections
+
+    /**
+     * One issue, in the shape everything downstream already reads it in.
+     *
+     * <p>Deliberately the shape of {@code fixtures/jira.searchIssues.json} and not something
+     * flatter: the fixtures were written as what a Jira issue looks like around here, the
+     * brief and the assistant both read {@code fields.status.name}, and a live answer that
+     * differs from the replayed one is a second bug wearing the first one's clothes.
+     *
+     * <p>What is left out is everything Jira says about itself — {@code self}, {@code id},
+     * {@code expand}, {@code iconUrl}, {@code avatarUrls}, {@code statusCategory}. A field is
+     * carried only when the provider actually sent it, so an unassigned issue does not gain
+     * an empty person.
+     */
+    static ObjectNode issueView(JsonNode raw) {
+        ObjectNode out = Json.object();
+        out.put("key", raw.path("key").asText(""));
+        ObjectNode fields = out.putObject("fields");
+        JsonNode from = raw.path("fields");
+        fields.put("summary", from.path("summary").asText(""));
+        named(fields, from, "status");
+        named(fields, from, "priority");
+        named(fields, from, "issuetype");
+        person(fields, from, "assignee");
+        text(fields, from, "updated");
+        return out;
+    }
+
+    /** A page of search results: the issues, and whether there are more of them. */
+    static ObjectNode issuePage(JsonNode raw) {
+        ObjectNode out = Json.object();
+        ArrayNode issues = out.putArray("issues");
+        for (JsonNode issue : raw.path("issues")) {
+            issues.add(issueView(issue));
+        }
+        if (raw.hasNonNull("total")) {
+            out.put("total", raw.path("total").asInt());
+        }
+        if (raw.hasNonNull("isLast")) {
+            out.put("isLast", raw.path("isLast").asBoolean());
+        }
+        return out;
+    }
+
+    /**
+     * One issue read on its own, so the parts a search does not carry come too: the body
+     * text, the labels and whatever discussion came back with it — each reduced from
+     * Atlassian Document Format to the sentence a person wrote.
+     */
+    static ObjectNode oneIssue(JsonNode raw) {
+        ObjectNode out = issueView(raw);
+        ObjectNode fields = (ObjectNode) out.path("fields");
+        JsonNode from = raw.path("fields");
+        String description = plain(from.path("description"));
+        if (!description.isBlank()) {
+            fields.put("description", description);
+        }
+        if (from.path("labels").isArray() && !from.path("labels").isEmpty()) {
+            ArrayNode labels = fields.putArray("labels");
+            from.path("labels").forEach(label -> labels.add(label.asText("")));
+        }
+        JsonNode thread = from.path("comment");
+        if (thread.isObject()) {
+            ObjectNode discussion = fields.putObject("comment");
+            discussion.put("total", thread.path("total").asInt(thread.path("comments").size()));
+            ArrayNode list = discussion.putArray("comments");
+            for (JsonNode comment : thread.path("comments")) {
+                list.add(commentView(comment));
+            }
+        }
+        return out;
+    }
+
+    /** One comment: who wrote it, when, and what it says as text rather than as markup. */
+    static ObjectNode commentView(JsonNode raw) {
+        ObjectNode out = Json.object();
+        text(out, raw, "id");
+        text(out, raw, "issueKey");
+        out.putObject("author").put("displayName", author(raw.path("author")));
+        out.put("body", plain(raw.path("body")));
+        text(out, raw, "created");
+        return out;
+    }
+
+    /** {@code {"name": "Blocked"}} — the label, without the icon, the id and the URL. */
+    private static void named(ObjectNode target, JsonNode source, String field) {
+        String name = source.path(field).path("name").asText("");
+        if (!name.isBlank()) {
+            target.putObject(field).put("name", name);
+        }
+    }
+
+    /** A person is a name. The account id and the four avatar sizes are Jira's business. */
+    private static void person(ObjectNode target, JsonNode source, String field) {
+        String name = source.path(field).path("displayName").asText("");
+        if (!name.isBlank()) {
+            target.putObject(field).put("displayName", name);
+        }
+    }
+
+    private static void text(ObjectNode target, JsonNode source, String field) {
+        String value = source.path(field).asText("");
+        if (!value.isBlank()) {
+            target.put(field, value);
+        }
+    }
+
     // ------------------------------------------------------------ searchIssues
 
     @Component
@@ -548,6 +657,11 @@ public abstract class JiraTool extends AbstractTool {
                     + "&maxResults=" + max + "&fields=summary,status,assignee,priority";
             return jira("GET", url, headers(connection), null);
         }
+
+        @Override
+        protected JsonNode project(JsonNode raw) {
+            return issuePage(raw);
+        }
     }
 
     // ------------------------------------------------------------ listMyIssues
@@ -596,6 +710,11 @@ public abstract class JiraTool extends AbstractTool {
             String url = base(connection) + "/rest/api/3/search/jql?jql=" + HttpJson.encode(jql)
                     + "&maxResults=" + max + "&fields=summary,status,assignee,priority,updated,issuetype";
             return jira("GET", url, headers(connection), null);
+        }
+
+        @Override
+        protected JsonNode project(JsonNode raw) {
+            return issuePage(raw);
         }
     }
 
@@ -756,6 +875,12 @@ public abstract class JiraTool extends AbstractTool {
                 return annotated;
             }
         }
+
+        /** Built field by field in {@link #call} already: nothing of Jira's own comes through. */
+        @Override
+        protected JsonNode project(JsonNode raw) {
+            return raw;
+        }
     }
 
     /** Fields Relay volunteered and can therefore give up — only when Jira named them. */
@@ -836,6 +961,11 @@ public abstract class JiraTool extends AbstractTool {
                     + HttpJson.encode(params.path("issueKey").asText());
             return jira("GET", url, headers(connection), null);
         }
+
+        @Override
+        protected JsonNode project(JsonNode raw) {
+            return oneIssue(raw);
+        }
     }
 
     // ----------------------------------------------------------- getComments
@@ -901,6 +1031,12 @@ public abstract class JiraTool extends AbstractTool {
                     + "/comment?maxResults=" + max + "&orderBy=-created";
             JsonNode response = jira("GET", url, headers(connection), null);
             return comments(response, issueKey, base(connection) + "/browse/" + issueKey);
+        }
+
+        /** {@link #comments} is the projection: it is what flattens the page in the first place. */
+        @Override
+        protected JsonNode project(JsonNode raw) {
+            return raw;
         }
     }
 
@@ -1032,6 +1168,12 @@ public abstract class JiraTool extends AbstractTool {
             result.put("updated", true);
             return result;
         }
+
+        /** Built field by field in {@link #call} already: nothing of Jira's own comes through. */
+        @Override
+        protected JsonNode project(JsonNode raw) {
+            return raw;
+        }
     }
 
     // ------------------------------------------------------------- addComment
@@ -1078,7 +1220,17 @@ public abstract class JiraTool extends AbstractTool {
                     + HttpJson.encode(params.path("issueKey").asText()) + "/comment";
             ObjectNode body = Json.object();
             body.set("body", adf(params.path("body").asText()));
-            return jira("POST", url, headers(connection), body);
+            JsonNode posted = jira("POST", url, headers(connection), body);
+            // Jira answers with the comment and never repeats which issue it landed on.
+            // The trail is read a week later, where "10241" on its own says nothing.
+            ObjectNode answered = posted.deepCopy();
+            answered.put("issueKey", params.path("issueKey").asText());
+            return answered;
+        }
+
+        @Override
+        protected JsonNode project(JsonNode raw) {
+            return commentView(raw);
         }
     }
 }

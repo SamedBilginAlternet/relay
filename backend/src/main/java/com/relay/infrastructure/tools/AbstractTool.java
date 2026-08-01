@@ -31,6 +31,26 @@ public abstract class AbstractTool implements Tool {
     /** The real API call. Only invoked in live mode with a configured connection. */
     protected abstract JsonNode call(JsonNode params, Connection connection) throws Exception;
 
+    /**
+     * Narrows a provider's answer to the fields this product reads.
+     *
+     * <p>A tool result is not an internal value. It goes onto the audit trail, down the SSE
+     * stream into a browser, and into the next step's prompt. One raw Jira search body
+     * carried forty of Atlassian's own REST URLs, twenty icon URLs, an {@code expand} list
+     * and a pagination token whose base64 decoded to their internal tenant state — none of
+     * it read by anything, all of it on screen. docs/NASIL-CALISIYOR.md §3 already says a
+     * raw provider message is never passed through, because it can hold a URL, a request
+     * body or a token; that promise was kept for failures and broken for successes.
+     *
+     * <p>Abstract on purpose: a new integration has to say what leaves it. Returning
+     * {@code raw} is a perfectly good answer for a tool that already builds its own reply
+     * in {@link #call} — it just has to be said out loud rather than assumed.
+     *
+     * <p>Replayed fixtures go through it too, so live and replay cannot drift apart: a
+     * projection that changes the fixture is a projection that is wrong about the shape.
+     */
+    protected abstract JsonNode project(JsonNode raw);
+
     @Override
     public ToolResult execute(JsonNode params, Connection connection) {
         long start = System.nanoTime();
@@ -44,7 +64,7 @@ public abstract class AbstractTool implements Tool {
                 : (replay ? "replay (no connection)" : "live");
         try {
             JsonNode data = replay ? fixtures.load(name(), params) : call(params, connection);
-            return ToolResult.ok(data, elapsed(start), effectiveMode);
+            return ToolResult.ok(project(data), elapsed(start), effectiveMode);
         } catch (Exception e) {
             // Never let a provider message carry a token into the log.
             String message = describe(e);

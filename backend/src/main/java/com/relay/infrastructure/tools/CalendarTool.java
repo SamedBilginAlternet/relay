@@ -20,6 +20,16 @@ import org.springframework.stereotype.Component;
  */
 public abstract class CalendarTool extends GoogleTool {
 
+    /**
+     * Every calendar tool answers in Relay's own shape: each {@code call} turns the event
+     * resources into what the day looks like, so Google's etags, ical uids, htmlLinks and
+     * organizer objects never reach the result.
+     */
+    @Override
+    protected JsonNode project(JsonNode raw) {
+        return raw;
+    }
+
     protected static final String API = "https://www.googleapis.com/calendar/v3";
 
     protected CalendarTool(ToolsMode mode, FixtureStore fixtures, GoogleOAuth oauth) {

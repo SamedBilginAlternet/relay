@@ -124,6 +124,16 @@ public abstract class GitHubTool extends AbstractTool {
         return value != null && !value.isBlank();
     }
 
+    /**
+     * Every GitHub tool answers in Relay's own shape: {@link #normalise} and the per-tool
+     * {@code call} bodies pick the fields out of the search response, so the provider's own
+     * urls, node ids and user objects never reach the result in the first place.
+     */
+    @Override
+    protected JsonNode project(JsonNode raw) {
+        return raw;
+    }
+
     /** {@code https://api.github.com/repos/acme/payments} → {@code acme/payments}. */
     protected static String repoOf(JsonNode item) {
         String url = item.path("repository_url").asText("");

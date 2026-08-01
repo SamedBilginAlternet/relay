@@ -49,6 +49,12 @@ class JiraJqlBoundTest {
         }
 
         @Override
+        protected com.fasterxml.jackson.databind.JsonNode project(
+                com.fasterxml.jackson.databind.JsonNode raw) {
+            return raw;
+        }
+
+        @Override
         protected com.fasterxml.jackson.databind.JsonNode call(
                 com.fasterxml.jackson.databind.JsonNode params, com.relay.domain.Connection connection) {
             return com.relay.application.json.Json.object();
