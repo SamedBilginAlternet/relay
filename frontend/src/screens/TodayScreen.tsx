@@ -21,7 +21,6 @@ import { getPlaybookSource } from '../data/PlaybookSource';
 import type { Playbook } from '../data/PlaybookSource';
 import { formatDayMonth } from '../lib/format';
 import { enterProps, expandProps } from '../lib/motion';
-import { useRunStore } from '../store/runStore';
 import { EMPTY_SECTION } from '../types/brief';
 import type { Brief, BriefSectionKey, InsightCard, SuggestedAction } from '../types/brief';
 
@@ -116,7 +115,6 @@ export function TodayScreen({ onNavigate }: Props) {
   const [playbookError, setPlaybookError] = useState<string | null>(null);
   const [starting, setStarting] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const openRun = useRunStore((s) => s.openRun);
   const reduce = useReducedMotion();
 
   /* The strip sits low on the screen, so a panel opening below it can land
@@ -319,9 +317,9 @@ export function TodayScreen({ onNavigate }: Props) {
       // The whole card, not its id: the flow has to know what it is about before it
       // starts — an agent handed only "Cevap yaz" wrote a draft titled "Re: Cevap".
       const { runId } = await getBriefSource().startFromSuggestion(card, action);
-      // Same engine as always: navigate into the run view and let it stream.
-      onNavigate('#/sohbet');
-      await openRun(runId);
+      // Same engine as always: the run view, named in the address bar so it can
+      // be found again, loads it and lets it stream.
+      onNavigate(`#/sohbet/${runId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Akış başlatılamadı.');
     } finally {
@@ -338,8 +336,7 @@ export function TodayScreen({ onNavigate }: Props) {
     setPlaybookError(null);
     try {
       const { runId } = await getPlaybookSource().run(id);
-      onNavigate('#/sohbet');
-      await openRun(runId);
+      onNavigate(`#/sohbet/${runId}`);
     } catch (err) {
       setPlaybookError(err instanceof Error ? err.message : 'Akış başlatılamadı.');
     } finally {

@@ -5,9 +5,13 @@ import { ChatPanel } from '../components/ChatPanel';
 import { Landing } from '../components/Landing';
 import { WorkflowPanel } from '../components/WorkflowPanel';
 import { RUN_SOURCE_KIND } from '../data';
+import { useHashRoute } from '../lib/router';
 import { useRunStore } from '../store/runStore';
 
 export function ChatScreen() {
+  const [route, navigate] = useHashRoute();
+  const routeRunId = route.name === 'chat' ? (route.runId ?? null) : null;
+  const openRun = useRunStore((s) => s.openRun);
   const run = useRunStore((s) => s.run);
   const phase = useRunStore((s) => s.phase);
   const error = useRunStore((s) => s.error);
@@ -38,6 +42,31 @@ export function ChatScreen() {
     watchRun();
     return stopWatching;
   }, [watchRun, stopWatching]);
+
+  /*
+    The address bar is the only part of this screen that survives a refresh.
+
+    It used not to carry the run at all: a flow sitting at its approval gate
+    lived in memory and nowhere else, so F5 — or a trip to Bugün and back on a
+    reloaded tab — returned the empty "İşini anlat." greeting while the flow
+    stayed `awaiting_approval` on the server with no button anywhere that could
+    answer it. The plan, the reads and the tokens spent on them were simply
+    stranded; 32 runs had piled up that way.
+
+    So: an id in the hash is loaded, and a loaded run writes its id into the
+    hash. `replace`, not push — the URL is catching up with something the user
+    already did, and Back belongs to wherever they came from.
+  */
+  useEffect(() => {
+    if (!routeRunId) return;
+    if (useRunStore.getState().run?.id === routeRunId) return;
+    void openRun(routeRunId);
+  }, [routeRunId, openRun]);
+
+  useEffect(() => {
+    if (!run || run.id === routeRunId) return;
+    navigate(`#/sohbet/${run.id}`, { replace: true });
+  }, [run, routeRunId, navigate]);
 
   // An approval gate must never hide behind a closed sheet on mobile.
   useEffect(() => {
