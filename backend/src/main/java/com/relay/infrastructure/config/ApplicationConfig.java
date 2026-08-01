@@ -23,7 +23,10 @@ import com.relay.application.port.LlmClient;
 import com.relay.application.port.PolicyRepository;
 import com.relay.application.port.RunRepository;
 import com.relay.application.port.ToolRegistry;
+import com.relay.application.stats.PanelService;
+import com.relay.application.stats.PanelStatsRepository;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -151,6 +154,23 @@ public class ApplicationConfig {
     public PlaybookService playbookService(ToolRegistry tools, ConnectionRepository connections,
                                            RunService runService) {
         return new PlaybookService(tools, connections, runService);
+    }
+
+    /**
+     * The flow panel. No LlmClient in this signature and none behind it — the panel is
+     * five aggregate queries, so opening a dashboard can never spend the Groq quota it
+     * is reporting on.
+     *
+     * <p>The timezone has no entry of its own in {@code application.yml} on purpose: a
+     * plain {@code ?from=2026-07-25} has to be read against the same wall clock the
+     * Bugün screen already uses, and two keys that must always agree are a bug waiting
+     * to happen. {@code app.panel.timezone} still overrides it if they ever diverge.
+     */
+    @Bean
+    public PanelService panelService(PanelStatsRepository stats, Clock clock,
+                                     @Value("${app.panel.timezone:${app.brief.timezone:Europe/Istanbul}}")
+                                     String timezone) {
+        return new PanelService(stats, clock, ZoneId.of(timezone));
     }
 
     @Bean
