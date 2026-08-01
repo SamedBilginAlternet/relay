@@ -58,6 +58,7 @@ describe('actionLabel', () => {
       'calendar.createEvent',
       'sheets.appendRow',
       'sheets.readRange',
+      'docs.createDocument',
     ];
     for (const tool of registered) {
       expect(actionLabel(tool, 'model uydurdu')).not.toBe('model uydurdu');

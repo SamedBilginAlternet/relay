@@ -149,7 +149,8 @@ class ToolResultProjectionTest {
                 new SheetsTool.ReadRange("replay", FIXTURES, null),
                 new NotionTool.CreatePage("replay", FIXTURES),
                 new NotionTool.AppendToPage("replay", FIXTURES),
-                new ConfluenceTool.CreatePage("replay", FIXTURES));
+                new ConfluenceTool.CreatePage("replay", FIXTURES),
+                new DocsCreateDocumentTool("replay", FIXTURES, null));
 
         for (AbstractTool tool : tools) {
             JsonNode recorded = FIXTURES.load(tool.name(), Json.object());

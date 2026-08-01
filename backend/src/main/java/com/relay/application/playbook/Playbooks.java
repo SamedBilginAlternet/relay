@@ -103,10 +103,12 @@ public final class Playbooks {
      * gets the half it can have. The calendar step is not, because without the meeting there
      * is nothing to prepare for.
      *
-     * <p>It ends where the preparation ends: a meeting that needs a follow-up gets one
-     * proposed. That step is a WRITE, so it stops at the approval gate — the reading half
-     * still runs to the end on its own, and a workspace whose Google grant is one scope short
-     * simply never gets there.
+     * <p>It ends where the preparation ends: the summary that was assembled gets a document
+     * to live in ("Toplantı notu taslağı aç"), and a meeting that needs a follow-up gets one
+     * proposed. Both are WRITEs, so each stops at its own approval gate — the reading half
+     * still runs to the end on its own, and a workspace whose Google grant is a scope short
+     * simply never gets there. The note step is optional like every write here: preparation
+     * read aloud in chat is still preparation.
      */
     public static final Playbook MEETING_PREP = new Playbook(
             "toplanti-hazirligi",
@@ -114,13 +116,15 @@ public final class Playbooks {
             "Bugünkü toplantıma girmeden önce hazırlan: takvimdeki ilk toplantıyı al, "
                     + "başlığındaki ve katılımcılarındaki ipuçlarıyla ilgili Jira kayıtlarını ve "
                     + "mailleri bul, bulduklarını kaynak (kayıt anahtarı, mail konusu) göstererek "
-                    + "özetle. İlgili bir şey çıkmazsa uydurma — 'bulunamadı' de. Konuşulacaklar "
-                    + "bir toplantıya sığmayacaksa takvime bir takip toplantısı öner.",
-            "Takvim · Jira · Gmail okunur; takip toplantısı önerilirse onayına gelir",
+                    + "özetle. İlgili bir şey çıkmazsa uydurma — 'bulunamadı' de. Hazırlığı "
+                    + "toplantı notu taslağı olarak bir dokümana aç. Konuşulacaklar bir "
+                    + "toplantıya sığmayacaksa takvime bir takip toplantısı öner.",
+            "Takvim · Jira · Gmail okunur; not taslağı ve takip toplantısı onayına gelir",
             List.of(
                     Move.required("Bugünün toplantılarını getir", "calendar.listToday", Map.of()),
                     Move.optional("Toplantının konusuyla ilgili kayıtları ara", "jira.searchIssues", Map.of()),
                     Move.optional("Toplantının konusuyla ilgili mailleri ara", "gmail.search", Map.of()),
+                    Move.optional("Toplantı notu taslağı aç", "docs.createDocument", Map.of()),
                     Move.optional("Takip toplantısı öner", "calendar.createEvent", Map.of())));
 
     /**

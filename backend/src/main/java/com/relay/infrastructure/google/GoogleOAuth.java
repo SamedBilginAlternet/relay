@@ -77,8 +77,26 @@ public class GoogleOAuth {
     public static final String SPREADSHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 
     /**
-     * Reading is what the daily brief needs; the three writes are what the rest of a day
-     * needs — answering a mail, agreeing to meet again, and putting the result somewhere the
+     * Creating a document — the meeting note, the page the words of a run end up on.
+     *
+     * <p>{@code documents} is Docs-wide: it reaches every document the account can open,
+     * because Google publishes no create-only Docs scope. It is classed <em>sensitive</em>,
+     * not restricted — like {@code calendar.events} and {@code spreadsheets} it does not
+     * drag a CASA assessment along. {@code drive.file} could technically serve a tool that
+     * only ever creates: it reaches only files this app created, and today that is all of
+     * them. It is not chosen because the reason {@code docs.*} exists is the same reason
+     * {@code sheets.*} grew a read — the user's own long-lived document (the meeting-note
+     * file that already exists) is the file {@code drive.file} can never reach, and
+     * swapping scopes later would march every connection through reconsent a second time.
+     * Until an appending or reading tool exists, the narrowness is our code's promise:
+     * {@code DocsCreateDocumentTool} reaches create and one insert into the document it
+     * just created, and a test holds it there.
+     */
+    public static final String DOCUMENTS_SCOPE = "https://www.googleapis.com/auth/documents";
+
+    /**
+     * Reading is what the daily brief needs; the writes are what the rest of a day needs —
+     * answering a mail, agreeing to meet again, and putting the result somewhere the
      * people who do not open Jira can see it.
      */
     public static final String SCOPES = String.join(" ",
@@ -87,6 +105,7 @@ public class GoogleOAuth {
             "https://www.googleapis.com/auth/calendar.readonly",
             CALENDAR_EVENTS_SCOPE,
             SPREADSHEETS_SCOPE,
+            DOCUMENTS_SCOPE,
             "openid", "email");
 
     /**
@@ -262,6 +281,9 @@ public class GoogleOAuth {
                 .orElse(false));
         out.put("canAppendRow", connections.findByProvider(PROVIDER)
                 .map(connection -> granted(connection, SPREADSHEETS_SCOPE))
+                .orElse(false));
+        out.put("canCreateDocument", connections.findByProvider(PROVIDER)
+                .map(connection -> granted(connection, DOCUMENTS_SCOPE))
                 .orElse(false));
         out.put("redirectUri", redirectUri);
         out.put("startUrl", "/api/oauth/google/start");

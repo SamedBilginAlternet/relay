@@ -122,6 +122,7 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   confluence: 'Confluence',
   gmail: 'Gmail',
   calendar: 'Takvim',
+  docs: 'Doküman',
   github: 'GitHub',
   slack: 'Slack',
   notion: 'Notion',
@@ -142,7 +143,16 @@ const PROVIDER_LABEL: Record<Provider, string> = {
  * same day this screen did. Whoever edits either next should lift both constants
  * somewhere shared rather than write them a third time.
  */
-const PROVIDER_ORDER: Provider[] = ['jira', 'confluence', 'gmail', 'calendar', 'github', 'slack', 'notion'];
+const PROVIDER_ORDER: Provider[] = [
+  'jira',
+  'confluence',
+  'gmail',
+  'calendar',
+  'docs',
+  'github',
+  'slack',
+  'notion',
+];
 
 function providerRank(provider: string): number {
   const index = PROVIDER_ORDER.indexOf(provider as Provider);

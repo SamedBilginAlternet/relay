@@ -208,7 +208,7 @@ Rakamı sahiplen; ölçtüğün bir sayıyı reddetmek, ölçüm iddiasını da 
 
 ### ALTIN KURAL
 
-> **Asla canlı yazma adımını onaysız gösterme.** Demo öncesi `#/politikalar` ekranını aç ve **`yazma` riskli araçların hepsinde** `Onay ister` yazdığını gör — bugün `jira.createIssue`, `jira.updateIssue`, `jira.addComment`, `slack.postMessage`, `github.addComment`, `github.createIssue`, `gmail.createDraft`, `calendar.createEvent`, `sheets.appendRow`, `notion.createPage`, `notion.appendToPage`, `confluence.createPage`; sayıyı elle sayma, ekran filtreliyor. Biri `Otomatik`e alınmışsa demoya başlama, önce düzelt — ekran bunu "N araç varsayılanından farklı çalışıyor" satırıyla zaten söylüyor. Onay kapısı ürünün tezi; kapısız bir yazma adımı tezle çelişir ve tek karede tüm hikâyeyi çökertir.
+> **Asla canlı yazma adımını onaysız gösterme.** Demo öncesi `#/politikalar` ekranını aç ve **`yazma` riskli araçların hepsinde** `Onay ister` yazdığını gör — bugün `jira.createIssue`, `jira.updateIssue`, `jira.addComment`, `slack.postMessage`, `github.addComment`, `github.createIssue`, `gmail.createDraft`, `calendar.createEvent`, `sheets.appendRow`, `docs.createDocument`, `notion.createPage`, `notion.appendToPage`, `confluence.createPage`; sayıyı elle sayma, ekran filtreliyor. Biri `Otomatik`e alınmışsa demoya başlama, önce düzelt — ekran bunu "N araç varsayılanından farklı çalışıyor" satırıyla zaten söylüyor. Onay kapısı ürünün tezi; kapısız bir yazma adımı tezle çelişir ve tek karede tüm hikâyeyi çökertir.
 
 ### Risk matrisi
 
@@ -242,7 +242,7 @@ Demodan **30 dakika önce** başla; her maddeyi sırayla işaretle.
    yazılı ve ezberde. Değerlendirme ortamı istenirse `deploy/DEPLOY.md` §13.
 1. ☐ Backend ayakta: `GET /api/health` → `{status: ok}` dönüyor; sağlayıcı için oturumlu `GET /api/health/details` → `llm.provider: groq`.
 2. ☐ **Bağlantılar** ekranında Jira ve Slack token'ları girili; her ikisinde **Bağlantıyı Test Et** yeşil.
-3. ☐ **`#/politikalar`** açıldı ve `yazma` riskli araçların hepsi `Onay ister`: `jira.createIssue`, `jira.updateIssue`, `jira.addComment`, `slack.postMessage`, `github.addComment`, `github.createIssue`, `gmail.createDraft`, `calendar.createEvent`, `sheets.appendRow`, `notion.createPage`, `notion.appendToPage`, `confluence.createPage`. Okuma araçları `Otomatik`. Ekranın üstündeki "N araç varsayılanından farklı çalışıyor" uyarısı **görünmüyor**. (ALTIN KURAL — §4.)
+3. ☐ **`#/politikalar`** açıldı ve `yazma` riskli araçların hepsi `Onay ister`: `jira.createIssue`, `jira.updateIssue`, `jira.addComment`, `slack.postMessage`, `github.addComment`, `github.createIssue`, `gmail.createDraft`, `calendar.createEvent`, `sheets.appendRow`, `docs.createDocument`, `notion.createPage`, `notion.appendToPage`, `confluence.createPage`. Okuma araçları `Otomatik`. Ekranın üstündeki "N araç varsayılanından farklı çalışıyor" uyarısı **görünmüyor**. (ALTIN KURAL — §4.)
 4. ☐ **Demo verisi kurulu ve doğrulandı: [`DEMO-VERI.md`](DEMO-VERI.md).** Tek maddede özeti:
    `KAN-1..4` **sana atanmış** ve durumları sıfırlanmış (§2.1, §2.5), `KAN-2`'de iki yorum var
    (§2.2), Jira bağlantısında `projectKey = KAN` (§2.4), mailler en az **iki ayrı

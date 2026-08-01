@@ -114,6 +114,7 @@ class MockPolicySource implements PolicySource {
       ['google', 'calendar.listToday', 'read'],
       ['google', 'calendar.listUpcoming', 'read'],
       ['jira', 'confluence.createPage', 'write'],
+      ['google', 'docs.createDocument', 'write'],
       ['github', 'github.addComment', 'write'],
       ['github', 'github.createIssue', 'write'],
       ['github', 'github.listMyIssues', 'read'],

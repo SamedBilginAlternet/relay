@@ -40,6 +40,7 @@ class ToolSchemaTest {
                 new CalendarCreateEventTool("replay", FIXTURES, null, "Europe/Istanbul"),
                 new SheetsTool.AppendRow("replay", FIXTURES, null),
                 new SheetsTool.ReadRange("replay", FIXTURES, null),
+                new DocsCreateDocumentTool("replay", FIXTURES, null),
                 new NotionTool.CreatePage("replay", FIXTURES),
                 new NotionTool.AppendToPage("replay", FIXTURES),
                 new ConfluenceTool.CreatePage("replay", FIXTURES));
@@ -94,6 +95,8 @@ class ToolSchemaTest {
         assertThat(new CalendarTool.ListToday("replay", FIXTURES, null, "UTC").provider()).isEqualTo("google");
         // sheets.* is a tool namespace, not a connection: the row rides the same grant.
         assertThat(new SheetsTool.AppendRow("replay", FIXTURES, null).provider()).isEqualTo("google");
+        // …and docs.* is the fourth namespace on the same connection.
+        assertThat(new DocsCreateDocumentTool("replay", FIXTURES, null).provider()).isEqualTo("google");
         assertThat(new GitHubTool.AddComment("replay", FIXTURES).provider()).isEqualTo("github");
         // …and confluence.* is the same pattern on the Atlassian side: one jira connection,
         // a second product's tool namespace riding its credentials.

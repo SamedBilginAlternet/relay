@@ -41,6 +41,9 @@ const TOOL_AGENTS: Record<string, string> = {
   // sheets.* is its own tool namespace even though it rides the google connection, so
   // AgentRole builds `sheets-agent` and Ekip would otherwise print it raw.
   sheets: 'Tablo Uzmanı',
+  // Google's sub-products get the product's Turkish noun (Takvim, Tablo) rather than the
+  // brand, and docs.* follows: Doküman Uzmanı, on the same google connection.
+  docs: 'Doküman Uzmanı',
   // Same shape on the Atlassian side: confluence.* rides the jira connection, and the
   // brand carries the recognition the way Notion's does — hence not "Doküman Uzmanı".
   confluence: 'Confluence Uzmanı',

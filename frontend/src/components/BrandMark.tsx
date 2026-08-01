@@ -32,7 +32,15 @@ import { NotebookText, Slack } from 'lucide-react';
  * the guidelines can be read this is a five-line change.
  */
 
-export type Provider = 'jira' | 'confluence' | 'github' | 'gmail' | 'calendar' | 'slack' | 'notion';
+export type Provider =
+  | 'jira'
+  | 'confluence'
+  | 'github'
+  | 'gmail'
+  | 'calendar'
+  | 'docs'
+  | 'slack'
+  | 'notion';
 
 /** The providers drawn with a line glyph instead of their own mark — see above. */
 const GLYPHS: Record<'slack' | 'notion', { icon: typeof Slack; color: string; title: string }> = {
@@ -69,6 +77,13 @@ const MARKS: Record<Exclude<Provider, keyof typeof GLYPHS>, { d: string; color: 
     color: '#4285F4',
     title: 'Google Calendar',
   },
+  // Same publisher as the Gmail and Calendar marks above — Google's brand permissions
+  // grant the same referential use for Docs.
+  docs: {
+    d: 'M14.727 6.727H14V0H4.91c-.905 0-1.637.732-1.637 1.636v20.728c0 .904.732 1.636 1.636 1.636h14.182c.904 0 1.636-.732 1.636-1.636V6.727h-6zm-.545 10.455H7.09v-1.364h7.09v1.364zm2.727-3.273H7.091v-1.364h9.818v1.364zm0-3.273H7.091V9.273h9.818v1.363zM14.727 6h6l-6-6v6z',
+    color: '#4285F4',
+    title: 'Google Docs',
+  },
 };
 
 /**
@@ -88,7 +103,7 @@ export function providerTitle(provider: Provider): string {
 export function providerOf(toolName: string | null | undefined): Provider | null {
   const head = ((toolName ?? '').split('.')[0] ?? '').trim().toLowerCase();
   if (head === 'jira' || head === 'github' || head === 'gmail' || head === 'slack') return head;
-  if (head === 'notion' || head === 'confluence') return head;
+  if (head === 'notion' || head === 'confluence' || head === 'docs') return head;
   if (head === 'calendar' || head === 'googlecalendar') return 'calendar';
   return null;
 }

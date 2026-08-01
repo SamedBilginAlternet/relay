@@ -53,7 +53,8 @@ class PlaybookServiceTest {
                         "replay", FIXTURES, null, "Europe/Istanbul"),
                 new SlackTool.PostMessage("replay", FIXTURES),
                 new com.relay.infrastructure.tools.SheetsTool.AppendRow("replay", FIXTURES, null),
-                new com.relay.infrastructure.tools.SheetsTool.ReadRange("replay", FIXTURES, null)));
+                new com.relay.infrastructure.tools.SheetsTool.ReadRange("replay", FIXTURES, null),
+                new com.relay.infrastructure.tools.DocsCreateDocumentTool("replay", FIXTURES, null)));
         TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
         TestDoubles.InMemoryConnectionRepository connections = new TestDoubles.InMemoryConnectionRepository();
         for (String provider : connectedProviders) {
@@ -126,7 +127,8 @@ class PlaybookServiceTest {
         Run run = rig("google").playbooks().start("toplanti-hazirligi", 1.0);
 
         assertThat(run.steps()).extracting(step -> step.toolName())
-                .containsExactly("calendar.listToday", "gmail.search", "calendar.createEvent");
+                .containsExactly("calendar.listToday", "gmail.search", "docs.createDocument",
+                        "calendar.createEvent");
     }
 
     /** Without a calendar there is no meeting to prepare for — the button must not run. */
@@ -142,10 +144,11 @@ class PlaybookServiceTest {
     /**
      * Reading first, writing last, and the write is the only thing that stops on a human.
      *
-     * <p>This flow used to be entirely reads and the test used to say so. It ends in a
-     * proposal now — "konuşulacaklar bir toplantıya sığmıyorsa takip toplantısı öner" — and
-     * the ordering is the point: three reads run to the end by themselves, and the one step
-     * that puts something on other people's calendars waits at the gate.
+     * <p>This flow used to be entirely reads and the test used to say so. It ends in two
+     * proposals now — the note document the preparation lands in, then the follow-up
+     * meeting — and the ordering is the point: three reads run to the end by themselves,
+     * and the first step that writes anything (the doc) is where the run waits at the gate,
+     * before anything reaches other people's calendars.
      */
     @Test
     void meeting_prep_reads_first_and_stops_only_on_the_write() {
@@ -153,7 +156,7 @@ class PlaybookServiceTest {
 
         assertThat(run.steps()).extracting(step -> step.toolName())
                 .containsExactly("calendar.listToday", "jira.searchIssues", "gmail.search",
-                        "calendar.createEvent");
+                        "docs.createDocument", "calendar.createEvent");
         assertThat(run.status().wire()).isEqualTo("awaiting_approval");
     }
 

@@ -194,13 +194,13 @@ Notlar:
 
 ---
 
-## 5. Google — Gmail + Calendar + Sheets (OAuth)
+## 5. Google — Gmail + Calendar + Sheets + Docs (OAuth)
 
 **Nereden:** [console.cloud.google.com](https://console.cloud.google.com)
 
 1. Yeni proje: `relay-hackathon`
 2. **APIs & Services → Library** → etkinleştir: **Gmail API**, **Google Calendar API**,
-   **Google Sheets API**
+   **Google Sheets API**, **Google Docs API**
 3. **OAuth consent screen** → *External* → uygulama adı `Relay`, destek e-postası kendi adresin
    → **Test users**'a `samedbilgin322@gmail.com` ekle. (Test modu yeterli; yayın onayı beklemiyoruz.)
 4. **Scopes**:
@@ -210,6 +210,7 @@ Notlar:
    - `https://www.googleapis.com/auth/calendar.events` *(sensitive)* — `calendar.createEvent` için.
    - `https://www.googleapis.com/auth/spreadsheets` *(sensitive)* — `sheets.appendRow` ve
      `sheets.readRange` için (tek scope ikisini de karşılar).
+   - `https://www.googleapis.com/auth/documents` *(sensitive)* — `docs.createDocument` için.
 
    > **Bu izin gönderebilir.** Google'ın izin ekranında görünen metni "Manage drafts and
    > send emails" ve `messages.send`'i de kapsıyor. Gmail'de **yalnız taslak** diye bir
@@ -234,11 +235,12 @@ Refresh token bağlantı config'ine şifreli yazılır; ilk izinden sonra bir da
 > Google doğrulaması **ve** yıllık CASA güvenlik değerlendirmesi istiyor; bu bir ürün kararı,
 > kod değişikliği değil.
 
-> Kapsam genişlediğinde (`gmail.compose`, `calendar.events`, `spreadsheets`) **eski bağlantı
-> bozulmaz**: okuma işleri aynen çalışmaya devam eder, yalnız o yazma adımı çalışmaz ve araç
-> Türkçe bir cümleyle "Bağlantılar'dan yeniden bağlan" der. `/api/oauth/google/status` bunu
-> ayrı ayrı söyler — `connected: true` yanında `canCompose`, `canCreateEvent` veya
-> `canAppendRow` `false` ise yeniden bağlanma gerekiyor.
+> Kapsam genişlediğinde (`gmail.compose`, `calendar.events`, `spreadsheets`, `documents`)
+> **eski bağlantı bozulmaz**: okuma işleri aynen çalışmaya devam eder, yalnız o yazma adımı
+> çalışmaz ve araç Türkçe bir cümleyle "Bağlantılar'dan yeniden bağlan" der.
+> `/api/oauth/google/status` bunu ayrı ayrı söyler — `connected: true` yanında `canCompose`,
+> `canCreateEvent`, `canAppendRow` veya `canCreateDocument` `false` ise yeniden bağlanma
+> gerekiyor.
 
 ### 5.1 `calendar.createEvent` — takvime toplantı koymak
 
@@ -326,6 +328,43 @@ turu demektir (§ARCHITECTURE "READ pahalı, WRITE ucuz"). Planlayıcıya açık
 plana girdiği koşuda ~60–130 token tutar. `sheets.readRange` bu yüzden yalnız planlayıcıya
 açık: "tablodaki açık kalemleri oku, özetini ekibe gönder" çalışır, sabah brifingi kuruşuna
 dokunmaz.
+
+### 5.4 `docs.createDocument` — toplantı notunu dokümana açmak
+
+**Kurulumda tek yenilik bir scope + yeniden bağlanma.** Token yok, form yok, bağlantı ayarı
+yok — yeni doküman hesabın kendi Drive'ında açılır, hedef klasör/dosya sorulmaz.
+
+| Ne | Değer |
+|---|---|
+| Eklenecek scope | `https://www.googleapis.com/auth/documents` *(sensitive — restricted değil, CASA getirmez)* |
+| Ayrıca | **APIs & Services → Library → Google Docs API** etkinleştirilmeli (scope tek başına yetmez; API kapalıysa 403 gelir ve araç bunu Türkçe söyler) |
+| Nereye | Google Cloud Console → **OAuth consent screen → Data access (Scopes)** |
+| Sonra | **Bağlantılar → Google → Yeniden bağlan.** Scope'u konsola eklemek tek başına yetmez |
+
+**Yeniden onay vermezsen ne olur:** hiçbir şey bozulmaz. Brifing, taslak, takvim ve tablo
+aynen çalışır; yalnız `docs.createDocument` adımı *"Google izni doküman oluşturmayı
+kapsamıyor; Bağlantılar'dan Google'a yeniden bağlan"* diyerek durur.
+`/api/oauth/google/status` içindeki `canCreateDocument` bu durumu ayrıca söyler.
+
+Bilmen gereken iki davranış:
+
+- **Bir araç, iki çağrı — ve ikisi de sonuçta yazar.** Docs API içerikli doküman açamaz:
+  `documents.create` yalnız başlığı alır, metin ikinci çağrıyla (`:batchUpdate` /
+  `insertText`) girer. Sonuç her iki çıktıyı da söyler: `docId`, `url`, `title`,
+  `contentInserted`.
+- **İkinci çağrı düşerse adım başarısız SAYILMAZ** — bu bilinçli bir karar. Başarısız adım
+  yeniden denenir (doğrulayıcı iki kez geri gönderir) ve her deneme `create`'i yeniden
+  koşturup aynı başlıkla ikiz boş dokümanlar açardı. Onaylanan yazma (bu başlıkla bu
+  doküman) gerçekleşti; gerçekleşmeyen, sonuçta açıkça durur: `contentInserted: false` +
+  metnin elle yapıştırılacağı link. Dürüst kısmi başarı, dosya çoğaltan retry döngüsünden
+  iyidir.
+
+Neden `documents`, `drive.file` değil: bugün yalnız *oluşturan* bir araç için `drive.file`
+(yalnız uygulamanın açtığı dosyalar) teknik olarak yeterdi. Ama `docs.*`'ın var olma sebebi
+`sheets.*` ile aynı yola çıkmak — kullanıcının *zaten var olan* toplantı notu dosyasına
+ekleme/okuma, ki o dosyaya `drive.file` hiçbir zaman ulaşamaz — ve sonradan scope
+değiştirmek her bağlantıyı ikinci kez yeniden onaydan geçirmek demek. O gün gelene kadar
+darlık kodun sözü: araç create + kendi açtığı dokümana tek insert'e ulaşır, test kilitler.
 
 > İzin ekranında "Google bu uygulamayı doğrulamadı" uyarısı normaldir — test kullanıcısı olduğun
 > için *Advanced → Go to Relay (unsafe)* ile devam edilir.

@@ -27,7 +27,7 @@ type FieldDef = {
 };
 
 /** Which of `BrandMark`'s marks a provider is drawn with. Google and Atlassian are several products each. */
-type MarkName = 'jira' | 'confluence' | 'github' | 'gmail' | 'calendar' | 'slack' | 'notion';
+type MarkName = 'jira' | 'confluence' | 'github' | 'gmail' | 'calendar' | 'docs' | 'slack' | 'notion';
 
 type ProviderDef = {
   provider: Provider;
@@ -52,8 +52,9 @@ export const PROVIDERS: ProviderDef[] = [
   {
     provider: 'google',
     title: 'Google',
-    blurb: 'Gmail, Takvim ve Sheets. Günün özetini okur; taslak cevap, takip toplantısı ve tablo satırı onayınla yazılır.',
-    marks: ['gmail', 'calendar'],
+    blurb:
+      'Gmail, Takvim, Sheets ve Docs. Günün özetini okur; taslak cevap, takip toplantısı, tablo satırı ve doküman onayınla yazılır.',
+    marks: ['gmail', 'calendar', 'docs'],
     console: { href: 'https://myaccount.google.com/permissions', label: 'Google hesap izinleri' },
     oauth: true,
     settingsBlurb:
@@ -417,9 +418,10 @@ function GoogleSetup({ connection }: { connection: Connection | undefined }) {
     <section className="card" aria-label="Google kurulumu">
       <p className="t-caption">
         Token yapıştırılmaz: Google’ın izin ekranından geçersin, yetki sunucuda şifreli saklanır.
-        Okuma izinleri (gmail.readonly, calendar.readonly) yanında üç yazma izni istenir:
+        Okuma izinleri (gmail.readonly, calendar.readonly) yanında dört yazma izni istenir:
         gmail.compose taslak cevap için, calendar.events takip toplantısı için, spreadsheets
-        takip tablosuna satır eklemek için. Üçü de onay kapısından geçer.
+        takip tablosuna satır eklemek için, documents toplantı notu taslağı için. Dördü de onay
+        kapısından geçer.
       </p>
 
       {loading && <div className="skeleton" style={{ height: 56 }} />}
