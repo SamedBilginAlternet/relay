@@ -33,6 +33,12 @@ export function applyEvent(run: Run, event: RunEvent, now: string = new Date().t
         steps: patchStep(run.steps, event.stepId, (s) => ({
           ...s,
           status: 'awaiting_approval',
+          // The backend finalises the call before parking, precisely so the human reads
+          // what will be sent. Keeping only the id here put the planner's draft on the
+          // approval screen — an empty channel and an empty message, approved blind.
+          title: event.title ?? s.title,
+          toolName: event.toolName ?? s.toolName,
+          params: event.params ?? s.params,
         })),
       };
 

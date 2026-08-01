@@ -82,7 +82,20 @@ export type RunSummary = {
 
 export type RunPlannedEvent = { type: 'run.planned'; steps: Step[] };
 export type StepStartedEvent = { type: 'step.started'; stepId: string };
-export type StepAwaitingEvent = { type: 'step.awaiting'; stepId: string };
+/**
+ * The gate frame. It carries the parameters the specialist just finalised — the whole
+ * point of the pause is that a person reads them before saying yes, so dropping them here
+ * leaves the screen showing the planner's empty draft.
+ */
+export type StepAwaitingEvent = {
+  type: 'step.awaiting';
+  stepId: string;
+  ordinal?: number;
+  title?: string;
+  toolName?: string | null;
+  params?: Record<string, unknown> | null;
+  reason?: string | null;
+};
 export type StepFinishedEvent = {
   type: 'step.finished';
   stepId: string;
