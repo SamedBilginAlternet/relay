@@ -179,8 +179,12 @@ kbd {
   z-index: 60;
   margin: -50% 0 0 -50%;
   border-radius: 50%;
-  border: 1.5px solid var(--accent-line);
-  background: rgba(109, 40, 217, 0.06);
+  /* Ink, not violet. The rule this file keeps everywhere else is that the
+     accent means state — the run you have open, the gate waiting on you — and
+     a ring that follows the mouse is decoration by definition. It also sat
+     around a black arrow, which read as two unrelated ideas. */
+  border: 1.5px solid rgba(17, 17, 17, 0.16);
+  background: rgba(17, 17, 17, 0.035);
   pointer-events: none;
   will-change: transform, width, height;
 }
@@ -3616,3 +3620,39 @@ a.btn {
     align-items: center;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* The pointer (issue #148)                                            */
+/*                                                                     */
+/* A drawn arrow rather than the platform's, so the product looks the   */
+/* same on the machine it is demoed from as on the one it was built on: */
+/* Windows ships a white arrow with a black outline, macOS the reverse, */
+/* and the halo behind it was designed against the darker one.          */
+/*                                                                     */
+/* `cursor: url()` and not a React component that follows the mouse.    */
+/* A DOM element is composited a frame behind the real pointer and the  */
+/* lag is visible at speed; this is drawn by the compositor at the      */
+/* actual position, costs nothing per frame, and needs no dependency.   */
+/*                                                                     */
+/* Drawn here, not copied: this is an arrow in the same idiom, not the  */
+/* platform's own asset.                                                */
+/*                                                                     */
+/* Rules the browser imposes and this obeys: a keyword fallback after   */
+/* the comma (a cursor that fails to decode leaves you with none), the  */
+/* hotspot on the tip (`4 2`), and 24px — Chrome ignores a cursor image */
+/* larger than 128px and silently falls back.                           */
+/* ------------------------------------------------------------------ */
+
+body {
+  cursor:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M4 2 L4 20 L9 15.5 L12.2 21.6 L14.8 20.3 L11.7 14.5 L17.5 14.5 Z' fill='%23111111' stroke='%23ffffff' stroke-width='1.4' stroke-linejoin='round'/></svg>")
+      4 2,
+    auto;
+}
+
+/*
+  Everything that already declares `cursor: pointer` / `text` / `not-allowed`
+  keeps the platform's own, deliberately. Those are the shapes a reader has
+  learned to read as "this is pressable" and "this is editable", and drawing
+  our own versions would be four more assets to get subtly wrong.
+*/
