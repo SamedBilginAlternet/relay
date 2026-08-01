@@ -1,0 +1,175 @@
+package com.relay.infrastructure.sse;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.relay.application.port.RunEvent;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import org.junit.jupiter.api.Test;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+/**
+ * The channel the live screen is fed through.
+ *
+ * <p>Everything the Live screen shows arrives over this one class — the replay a late
+ * arrival gets, the reconnect after a dropped line, the keepalive that stops a proxy
+ * closing an idle stream, and the drop of a client that went away. None of it had a test:
+ * the orchestrator tests all publish into a list-appending double, so what was covered was
+ * "an event was published", never "an event reached the client".
+ *
+ * <p>These tests talk to the real publisher and watch the emitter, because the emitter is
+ * the only place the difference shows up.
+ */
+class SseEventPublisherTest {
+
+    @Test
+    void a_late_subscriber_receives_the_whole_story_from_the_beginning() {
+        SseEventPublisher publisher = new SseEventPublisher();
+        UUID runId = UUID.randomUUID();
+
+        publisher.publish(runId, RunEvent.of(RunEvent.RUN_PLANNED, Map.of("steps", List.of())));
+        publisher.publish(runId, RunEvent.of(RunEvent.STEP_STARTED, Map.of("stepId", "1")));
+
+        RecordingEmitter latecomer = new RecordingEmitter();
+        publisher.subscribe(runId, latecomer);
+
+        assertThat(latecomer.names())
+                .as("joining mid-sentence is not watching a run")
+                .containsExactly(RunEvent.RUN_PLANNED, RunEvent.STEP_STARTED);
+
+        publisher.publish(runId, RunEvent.of(RunEvent.RUN_FINISHED, Map.of("status", "done")));
+
+        assertThat(latecomer.names())
+                .as("and the story carries on from where the replay left off")
+                .containsExactly(RunEvent.RUN_PLANNED, RunEvent.STEP_STARTED, RunEvent.RUN_FINISHED);
+    }
+
+    @Test
+    void a_reconnecting_client_can_tell_the_replay_from_new_events() {
+        SseEventPublisher publisher = new SseEventPublisher();
+        UUID runId = UUID.randomUUID();
+
+        RecordingEmitter first = new RecordingEmitter();
+        publisher.subscribe(runId, first);
+        publisher.publish(runId, RunEvent.of(RunEvent.RUN_PLANNED, Map.of("steps", List.of())));
+        publisher.publish(runId, RunEvent.of(RunEvent.STEP_STARTED, Map.of("stepId", "1")));
+        first.broken = true;
+        publisher.publish(runId, RunEvent.of(RunEvent.STEP_FINISHED, Map.of("stepId", "1")));
+
+        RecordingEmitter reconnected = new RecordingEmitter();
+        publisher.subscribe(runId, reconnected);
+
+        assertThat(reconnected.names())
+                .as("the reconnect is served the same three frames, in the same order")
+                .containsExactly(RunEvent.RUN_PLANNED, RunEvent.STEP_STARTED, RunEvent.STEP_FINISHED);
+        assertThat(reconnected.frames.get(0).data())
+                .as("and with the same contents — a replay describes the past, it does not redraw it")
+                .isEqualTo(Map.of("steps", List.of()));
+    }
+
+    @Test
+    void a_broken_emitter_is_dropped_without_taking_the_others_down() {
+        SseEventPublisher publisher = new SseEventPublisher();
+        UUID runId = UUID.randomUUID();
+
+        RecordingEmitter gone = new RecordingEmitter();
+        RecordingEmitter watching = new RecordingEmitter();
+        publisher.subscribe(runId, gone);
+        publisher.subscribe(runId, watching);
+        gone.broken = true;
+
+        publisher.publish(runId, RunEvent.of(RunEvent.STEP_STARTED, Map.of("stepId", "1")));
+
+        assertThat(watching.names())
+                .as("one client closing its laptop does not end the run for everyone else")
+                .containsExactly(RunEvent.STEP_STARTED);
+        assertThat(publisher.subscriberCount())
+                .as("and the dead connection is not kept on the list to be written to again")
+                .isEqualTo(1);
+    }
+
+    @Test
+    void the_backlog_never_grows_past_its_bound() {
+        SseEventPublisher publisher = new SseEventPublisher();
+        UUID runId = UUID.randomUUID();
+
+        for (int i = 1; i <= 1000; i++) {
+            publisher.publish(runId, RunEvent.of(RunEvent.AGENT_MESSAGE, Map.of("n", i)));
+        }
+
+        RecordingEmitter latecomer = new RecordingEmitter();
+        publisher.subscribe(runId, latecomer);
+
+        assertThat(latecomer.frames).hasSize(400);
+        assertThat(latecomer.frames.get(0).data())
+                .as("what is kept is the newest four hundred, not the first four hundred")
+                .isEqualTo(Map.of("n", 601));
+        assertThat(latecomer.frames.get(399).data()).isEqualTo(Map.of("n", 1000));
+    }
+
+    @Test
+    void a_heartbeat_keeps_an_idle_stream_open() {
+        SseEventPublisher publisher = new SseEventPublisher();
+        UUID runId = UUID.randomUUID();
+        RecordingEmitter watching = new RecordingEmitter();
+        publisher.subscribe(runId, watching);
+
+        publisher.ping();
+
+        assertThat(watching.frames).hasSize(1);
+        assertThat(watching.frames.get(0).text())
+                .as("a run that is thinking still has to look alive to every proxy in between")
+                .contains(":keepalive");
+    }
+
+    // -----------------------------------------------------------------------
+
+    /** What was written, and whether the far end is still there to receive it. */
+    record Frame(String text, Object data) {
+    }
+
+    /**
+     * An emitter that keeps what was sent to it instead of writing it to a socket.
+     *
+     * <p>{@code super.send} is deliberately not called: there is no servlet response behind
+     * this emitter, and the point is to read the frame, not to serialise it.
+     */
+    static final class RecordingEmitter extends SseEmitter {
+
+        final List<Frame> frames = new ArrayList<>();
+        /** The client went away. The next write is the moment the server finds out. */
+        boolean broken;
+
+        @Override
+        public void send(SseEventBuilder builder) throws IOException {
+            if (broken) {
+                throw new IOException("client went away");
+            }
+            StringBuilder text = new StringBuilder();
+            Object payload = null;
+            for (ResponseBodyEmitter.DataWithMediaType part : builder.build()) {
+                text.append(part.getData());
+                if (!(part.getData() instanceof String)) {
+                    payload = part.getData();
+                }
+            }
+            frames.add(new Frame(text.toString(), payload));
+        }
+
+        /** The {@code event:} name of every frame, in the order it arrived. */
+        List<String> names() {
+            return frames.stream()
+                    .map(frame -> frame.text().lines()
+                            .filter(line -> line.startsWith("event:"))
+                            .map(line -> line.substring("event:".length()))
+                            .collect(Collectors.joining()))
+                    .filter(name -> !name.isBlank())
+                    .toList();
+        }
+    }
+}

@@ -67,7 +67,18 @@ public class SseEventPublisher implements EventPublisher {
 
     /** Subscribes a client and replays what it missed. */
     public SseEmitter subscribe(UUID runId) {
-        SseEmitter emitter = new SseEmitter(TIMEOUT_MS);
+        return subscribe(runId, new SseEmitter(TIMEOUT_MS));
+    }
+
+    /**
+     * The same subscription with the emitter handed in.
+     *
+     * <p>Exists so a test can watch what actually reaches the wire. Everything this class
+     * promises — the replay, the hang-up, dropping a broken client — is only observable
+     * through the emitter, and a {@code new SseEmitter()} created three lines deep inside
+     * the method is not observable at all.
+     */
+    SseEmitter subscribe(UUID runId, SseEmitter emitter) {
         emitters.computeIfAbsent(runId, k -> new CopyOnWriteArrayList<>()).add(emitter);
         emitter.onCompletion(() -> remove(runId, emitter));
         emitter.onTimeout(() -> remove(runId, emitter));
@@ -130,7 +141,8 @@ public class SseEventPublisher implements EventPublisher {
         }
     }
 
-    private void ping() {
+    /** One heartbeat round. Package-private so a test need not wait twenty seconds for it. */
+    void ping() {
         emitters.forEach((runId, list) -> {
             for (SseEmitter emitter : new ArrayList<>(list)) {
                 try {
