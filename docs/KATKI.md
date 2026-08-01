@@ -54,9 +54,10 @@ Kural olarak:
 
 - Yazar kimliği `samed.bilgin@alternet.com.tr`. Ortam varsayılanı yanlış hesaba düşüyor.
 - Co-author trailer eklenmez.
-- Yeşil olmayan ağaç push edilmez: `cd backend && JAVA_HOME=~/jdk21 ./gradlew build` ve
-  `cd frontend && npm run build` ikisi de temiz olmalı. `tsc` tek başına yetmez, ESLint
-  hataları yalnız `npm run build`'de görünür.
+- Yeşil olmayan ağaç push edilmez: `cd backend && JAVA_HOME=~/jdk21 ./gradlew build`,
+  `cd frontend && npm run build` ve `cd frontend && npm test` üçü de temiz olmalı. `tsc`
+  tek başına yetmez, ESLint hataları yalnız `npm run build`'de görünür; `npm run build` de
+  tek başına yetmez, davranışı yalnız `npm test` kontrol eder.
 
 ## 3. Push
 
@@ -78,3 +79,14 @@ void the_human_sees_the_message_before_approving_it()
 
 Test sınıfının Javadoc'u **testin neden var olduğunu** yazar — hangi gerçek olay onu
 gerektirdi. Bir yıl sonra o testi silmeye kalkan kişi, neyi kaybedeceğini bilsin.
+
+Bu kural **arayüz için de geçerlidir**; uzun süre değildi ve bedelini üç ayrı hata olarak
+ödedik (#38, #39, #40 — üçü de tek bir `applyEvent` testiyle yakalanırdı). Arayüzde test
+`vitest` ile koşar: `cd frontend && npm test`.
+
+- Saf birimler (indirgeyiciler, biçimlendirme, eşlemeler) doğrudan test edilir — DOM yok.
+- Bir ekranın **durumları** bileşen testiyle gelir: hata, boş liste, karar bekleyen satır.
+  Bunlar için dosyanın başına `// @vitest-environment jsdom` yazılır ve veri kaynağı
+  `vi.mock('../data', …)` ile değiştirilir; test gerçek API'ye çıkmaz.
+- Test adı Java tarafındaki gibi iddiayı söyler:
+  `an_empty_history_says_so_instead_of_showing_an_empty_frame`.

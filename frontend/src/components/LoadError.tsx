@@ -27,7 +27,14 @@ const NETWORK = /failed to fetch|networkerror|network request failed|load failed
 /** A 200 that was not JSON — usually an HTML error page from a proxy. */
 const UNREADABLE = /unexpected token|not valid json|json\.parse|syntaxerror|unexpected end of/i;
 /** Machine detail: env var names and URLs are never part of a user-facing sentence. */
-const MACHINE = /VITE_[A-Z_]+|https?:\/\/|\blocalhost\b|\bundefined\b|\bnull\b/;
+const MACHINE = /VITE_[A-Z_]+|https?:\/\/|\blocalhost\b/;
+/**
+ * English is the machine talking. The product is Turkish end to end, so a
+ * message carrying any of these is a proxy, a framework or a stack — never a
+ * sentence written for the person reading it.
+ */
+const ENGLISH =
+  /\b(error|failed|failure|invalid|unexpected|unauthorized|forbidden|not found|internal|timeout|refused|denied|bad request|exception|null|undefined)\b/i;
 
 function statusOf(error: unknown): number | undefined {
   const status = (error as { status?: unknown } | null)?.status;
@@ -63,7 +70,7 @@ export function describeLoadError(error: unknown): string {
   // The server writes its own Turkish sentences (validation, policy, quota) and
   // those are better than anything guessed from a status code — but only when
   // they are free of machine detail.
-  if (raw && !MACHINE.test(raw)) return raw;
+  if (raw && !MACHINE.test(raw) && !ENGLISH.test(raw)) return raw;
   return byStatus(status) ?? GENERIC_TEXT;
 }
 
