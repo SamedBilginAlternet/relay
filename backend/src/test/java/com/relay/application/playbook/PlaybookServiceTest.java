@@ -47,6 +47,7 @@ class PlaybookServiceTest {
                 new com.relay.infrastructure.tools.GmailTool.ListToday("replay", FIXTURES, null),
                 new com.relay.infrastructure.tools.GmailTool.Search("replay", FIXTURES, null),
                 new com.relay.infrastructure.tools.GmailTool.CreateDraft("replay", FIXTURES, null),
+                new com.relay.infrastructure.tools.NotionTool.CreatePage("replay", FIXTURES),
                 new com.relay.infrastructure.tools.CalendarTool.ListToday(
                         "replay", FIXTURES, null, "Europe/Istanbul"),
                 new com.relay.infrastructure.tools.CalendarCreateEventTool(
@@ -211,6 +212,23 @@ class PlaybookServiceTest {
      * over the same append endpoint, riding the same google connection, which is why the
      * flow still runs on Google alone.
      */
+    /**
+     * The stage flow: one mail, four gates (#172). Jira is required — a demo whose one
+     * required write cannot run has nothing to show — and everything after it degrades
+     * per provider, so the run below, wired with every provider, seeds all five steps
+     * and stops at the first write like any other flow. No fast path for the demo:
+     * the show IS the gate.
+     */
+    @Test
+    void the_stage_flow_seeds_every_surface_and_stops_at_the_first_gate() {
+        Run run = rig("google", "jira", "slack", "notion").playbooks().start("gunu-kapat", 1.0);
+
+        assertThat(run.steps()).extracting(step -> step.toolName())
+                .containsExactly("gmail.search", "jira.createIssue", "slack.postMessage",
+                        "notion.createPage", "sheets.appendRow");
+        assertThat(run.status().wire()).isEqualTo("awaiting_approval");
+    }
+
     @Test
     void the_leave_flow_runs_on_google_alone_and_stops_on_its_writes() {
         Run run = rig("google").playbooks().start("izin-talepleri", 1.0);

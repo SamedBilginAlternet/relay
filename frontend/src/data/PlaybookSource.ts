@@ -111,6 +111,25 @@ class MockPlaybookSource implements PlaybookSource {
       with no Notion connection still runs the flow, minus the note.
     */
     /*
+      The stage flow leads the shelf: one mail carried across every surface the
+      product writes to, four gates, each one the moment the pitch is about (#172).
+    */
+    {
+      id: 'gunu-kapat',
+      title: 'Günü kapat',
+      goal: 'Bugünkü maillerdeki müşteri şikayetini bul; onun için Jira kaydı aç, kanala bildir, kararı Notion kütüğüne yaz ve günlük rapora satır ekle.',
+      subtitle: 'Gmail okunur; Jira, Slack, Notion ve rapor satırı dört ayrı kapıda onayına gelir',
+      steps: [
+        { title: 'Şikayet mailini bul', tool: 'gmail.search', optional: false },
+        { title: 'Maili Jira kaydına çevir', tool: 'jira.createIssue', optional: false },
+        { title: 'Kanala kayıt anahtarıyla bildir', tool: 'slack.postMessage', optional: true },
+        { title: 'Kararı Notion kütüğüne yaz', tool: 'notion.createPage', optional: true },
+        { title: 'Günlük rapora satır ekle', tool: 'sheets.appendRow', optional: true },
+      ],
+      runnable: true,
+      missing: [],
+    },
+    /*
       The HR flow rides here for the same reason Notion's does: the shelf argues
       who the product is for, and a flow that files leave requests says it is
       not only for engineers. Its writes are the three places a small company's

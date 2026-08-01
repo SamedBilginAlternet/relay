@@ -165,13 +165,42 @@ public final class Playbooks {
                     Move.optional("Onay cevabını taslakla", "gmail.createDraft", Map.of())));
 
     /**
+     * The stage flow (#172): one mail carried end to end across every surface the
+     * product writes to. It exists because the demo needs the whole claim in one run —
+     * a complaint arrives, and the record, the announcement, the decision log and the
+     * report row each stop at their own gate. Four gates is deliberate: each one is the
+     * moment the pitch is about. Everything after Jira is optional, so a demo cut short
+     * at any gate still told a complete story, and a workspace missing a provider
+     * degrades to the gates it can offer.
+     */
+    public static final Playbook CLOSE_THE_DAY = new Playbook(
+            "gunu-kapat",
+            "Günü kapat",
+            "Bugünkü maillerdeki müşteri şikayetini veya acil talebi bul. Onun için: "
+                    + "maildeki gerçek ayrıntılarla (sipariş no, hata metni) bir Jira kaydı aç; "
+                    + "kaydın anahtarıyla ekip kanalına kısa bir bildirim yaz; alınan kararı "
+                    + "gerekçesiyle Notion karar kütüğüne sayfa olarak yaz; ve günlük rapor "
+                    + "tablosuna tarih, konu, kayıt anahtarı ve durumla bir satır ekle. "
+                    + "Şikayet yoksa uydurma — bulunmadığını söyle ve hiçbir şey yazma.",
+            "Gmail okunur; Jira kaydı, Slack bildirimi, Notion sayfası ve rapor satırı "
+                    + "dört ayrı kapıda onayına gelir",
+            List.of(
+                    Move.required("Şikayet mailini bul", "gmail.search",
+                            Map.of("query", "subject:(şikayet OR acil OR hata OR ödeme) newer_than:2d",
+                                    "maxResults", 10)),
+                    Move.required("Maili Jira kaydına çevir", "jira.createIssue", Map.of()),
+                    Move.optional("Kanala kayıt anahtarıyla bildir", "slack.postMessage", Map.of()),
+                    Move.optional("Kararı Notion kütüğüne yaz", "notion.createPage", Map.of()),
+                    Move.optional("Günlük rapora satır ekle", "sheets.appendRow", Map.of())));
+
+    /**
      * Order is the shelf's argument. The mail flow leads because it is the one job every
      * desk has; the engineering-shaped ones follow. A shelf that opens with "Takılan işler"
      * tells a first-time reader this is a tool for a sprint board.
      */
     public static final List<Playbook> ALL =
-            List.of(MAIL_TO_TICKET, MORNING, LEAVE_REQUESTS, MEETING_PREP, BLOCKERS,
-                    SHEET_DIGEST, PR_REVIEW);
+            List.of(CLOSE_THE_DAY, MAIL_TO_TICKET, MORNING, LEAVE_REQUESTS, MEETING_PREP,
+                    BLOCKERS, SHEET_DIGEST, PR_REVIEW);
 
     private Playbooks() {
     }
