@@ -62,6 +62,10 @@ class PlanRepairTest {
     }
 
     private Run runGoal(String goal) {
+        return runGoal(goal, 4);
+    }
+
+    private Run runGoal(String goal, int approvals) {
         FixtureStore fixtures = new FixtureStore();
         ToolRegistry tools = new ToolRegistryImpl(List.of(
                 new JiraTool.SearchIssues("replay", fixtures),
@@ -83,7 +87,7 @@ class PlanRepairTest {
 
         Run run = service.start(goal, null);
         // The write parks on the approval gate; the human says yes.
-        for (int guard = 0; guard < 4 && run.status() == RunStatus.AWAITING_APPROVAL; guard++) {
+        for (int guard = 0; guard < approvals && run.status() == RunStatus.AWAITING_APPROVAL; guard++) {
             Step parked = List.copyOf(run.steps()).stream()
                     .filter(step -> step.status() == com.relay.domain.StepStatus.AWAITING_APPROVAL)
                     .findFirst()
@@ -106,6 +110,27 @@ class PlanRepairTest {
         assertThat(steps.get(0).ordinal()).isEqualTo(1);
         assertThat(steps.get(1).toolName()).isEqualTo("jira.updateIssue");
         assertThat(steps.get(1).ordinal()).isEqualTo(2);
+    }
+
+    /**
+     * The approval that was given no longer describes the write.
+     *
+     * <p>The human said yes to closing RELAY-1. The repair takes that key away and the lookup
+     * hands the step RELAY-14 instead — a different record, approved by nobody. One approval
+     * used to carry the write all the way through, so the only run in the product where the
+     * parameters change after the gate was also the one run that skipped it.
+     */
+    @Test
+    void the_repaired_write_comes_back_to_the_gate() {
+        Run run = runGoal("Ödeme servisi staging'de patlıyor, bunu kapat", 1);
+
+        Step write = run.steps().get(1);
+        assertThat(run.status()).isEqualTo(RunStatus.AWAITING_APPROVAL);
+        assertThat(write.status()).isEqualTo(com.relay.domain.StepStatus.AWAITING_APPROVAL);
+        assertThat(write.decision()).as("the first yes was spent on a record this step no longer touches")
+                .isNull();
+        assertThat(write.params()).as("and the gate shows what the lookup found")
+                .containsEntry("issueKey", "RELAY-14");
     }
 
     @Test
