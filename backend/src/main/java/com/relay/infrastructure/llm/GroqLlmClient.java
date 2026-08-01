@@ -206,10 +206,16 @@ public class GroqLlmClient implements LlmClient {
                     LOG.log(Level.WARNING, provider + " key {0} retired ({1}) — provider refused it",
                             ApiKeyPool.mask(key.get()), reply.status());
                 } else {
-                    pool.penalize(key.get(), reply.retryAfter());
+                    // A balance that ran out is fixed by a top-up, not by a retry a minute
+                    // later, and the provider sends no Retry-After for it. Park it long
+                    // enough that a payment is noticed without a deploy.
+                    java.time.Duration wait = reply.outOfCredit() && reply.retryAfter() == null
+                            ? ApiKeyPool.MAX_PARK
+                            : reply.retryAfter();
+                    pool.penalize(key.get(), wait);
                     LOG.log(Level.WARNING, provider + " key {0} parked on {1} ({2}, retry-after {3}) — rotating",
                             ApiKeyPool.mask(key.get()), targetModel, reply.status(),
-                            String.valueOf(reply.retryAfter()));
+                            String.valueOf(wait));
                 }
                 continue;
             }

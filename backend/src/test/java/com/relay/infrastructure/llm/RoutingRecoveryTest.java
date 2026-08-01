@@ -213,4 +213,36 @@ class RoutingRecoveryTest {
         assertThat(String.valueOf(client.health().get("lastError")))
                 .contains("groq").contains("deepseek");
     }
+
+    /**
+     * "Insufficient Balance" is 402, and 402 used to retire the key for the life of the
+     * process. Live, a fresh DeepSeek key answered exactly that — so the account would have
+     * been topped up and the product would have stayed dead until the next deploy, with
+     * nothing on the health line explaining why. It waits instead.
+     */
+    @Test
+    void a_key_with_no_balance_is_parked_not_retired() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        java.util.concurrent.atomic.AtomicBoolean paid = new java.util.concurrent.atomic.AtomicBoolean(false);
+        ApiKeyPool pool = new ApiKeyPool(List.of("no-credit"), Duration.ofSeconds(60), clock);
+        GroqLlmClient client = new GroqLlmClient(pool, (url, key, body) -> paid.get()
+                ? new HttpTransport.Reply(200, OK_BODY)
+                : new HttpTransport.Reply(402, "{\"error\":{\"message\":\"Insufficient Balance\"}}"),
+                "https://deepseek.test", "deepseek-v4-flash", 0.14, 0.28, null, null, "deepseek");
+
+        assertThat(pool.available()).isEqualTo(1);
+        try {
+            client.complete(request());
+        } catch (LlmUnavailableException expected) {
+            // no balance, nothing to answer with
+        }
+        assertThat(pool.available()).as("parked, not retired").isZero();
+
+        // The owner tops the account up; nobody restarts anything.
+        paid.set(true);
+        clock.advance(ApiKeyPool.MAX_PARK.plusMinutes(1));
+
+        assertThat(pool.available()).isEqualTo(1);
+        assertThat(client.complete(request()).model()).isEqualTo("deepseek-v4-flash");
+    }
 }

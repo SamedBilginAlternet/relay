@@ -33,11 +33,21 @@ public interface HttpTransport {
         }
 
         /**
-         * The provider rejected the key itself rather than throttling it — revoked,
-         * unauthorised or out of credit. Waiting does not help; only a new key does.
+         * The provider rejected the key itself rather than throttling it — revoked or
+         * unauthorised. Waiting does not help; only a new key does, so the pool retires it.
+         *
+         * <p>402 is deliberately <em>not</em> here. It means "no balance", and a top-up fixes
+         * it from the other side without anyone touching this process — a retired key would
+         * stay dead until the next deploy, so somebody would pay and see no change. It is
+         * parked like a rate limit instead, and comes back on its own.
          */
         public boolean refused() {
-            return status == 401 || status == 403 || status == 402;
+            return status == 401 || status == 403;
+        }
+
+        /** No credit left. Fixable by the account owner, so it waits rather than dies. */
+        public boolean outOfCredit() {
+            return status == 402;
         }
     }
 }
