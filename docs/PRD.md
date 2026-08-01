@@ -55,7 +55,7 @@ Ajanlar arası her mesaj zaman çizelgesinde görünür — kim kime ne dedi, ha
 
 **Gerçek zamanlı maliyet:** her adımda harcanan token ve tahmini ücret anlık görünür; akışın toplamı üstte durur. Bir ajan bütçeyi aşarsa durur ve sorar.
 
-**Yönetişim:** her araç için politika — `otomatik` / `onay iste` / `yasak`. Okuma otomatik, yazma onaylı, silme yasak varsayılanı. Politika ihlali denenirse adım reddedilir ve iz kaydına yazılır.
+**Yönetişim:** her araç için politika — `otomatik` / `onay iste` / `yasak`. Varsayılan aracın risk seviyesinden gelir: **okuma otomatik, yazma onaylı.** Motorun üçüncü ayağı (`DESTRUCTIVE` → `yasak`) kodda duruyor ama **bugün öznesi yok** — kayıtlı 18 aracın hiçbirinin riski silme değil, ve bu bilinçli: geri alınamayan bir işlem, onay kapısının test edilmediği tek yer olurdu. Kayıtlı olmayan bir araç adı da `yasak` döner. Politika ihlali denenirse adım reddedilir ve iz kaydına yazılır.
 
 ## 4. Çekirdek döngü
 

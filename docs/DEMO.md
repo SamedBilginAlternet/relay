@@ -128,7 +128,7 @@ Bitirirken tamamlayıcı ol, jüri bunu sever: *"n8n kullanan bir ekip Relay'i o
 
 **Yedek sorular (gelirse):**
 - *"Neden Groq?"* → Hız: plan 5 saniyenin altında gelmeli, Groq'un çıkarımı bunu sağlıyor. `LlmClient` arayüz — sağlayıcı tek sınıfla değişir.
-- *"Silme işlemleri?"* → **Bugün silen tek bir aracımız yok** — 18 aracın 12'si okuma, 6'sı yazma, sıfırı silme. Motorda `DESTRUCTIVE` → `yasak` kuralı duruyor ve `Politikalar` ekranı bunu açıkça yazıyor: *"şu an kayıtlı hiçbir aracın riski silme değil."* Kuralı önce yazdık, öznesini bilerek eklemedik: 48 saatte geri alınamayan bir işlem eklemek, onay kapısının test edilmediği tek yerdir. **Sakın "silme yasak" diye üçlü bir slogan kurma** — jüri "hangi silme aracınız?" der ve cevap "hiçbiri" olur.
+- *"Silme işlemleri?"* → **Bugün silen tek bir aracımız yok** — 18 aracın 12'si okuma, 6'sı yazma, sıfırı silme. Motorda `DESTRUCTIVE` → `yasak` kuralı duruyor ve `Politikalar` ekranı bunu açıkça yazıyor: *"şu an kayıtlı hiçbir aracın riski silme değil."* Kuralı önce yazdık, öznesini bilerek eklemedik: 48 saatte geri alınamayan bir işlem eklemek, onay kapısının test edilmediği tek yerdir. **Üçüncü ayağı slogana çevirme** — jüri "hangi silme aracınız var?" der ve cevap "hiçbiri" olur; o an cümle bir slogan gibi duyulur. İkili kur: okuma otomatik, yazma onaylı.
 - *"İş modeli?"* → Koltuk başına abonelik + kullanım (LLM maliyeti zaten adım başına ölçülüyor — faturalama altyapısı bedavaya çıktı). Kurumsal katman: politika ve denetim izi zorunlulukları.
 
 ---
