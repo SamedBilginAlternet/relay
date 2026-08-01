@@ -48,6 +48,16 @@ export type Step = {
    * drawn as nothing — never as a placeholder, never as the cheap one.
    */
   model?: string | null;
+  /**
+   * What this step's tokens would have cost had every one of its calls been billed at the
+   * strong model's price. The same measured token counts, the other price list — arithmetic,
+   * not an estimate.
+   *
+   * <p>`null` when it cannot be derived (the offline stub counts characters and no provider
+   * ever billed them), and absent from a server that predates the field. Neither is zero:
+   * zero would be the claim that the strong model was free.
+   */
+  premiumCostUsd?: number | null;
   startedAt: string | null;
   finishedAt: string | null;
 };

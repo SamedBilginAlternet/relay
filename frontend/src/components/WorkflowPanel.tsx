@@ -3,10 +3,61 @@ import { ListChecks, Repeat2, TriangleAlert, Workflow } from 'lucide-react';
 import type { StreamStatus } from '../data/RunSource';
 import { runStatusMeta } from '../lib/status';
 import type { RunPhase, StepEditError } from '../store/runStore';
-import type { Run } from '../types/api';
+import type { Run, Step } from '../types/api';
+import { formatUsd } from '../lib/format';
 import { CostBar } from './CostBar';
 import { EmptyState } from './EmptyState';
 import { StepRow } from './StepRow';
+
+/** The two sums behind the comparison line, and the count of steps they are made of. */
+export type PremiumComparison = {
+  steps: number;
+  actualUsd: number;
+  premiumUsd: number;
+  differenceUsd: number;
+};
+
+/**
+ * What the steps cost, against what the same tokens would have cost billed entirely at the
+ * strong model's price.
+ *
+ * <p>This is the product's whole pitch reduced to two numbers, so the only thing it may ever
+ * be is arithmetic on the token counts that were actually measured. Three ways it could stop
+ * being that, and what happens instead:
+ *
+ * <ul>
+ *   <li>A step that spent money but carries no premium figure would be present on one side
+ *       of the sum and missing from the other. Two totals that are not about the same work
+ *       are worse than no line, so there is no line.
+ *   <li>A run where every call already went to the strong model has nothing to compare —
+ *       equal sums draw nothing rather than a saving of zero.
+ *   <li>Model calls that belong to no step (planning, whole-run verification) are counted in
+ *       the run's total but have no premium price of their own, so they are outside this
+ *       sum. That is why the sentence on screen is about the run's *steps*: it must not read
+ *       as a second, smaller answer to what the run cost.
+ * </ul>
+ */
+export function comparePremium(steps: Step[]): PremiumComparison | null {
+  let actualUsd = 0;
+  let premiumUsd = 0;
+  let counted = 0;
+  for (const step of steps) {
+    const premium = step.premiumCostUsd;
+    if (typeof premium === 'number' && Number.isFinite(premium)) {
+      actualUsd += step.costUsd;
+      premiumUsd += premium;
+      counted += 1;
+    } else if (step.costUsd > 0) {
+      return null;
+    }
+  }
+  if (counted === 0) return null;
+  const differenceUsd = premiumUsd - actualUsd;
+  // Money is kept to six decimals end to end; a difference below that is a difference the
+  // product cannot show, and "fark $0.000000" is not a comparison.
+  if (Math.round(differenceUsd * 1e6) === 0) return null;
+  return { steps: counted, actualUsd, premiumUsd, differenceUsd };
+}
 
 type Props = {
   run: Run | null;
@@ -49,6 +100,7 @@ export function WorkflowPanel(props: Props) {
   const meta = run ? runStatusMeta(run.status) : null;
   const awaitingCount = run?.steps.filter((s) => s.status === 'awaiting_approval').length ?? 0;
   const doneCount = run?.steps.filter((s) => s.status === 'done').length ?? 0;
+  const premium = run ? comparePremium(run.steps) : null;
 
   return (
     <section className="workflow-col" aria-label="İş akışı paneli">
@@ -80,6 +132,23 @@ export function WorkflowPanel(props: Props) {
             </button>
           )}
         </div>
+
+        {/* Two sums and their difference — the only sentence in the product that says what
+            the routing is for. It says nothing about time or effort, because it knows
+            nothing about either: it is the same measured tokens at two price lists. */}
+        {premium && (
+          <div
+            className="cost-bar"
+            style={{ borderTop: '1px solid var(--border)', paddingTop: 8, paddingBottom: 8 }}
+          >
+            <span
+              className="t-caption"
+              title="Karşılaştırma yalnız güçlü model fiyatı hesaplanabilen adımları kapsar. Planlama gibi bir adıma bağlı olmayan çağrılar akış toplamında vardır, bu satırda yoktur."
+            >
+              {`Bu akışın ${premium.steps} adımı ${formatUsd(premium.actualUsd)} tuttu; aynı token'lar tümüyle güçlü modelde ${formatUsd(premium.premiumUsd)} tutardı — fark ${formatUsd(premium.differenceUsd)}.`}
+            </span>
+          </div>
+        )}
       </div>
 
       <ol
