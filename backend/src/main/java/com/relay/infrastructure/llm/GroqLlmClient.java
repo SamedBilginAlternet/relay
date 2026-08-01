@@ -136,6 +136,28 @@ public class GroqLlmClient implements LlmClient {
      */
     private final java.util.Map<String, String> lastRefusal = new java.util.concurrent.ConcurrentHashMap<>();
 
+    /**
+     * Every Groq organisation that has refused one of our keys.
+     *
+     * <p>The limit is counted per organisation, so the only question that matters when the
+     * keys run out is how many organisations they belong to — five keys against one budget
+     * behave exactly like one key, and no amount of rotation changes that. Nothing in the
+     * product could answer it: a refusal names the organisation, but only the last one
+     * survived. The ids are collected instead, and shown to a signed-in operator.
+     *
+     * <p>An organisation id is not a credential and cannot be used to call anything.
+     */
+    private final java.util.Set<String> organisations =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private static final java.util.regex.Pattern ORGANISATION =
+            java.util.regex.Pattern.compile("organization `?(org_[A-Za-z0-9]+)`?");
+
+    /** Distinct Groq organisations seen refusing a key, in a stable order. */
+    public java.util.List<String> organisations() {
+        return organisations.stream().sorted().toList();
+    }
+
     /** One pass over the pool for a single model. */
     private Attempt attempt(LlmRequest request, String targetModel, ApiKeyPool pool) {
         String body = requestBody(request, targetModel);
@@ -155,6 +177,10 @@ public class GroqLlmClient implements LlmClient {
             }
             lastError = "groq HTTP " + reply.status() + hint(reply);
             lastRefusal.put(targetModel, lastError);
+            java.util.regex.Matcher org = ORGANISATION.matcher(lastError);
+            if (org.find()) {
+                organisations.add(org.group(1));
+            }
             if (reply.shouldRotate()) {
                 // A refused key (revoked, out of quota) never recovers; a rate limited one
                 // does. Parking both for 60s would keep resurrecting a dead key.

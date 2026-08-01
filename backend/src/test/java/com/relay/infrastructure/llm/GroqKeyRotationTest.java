@@ -207,6 +207,49 @@ class GroqKeyRotationTest {
         assertThat(pool.next()).contains("only");
     }
 
+    /**
+     * Five keys were added to widen a budget that never widened, because Groq counts tokens
+     * per organisation and all five belonged to one. Nothing in the product could say so:
+     * each refusal names its organisation, but only the last one survived. Now they are
+     * collected, so "how many budgets do these keys actually have" is a question the health
+     * endpoint answers.
+     */
+    @Test
+    void everyOrganisationThatRefusedAKeyIsRemembered() {
+        String refusal = """
+                {"error":{"message":"Rate limit reached for model `llama-3.3-70b-versatile` in\
+                 organization `org_aaa111` service tier `on_demand` on tokens per day (TPD):\
+                 Limit 100000, Used 100000.","type":"tokens"}}
+                """;
+        String other = refusal.replace("org_aaa111", "org_bbb222");
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        FakeTransport transport = new FakeTransport(key ->
+                new HttpTransport.Reply(429, key.equals("key-1") ? refusal : other));
+        GroqLlmClient client = client(List.of("key-1", "key-2"), transport, clock);
+
+        assertThatThrownBy(() -> client.complete(request())).isInstanceOf(LlmUnavailableException.class);
+
+        assertThat(client.organisations()).containsExactly("org_aaa111", "org_bbb222");
+        assertThat(client.organisations().toString()).as("an org id is not a credential")
+                .doesNotContain("key-1", "key-2", "gsk_");
+    }
+
+    /** One organisation behind every key is the case worth seeing: rotation buys nothing. */
+    @Test
+    void keysThatShareOneOrganisationShowUpAsOne() {
+        String refusal = """
+                {"error":{"message":"Rate limit reached in organization `org_same` on tokens\
+                 per day (TPD): Limit 100000, Used 100000.","type":"tokens"}}
+                """;
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        FakeTransport transport = new FakeTransport(key -> new HttpTransport.Reply(429, refusal));
+        GroqLlmClient client = client(List.of("a", "b", "c", "d", "e"), transport, clock);
+
+        assertThatThrownBy(() -> client.complete(request())).isInstanceOf(LlmUnavailableException.class);
+
+        assertThat(client.organisations()).containsExactly("org_same");
+    }
+
     @Test
     void routerFallsBackToTheStubWhenGroqIsGone() {
         TestDoubles.FixedClock clock = new TestDoubles.FixedClock();

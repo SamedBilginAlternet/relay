@@ -100,6 +100,11 @@ public class RoutingLlmClient implements LlmClient {
         map.put("keysTotal", groqConfigured ? primary.keys().total() : 0);
         map.put("keysAvailable", groqConfigured ? primary.keys().available() : 0);
         map.put("lastError", lastError.get());
+        // Groq counts tokens per organisation. Fewer organisations than keys means the
+        // extra keys are spending one budget, which is the one thing rotation cannot fix.
+        if (groqConfigured && !primary.organisations().isEmpty()) {
+            map.put("organizations", primary.organisations());
+        }
         return map;
     }
 }
