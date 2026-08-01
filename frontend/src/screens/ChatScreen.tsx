@@ -88,7 +88,27 @@ export function ChatScreen() {
     a run the store has just created (`startRun`, `rerun`) has published nothing, so it
     still writes itself into the address bar — which is the reason this effect exists.
   */
-  const publishedRunId = useRef<string | null>(null);
+  /*
+    Seeded from the store, not from null — and that is the whole fix for #149.
+
+    The ref lives as long as this component, and this component unmounts every time the
+    reader visits Bugün. The store does not. So arriving here from a Bugün action looked
+    like this: the hash names the NEW run, the store still holds the PREVIOUS one, and a
+    ref that had just been born null could not tell "the run changed under me" from "I
+    have only just arrived". It read the difference as the former and published the old
+    id — with `replace`, so there was no Back — and the address bar cancelled the
+    navigation. Live: press "Jira kaydı aç" on Bugün, land in the chat session you were
+    in before.
+
+    Seeded, the question it answers is the right one again: a run the store was ALREADY
+    holding when this screen opened has nothing to publish, so the hash leads and the
+    effect above loads what the hash asked for. A run created while this screen is open
+    (`startRun`, `rerun`) is still unpublished, so it still writes itself into the address.
+
+    It also gives `+ Yeni iş` back: landing on a bare `#/sohbet` with a run left in the
+    store now reads as "arrived", which is what `asked` below is asking.
+  */
+  const publishedRunId = useRef<string | null>(useRunStore.getState().run?.id ?? null);
   useEffect(() => {
     if (!run) return;
     if (run.id === routeRunId) {

@@ -115,6 +115,10 @@ it('a_signed_in_user_lands_on_the_ask_box_not_on_the_pitch', () => {
 });
 
 it('a_live_run_shows_agent_names_not_backend_role_ids', () => {
+  // Named in the address, because that is what "open this run" means (#149). A run sitting
+  // in the store under a BARE `#/sohbet` is the `+ Yeni iş` case and gets an empty box —
+  // this test is about how agents are named, not about which run is chosen.
+  window.location.hash = '#/sohbet/r-1';
   useRunStore.setState({
     ...IDLE,
     phase: 'ready',
@@ -226,4 +230,49 @@ it('the_conversation_keeps_the_whole_width_now_that_the_rail_is_not_a_column', a
   expect(container.querySelector('.workbench--railed')).toBeNull();
   expect(container.querySelector('.workbench')).not.toBeNull();
   expect(listRuns).not.toHaveBeenCalled();
+});
+
+/**
+ * Issue #149, reproduced live: start a flow from Sohbet, walk to Bugün, press "Jira kaydı
+ * aç" on a row — and land back in the flow you had open before, with the address bar
+ * reading the OLD run's id.
+ *
+ * <p>The two effects that keep the store and the hash in step are arbitrated by a ref, and
+ * a ref dies with the component. Bugün unmounts this screen, the store outlives it, so on
+ * the way back the ref was born null while the store still held the previous run — and a
+ * null ref cannot tell "the run changed under me" from "I have only just arrived". It read
+ * the difference as the first and published the old id with `replace`, so there was not
+ * even a Back to undo it.
+ *
+ * <p>What must hold: when the address names a run, the address leads.
+ */
+it('arriving_with_a_run_named_in_the_address_does_not_reopen_the_one_in_the_store', async () => {
+  // The previous session, still in the store exactly as leaving for Bugün leaves it.
+  useRunStore.setState({ ...IDLE, run: runWithId('onceki'), phase: 'ready' });
+  // The action on Bugün created a new run and pointed the address at it.
+  window.location.hash = '#/sohbet/yeni';
+
+  render(<ChatScreen />);
+
+  // The screen loads what the address asked for…
+  await waitFor(() => expect(getRun).toHaveBeenCalledWith('yeni'));
+  // …and, crucially, never rewrites the address back to the previous run.
+  await waitFor(() => expect(window.location.hash).toBe('#/sohbet/yeni'));
+  expect(window.location.hash).not.toContain('onceki');
+});
+
+/**
+ * The other half, and the reason the ref exists at all: a run created while this screen is
+ * open — `+ Yeni iş`, or Tekrar çalıştır — has published nothing, so it still has to write
+ * itself into the address.
+ */
+it('a_run_created_while_the_screen_is_open_still_writes_itself_into_the_address', async () => {
+  window.location.hash = '#/sohbet';
+  render(<ChatScreen />);
+
+  act(() => {
+    useRunStore.setState({ run: runWithId('yeni-akis'), phase: 'ready' });
+  });
+
+  await waitFor(() => expect(window.location.hash).toBe('#/sohbet/yeni-akis'));
 });
