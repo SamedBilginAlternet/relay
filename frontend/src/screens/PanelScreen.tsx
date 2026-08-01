@@ -1,8 +1,9 @@
-import { BarChart3, CircleSlash, MessageSquareX, RefreshCw, TriangleAlert, Wrench } from 'lucide-react';
+import { BarChart3, CircleSlash, MessageSquareX, RefreshCw, Wrench } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { EmptyState } from '../components/EmptyState';
+import { LoadError } from '../components/LoadError';
 import { getPanelSource } from '../data/PanelSource';
 import { formatDateTime, formatTokens, formatUsd } from '../lib/format';
 import { enterProps } from '../lib/motion';
@@ -69,7 +70,7 @@ export function PanelScreen() {
   const [range, setRange] = useState<PanelRange>({});
   const [report, setReport] = useState<PanelReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   const load = useCallback(async (next: PanelRange) => {
     setLoading(true);
@@ -77,7 +78,7 @@ export function PanelScreen() {
     try {
       setReport(await getPanelSource().report(next));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Panel yüklenemedi.');
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -190,12 +191,7 @@ export function PanelScreen() {
           </div>
         </div>
 
-        {error && (
-          <div className="notice notice--danger">
-            <TriangleAlert size={16} aria-hidden />
-            <span>{error}</span>
-          </div>
-        )}
+        {error != null && <LoadError error={error} onRetry={() => void load(range)} />}
 
         {loading && !report && (
           <div className="panel-skeletons">

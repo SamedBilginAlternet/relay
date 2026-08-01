@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { LoadError } from '../components/LoadError';
 import { defaultModeFor, getPolicySource } from '../data/PolicySource';
 import type { PolicyMode, RiskLevel, ToolPolicy } from '../data/PolicySource';
 
@@ -61,8 +62,8 @@ function providerRank(provider: string): number {
 export function PolicyScreen() {
   const [rows, setRows] = useState<ToolPolicy[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const [saveError, setSaveError] = useState<unknown>(null);
   const [busyTool, setBusyTool] = useState<string | null>(null);
   const [note, setNote] = useState('');
 
@@ -72,7 +73,7 @@ export function PolicyScreen() {
     try {
       setRows(await getPolicySource().list());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Politikalar yüklenemedi.');
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -92,7 +93,7 @@ export function PolicyScreen() {
       setRows(await getPolicySource().setMode(row.toolName, mode));
       setNote(`${row.toolName} artık: ${modeLabel(mode).toLocaleLowerCase('tr')}.`);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Politika kaydedilemedi.');
+      setSaveError(err);
     } finally {
       setBusyTool(null);
     }
@@ -149,18 +150,10 @@ export function PolicyScreen() {
           {loading ? 'Politikalar yükleniyor.' : note}
         </p>
 
-        {error && (
-          <div className="notice notice--danger" role="alert">
-            <TriangleAlert size={16} aria-hidden />
-            <span>{error}</span>
-          </div>
-        )}
+        {error != null && <LoadError error={error} onRetry={() => void load()} />}
 
-        {saveError && (
-          <div className="notice notice--danger" role="alert">
-            <TriangleAlert size={16} aria-hidden />
-            <span>{saveError}</span>
-          </div>
+        {saveError != null && (
+          <LoadError error={saveError} onRetry={() => void load()} retryLabel="Tabloyu yenile" />
         )}
 
         {loading && (

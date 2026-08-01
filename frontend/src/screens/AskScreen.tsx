@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { getAskSource, RUN_SOURCE_KIND } from '../data';
+import { describeLoadError, LoadError } from '../components/LoadError';
+import { getAskSource } from '../data';
 import { formatDateTime, formatTokens, formatUsd } from '../lib/format';
 import { enterProps } from '../lib/motion';
 import type { AskAnswer, AskSourceItem } from '../types/ask';
@@ -89,7 +90,7 @@ export function AskScreen() {
   const [asked, setAsked] = useState<string | null>(null);
   const [result, setResult] = useState<AskAnswer | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [active, setActive] = useState<number | null>(null);
   const sourceRefs = useRef<Map<number, HTMLLIElement>>(new Map());
   const reduce = useReducedMotion();
@@ -114,7 +115,7 @@ export function AskScreen() {
       setResult(await getAskSource().ask(trimmed));
     } catch (err) {
       setResult(null);
-      setError(err instanceof Error ? err.message : 'Soru yanıtlanamadı.');
+      setError(err);
     } finally {
       setBusy(false);
     }
@@ -122,8 +123,8 @@ export function AskScreen() {
 
   const liveMessage = busy
     ? 'Postan aranıyor.'
-    : error
-      ? error
+    : error != null
+      ? describeLoadError(error)
       : result
         ? result.status === 'ok'
           ? `Yanıt hazır. ${result.sources.length} kaynak.`
@@ -167,7 +168,7 @@ export function AskScreen() {
         </form>
 
         {/* Only before the first question: once there is an answer these are noise. */}
-        {!result && !busy && !error && (
+        {!result && !busy && error == null && (
           <p className="ask__examples">
             <span className="t-caption">Örnek:</span>
             {EXAMPLES.map((example) => (
@@ -190,28 +191,8 @@ export function AskScreen() {
           {liveMessage}
         </p>
 
-        {error && (
-          <div className="notice notice--danger" role="alert">
-            <TriangleAlert size={16} aria-hidden />
-            <div className="ask__error">
-              <span>{error}</span>
-              {RUN_SOURCE_KIND === 'api' && (
-                <span className="t-caption">
-                  Backend ayakta değilse <code className="t-mono">VITE_RUN_SOURCE=mock</code> ile
-                  demo verisiyle deneyebilirsin.
-                </span>
-              )}
-              {asked && (
-                <button
-                  type="button"
-                  className="btn btn--outline btn--sm"
-                  onClick={() => void submit(asked)}
-                >
-                  Tekrar dene
-                </button>
-              )}
-            </div>
-          </div>
+        {error != null && (
+          <LoadError error={error} onRetry={asked ? () => void submit(asked) : undefined} />
         )}
 
         {busy && (

@@ -1,6 +1,7 @@
-import { ArrowRight, History, RefreshCw, TriangleAlert } from 'lucide-react';
+import { ArrowRight, History, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState } from '../components/EmptyState';
+import { LoadError } from '../components/LoadError';
 import { StatusPill } from '../components/StatusPill';
 import { getRunSource } from '../data';
 import { formatRelative, formatTokens, formatUsd } from '../lib/format';
@@ -10,7 +11,7 @@ type Props = { onOpen: (runId: string) => void };
 
 export function HistoryScreen({ onOpen }: Props) {
   const [rows, setRows] = useState<RunSummary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -19,7 +20,7 @@ export function HistoryScreen({ onOpen }: Props) {
     try {
       setRows(await getRunSource().listRuns());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Geçmiş yüklenemedi.');
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -46,12 +47,7 @@ export function HistoryScreen({ onOpen }: Props) {
           </button>
         </div>
 
-        {error && (
-          <div className="notice notice--danger">
-            <TriangleAlert size={16} aria-hidden />
-            <span>{error}</span>
-          </div>
-        )}
+        {error != null && <LoadError error={error} onRetry={() => void load()} />}
 
         {loading && !rows && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

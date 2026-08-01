@@ -13,6 +13,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import { LoadError } from '../components/LoadError';
 import { API_BASE_URL, getRunSource } from '../data';
 import { formatRelative } from '../lib/format';
 import type { Connection, ConnectionTestResult, GoogleStatus, Provider } from '../types/api';
@@ -88,7 +89,7 @@ const PROVIDERS: {
 export function ConnectionsScreen() {
   const [connections, setConnections] = useState<Record<string, Connection>>({});
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<unknown>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,7 +100,7 @@ export function ConnectionsScreen() {
       for (const c of rows) map[c.provider] = c;
       setConnections(map);
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Bağlantılar yüklenemedi.');
+      setLoadError(err);
     } finally {
       setLoading(false);
     }
@@ -126,12 +127,7 @@ export function ConnectionsScreen() {
           </button>
         </div>
 
-        {loadError && (
-          <div className="notice notice--danger">
-            <TriangleAlert size={16} aria-hidden />
-            <span>{loadError}</span>
-          </div>
-        )}
+        {loadError != null && <LoadError error={loadError} onRetry={() => void load()} />}
 
         {loading && (
           <>
@@ -175,7 +171,7 @@ export function ConnectionsScreen() {
 function GoogleCard({ connection }: { connection: Connection | undefined }) {
   const [status, setStatus] = useState<GoogleStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
     let alive = true;
@@ -184,7 +180,7 @@ function GoogleCard({ connection }: { connection: Connection | undefined }) {
         const next = await getRunSource().getGoogleStatus();
         if (alive) setStatus(next);
       } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : 'Google durumu okunamadı.');
+        if (alive) setError(err);
       } finally {
         if (alive) setLoading(false);
       }
@@ -218,12 +214,7 @@ function GoogleCard({ connection }: { connection: Connection | undefined }) {
 
       {loading && <div className="skeleton" style={{ height: 56 }} />}
 
-      {!loading && error && (
-        <div className="notice notice--danger">
-          <TriangleAlert size={15} aria-hidden />
-          <span>{error}</span>
-        </div>
-      )}
+      {!loading && error != null && <LoadError error={error} />}
 
       {!loading && !error && status && !status.configured && (
         <div className="notice notice--warn">
@@ -271,7 +262,7 @@ function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: C
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<ConnectionTestResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   const save = async () => {
     setSaving(true);
@@ -282,7 +273,7 @@ function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: C
       setValues({});
       setResult(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kaydedilemedi.');
+      setError(err);
     } finally {
       setSaving(false);
     }
@@ -294,7 +285,7 @@ function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: C
     try {
       setResult(await getRunSource().testConnection(provider));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Test edilemedi.');
+      setError(err);
     } finally {
       setTesting(false);
     }
@@ -355,12 +346,7 @@ function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: C
         })}
       </div>
 
-      {error && (
-        <div className="notice notice--danger">
-          <TriangleAlert size={15} aria-hidden />
-          <span>{error}</span>
-        </div>
-      )}
+      {error != null && <LoadError error={error} />}
 
       <div className="card__actions">
         <button

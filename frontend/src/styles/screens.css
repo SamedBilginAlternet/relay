@@ -1,0 +1,33 @@
+/* ------------------------------------------------------------------ */
+/* Screen-level rules that global.css does not carry.                   */
+/*                                                                      */
+/* Tokens come from global.css — nothing here invents a colour, a       */
+/* radius or a shadow. Every rule below exists because a screen made a  */
+/* claim the shared stylesheet had no way to express.                   */
+/* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* Load error (issue #63)                                              */
+/*                                                                     */
+/* Every screen that reads from the API fails the same way, so it says  */
+/* so the same way: one sentence in Turkish and a way back. The raw     */
+/* exception text ("Failed to fetch") never reaches this block.         */
+/* ------------------------------------------------------------------ */
+
+.load-error {
+  align-items: center;
+}
+.load-error__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  flex-wrap: wrap;
+}
+.load-error__text {
+  flex: 1 1 240px;
+}
+.load-error__retry {
+  flex: 0 0 auto;
+}
