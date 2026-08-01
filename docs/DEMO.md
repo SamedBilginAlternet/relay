@@ -287,10 +287,22 @@ okuyabilen sistem. İzin akışı da aynı akşam boş ön koşulu üç gerekçe
 hiçbir şey yazmadan kapattı ($0,0012) — "boş gün" sorusunun canlı cevabı.
 
 Projektör/HDMI arızasında §4'ün önerdiği yedek: [`assets/relay-b2b-demo.mp4`](assets/relay-b2b-demo.mp4)
-— 45 saniye. Ortası donuk ekran görüntüsü değil, gerçek bir Sohbet koşusunun kaydı: hedef
-canlı yazılıyor, plan akıyor, onay kapısı gerçek parametrelerle açılıyor, Onayla'ya
-tıklanıyor ve Slack'e gerçek bir mesaj gidiyor. Altyazılar ürünün kendi Inter fontuyla,
-kendi kart/vurgu diliyle — jenerik altyazı kutusu değil. Kurgu [OpenCut](https://github.com/opencut-app/opencut-classic)
-(açık kaynak, ücretsiz) ile yapıldı: 9 sahne timeline'a sürüklenip export edildi.
-Slack/Notion tarafında mesajın gerçekten ulaştığını gösteren bir kesit yok —
-o kanıt canlı demoda ekrana alınmalı ya da ayrıca eklenmeli.
+— 50 saniye. Ortası donuk ekran görüntüsü değil, gerçek etkileşimlerin kaydı: hedef canlı
+yazılıyor, plan akıyor, sahte olmayan bir imleç onay kapısına tıklıyor (ripple animasyonlu).
+"Günün özeti" hazır akışı uçtan uca gerçek dört araçla (Jira, GitHub, Takvim, Slack)
+çalışıp "Tamamlandı" durumuna ulaşıyor; Akışlar ekranında ileri geri gezinilip geçmiş bir
+çalıştırmanın gerçekten Slack'e ulaştığı denetim izinden gösteriliyor. Altyazılar ürünün
+kendi Inter fontuyla, kendi kart dilinde — köşede, hep boş alanda, hiçbir zaman asıl
+içeriğin üstüne binmiyor. Kurgu yine [OpenCut](https://github.com/opencut-app/opencut-classic)
+(açık kaynak, ücretsiz) ile yapıldı: 8 sahne timeline'a sürüklendi, dört klipte Scale
+keyframe'leriyle hafif bir Ken Burns yakınlaşması eklendi, export OpenCut'ın kendi
+render pipeline'ından geçti.
+
+Dürüst not (video çekimi sırasında bulundu, videoda gösterilmiyor): canlı planlayıcıda
+Takvim/Tablo/Doküman/İK araçları Ekip ve Bağlantılar ekranlarında görünüyor ama serbest
+metin Sohbet isteklerinde şu an çağrılmıyor — koordinatör bunu "hedefte X anılıyor ama
+planda X adımı yok" diye kendi itiraf ediyor. Aynı araçlar hazır akışlarda (Günün özeti
+gibi) gerçekten çalışıyor — videodaki başarı anı oradan geliyor. Serbest istekle iki
+Slack-özet denemesi de yedek dil modelinin (GROQ fallback) içerik üretememesiyle
+başarısız oldu; videoya bu koşulardan değil, temiz tamamlanan Notion onayı ve Günün
+özeti akışından kesit alındı.
