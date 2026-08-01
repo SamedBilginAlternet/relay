@@ -431,13 +431,15 @@ public class ToolAgent {
 
     // ---- parameters -------------------------------------------------------
 
-    /** What one out-of-band parameter refresh cost. */
-    public record ParamRefresh(boolean ok, long tokens, double costUsd,
+    /**
+     * What one out-of-band parameter refresh cost, and whether it produced anything sendable.
+     *
+     * <p>{@code error} carries the sentence to show when it did not. It used to be a bare
+     * {@code ok} that every caller ignored: the coordinator has to be able to say <em>which</em>
+     * fields are missing, and a boolean cannot.
+     */
+    public record ParamRefresh(boolean ok, String error, long tokens, double costUsd,
                                Double premiumCostUsd, String model) {
-
-        public ParamRefresh(boolean ok, long tokens, double costUsd) {
-            this(ok, tokens, costUsd, null, null);
-        }
     }
 
     /**
@@ -450,7 +452,7 @@ public class ToolAgent {
     public ParamRefresh refreshParams(Run run, Step step) {
         Tool tool = tools.find(step.toolName()).orElse(null);
         if (tool == null) {
-            return new ParamRefresh(false, 0, 0);
+            return new ParamRefresh(false, "tanımsız araç: " + step.toolName(), 0, 0, null, null);
         }
         // The step is on its way back to the gate, so the human's earlier correction has had
         // its turn and lost — the provider refused it. Releasing the lock here lets the
@@ -461,8 +463,20 @@ public class ToolAgent {
         if (outcome.valid()) {
             step.params(Json.toMap(outcome.params()));
         }
-        return new ParamRefresh(outcome.valid(), outcome.tokens(), outcome.costUsd(),
-                outcome.premiumCostUsd(), outcome.model());
+        return new ParamRefresh(outcome.valid(), outcome.valid() ? null : incomplete(tool, outcome.error()),
+                outcome.tokens(), outcome.costUsd(), outcome.premiumCostUsd(), outcome.model());
+    }
+
+    /**
+     * A schema failure said to the person who would otherwise have been asked about it.
+     *
+     * <p>The validator's own words are kept — {@code $.projectKey is required} names the field,
+     * and that is the whole point of showing it — with a Turkish sentence around them saying
+     * what it means for the run.
+     */
+    private static String incomplete(Tool tool, String error) {
+        return tool.name() + " için parametreler eksik: " + error
+                + ". Bu hâliyle sağlayıcıya gönderilemez, onaya da sunulmadı.";
     }
 
     /**

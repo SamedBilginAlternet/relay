@@ -247,6 +247,19 @@ public class Coordinator {
                 costMeter.record(run, step, refresh.tokens(), refresh.costUsd(),
                         refresh.premiumCostUsd(), refresh.model());
 
+                // The refresh already knows whether what it produced satisfies the tool's own
+                // schema, and that verdict used to be read for its token counts and dropped.
+                // Live, a jira.createIssue draft with neither projectKey nor summary was parked
+                // in front of a person, approved by them, refused by the tool for exactly those
+                // missing fields, and then brought back to the same person unchanged. Approving
+                // parameters that cannot be sent is the one question this product asks, wasted.
+                if (!refresh.ok()) {
+                    if (rewriteBeforeAsking(run, step, refresh.error())) {
+                        continue;
+                    }
+                    return;
+                }
+
                 // And do not ask about something that cannot be sent. A raw
                 // {{steps[0].result.issues.length}} used to reach the screen and be approved:
                 // the call-time gate then refused it, so the human had spent their attention
@@ -426,6 +439,12 @@ public class Coordinator {
      * goes into {@code lastProviderError} so the next model turn is told what was wrong rather
      * than being asked the same question again.
      *
+     * <p>Two kinds of unfit arrive here. One is a draft that would be sent and should not be
+     * read — a template marker, a filler sentence. The other is a draft that could not be sent
+     * at all, because it does not satisfy the tool's schema. They get the same treatment for
+     * the same reason: the specialist often fixes it on the next turn, and when it does not,
+     * the step fails with the fields named instead of a person being asked twice.
+     *
      * @return {@code true} when the step was sent back and the loop should carry on,
      *         {@code false} when the tries are used up and the run has been failed
      */
@@ -434,7 +453,7 @@ public class Coordinator {
             step.markFailed(reason, clock.now());
             journal.say(run, step.id(), AgentRole.COORDINATOR, AgentRole.USER,
                     "Adım " + step.ordinal() + " onayına sunulamadı: " + reason
-                            + " Parametreler iki denemede de okunabilir hâle gelmedi.");
+                            + " Parametreler iki denemede de gönderilebilir hâle gelmedi.");
             publishStepFinished(run, step);
             finish(run, RunStatus.FAILED);
             return false;
