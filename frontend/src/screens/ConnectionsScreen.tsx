@@ -63,7 +63,7 @@ export const PROVIDERS: ProviderDef[] = [
     provider: 'google',
     title: 'Google',
     blurb:
-      'Gmail, Takvim, Sheets ve Docs. Günün özetini okur; taslak cevap, takip toplantısı, tablo satırı ve doküman onayınla yazılır.',
+      'Gününü Gmail ve Takvim’den okur. Yazacağı her şey — cevap taslağı, tablo satırı, toplantı — önce onayına gelir.',
     marks: ['gmail', 'calendar', 'docs', 'sheets'],
     console: { href: 'https://myaccount.google.com/permissions', label: 'Google hesap izinleri' },
     oauth: true,
@@ -95,7 +95,7 @@ export const PROVIDERS: ProviderDef[] = [
     provider: 'jira',
     title: 'Jira',
     blurb:
-      'Kayıt arama ve okuma, durum güncelleme, yorum ekleme; Confluence sayfası da aynı hesapla açılır. API token ile bağlanır.',
+      'Sprint’teki kayıtları bulur, durumlarını günceller ve yorum bırakır. Confluence sayfaları da bu bağlantıyla açılır.',
     marks: ['jira', 'confluence'],
     console: {
       href: 'https://id.atlassian.com/manage-profile/security/api-tokens',
@@ -124,7 +124,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     provider: 'github',
     title: 'GitHub',
-    blurb: 'Review bekleyen PR’lar, sana atanmış kayıtlar, yorum ekleme. Fine-grained token ile.',
+    blurb: 'Review sırası sende olan PR’ları ve sana atanan kayıtları izler; yorumu senin onayınla bırakır.',
     marks: ['github'],
     console: {
       href: 'https://github.com/settings/personal-access-tokens',
@@ -155,7 +155,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     provider: 'slack',
     title: 'Slack',
-    blurb: 'Kanala mesaj atma ve thread’e cevap verme. Bot token ile bağlanır.',
+    blurb: 'Ekibin haber beklediği kanala yazar, thread’de sorulanı cevaplar.',
     marks: ['slack'],
     console: { href: 'https://api.slack.com/apps', label: 'Slack uygulama ayarları' },
     fields: [
