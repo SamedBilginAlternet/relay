@@ -14,53 +14,84 @@ Bu cümle açılışta bir kez, kapanışta bir kez geçer. Başka hiçbir yerde
 
 ---
 
-## 0.5. v2 açılışı — Bugün ekranı
-
-> **Durum:** Bugün ekranı (`BRIEF.md`) canlıya alınıyor. Aşağıdaki ilk 30 saniye, §1'in
-> 0:00–0:30 aralığının **yerine** geçer; gerisi (onay kapısı, red gerekçesi, Slack, denetim izi)
-> aynen kalır. §1'in saniye tablosu ekran canlıda QA'dan geçtikten sonra yeniden zamanlanacak.
-
-Neden değişiyor: boş bir sohbet kutusuyla açılmak "peki ne yazacağım" sorusunu jüriye de sordurur.
-Bugün ekranı ürünün iddiasını ilk saniyede gösterir — **sistem işi getiriyor, kullanıcı "yap" diyor.**
-
-> **Demo öncesi:** giriş yapılmış ve tanıtım turu bitirilmiş olsun. Uygulama artık oturum ister (`#/giris`); oturum çerezi 30 gün yaşar, ama sahneye çıkmadan bir kez `#/` açıp Bugün ekranının geldiğini gör. Turu tekrar göstermek istersen sağ üstteki hesap menüsünden "Tanıtım turunu tekrar aç".
-
-| Zaman | Sen ne yapıyorsun | Ekranda ne oluyor |
-|---|---|---|
-| **0:00–0:12** | Açılış cümlesinin ilk yarısı. Hiçbir şeye dokunma. | Uygulama **Bugün** ekranında açık: üstte ÖNCELİKLİ kartları, altta Gelen kutusu · Üstümdeki işler · Kod · Takvim. |
-| **0:12–0:22** | *"Bunları ben yazmadım — Relay sabah bunları topladı ve okudu."* Bir insight kartını göster. | Kart: gelen mail + **"Bu bir hata bildirimi gibi görünüyor"** + eylem pilleri: `Jira ticket aç` · `Slack'e bildir` · `Yoksay`. |
-| **0:22–0:30** | *"Ve öneri, eylem değil. Ben basmadan hiçbir şey çalışmıyor."* **Jira ticket aç**'a bas. | Akış başlar; ekran §1'deki plan görünümüne geçer — aynı plan, aynı onay kapısı. |
-
-Bu üç satırın tek işi, §1'in **1:05'teki onay anına** kullanıcıyı 30 saniye erken getirmek.
-Kartların içeriği anlatılmaz, gösterilir; okumaya kalkarsan zaman gider.
-
-**Sigorta:** Bir entegrasyon (Gmail/GitHub) o an cevap vermezse ekran boşalmaz — o kutu
-"bağla" haline döner, diğer bölümler gelir. Jüri sorarsa: *"Kısmi başarı döndürüyoruz;
-tek bir sağlayıcı düşünce brifing çökmüyor."* Hiçbiri gelmezse `TOOLS_MODE=replay` ile aç (§4).
-
----
-
 ## 1. Üç dakikalık demo akışı — saniye saniye
 
-**Sahne kurulumu (demo başlamadan):** Tarayıcıda Relay Sohbet ekranı açık, konuşma boş, sağdaki akış paneli boş. İkinci sekmede Slack `#genel` kanalı açık (samedco workspace). Üçüncü sekmede Jira KAN panosu açık. Zoom %110, tam ekran (F11). Demo hedef cümlesi panoya kopyalanmış durumda (yazarken heyecandan yazım hatası yapmamak için — ama mümkünse canlı yaz, daha samimi durur).
+> **Bu tablo son 24 saatte baştan yazıldı.** Ürün değişti: `Bugün` ekranı bir eylem akışına
+> döndü, hazır akış rafı geldi, `Postana sor` üst bardan çıktı, `Panel` ve `Politikalar`
+> ekranları eklendi, onayla-ve-düzelt canlıya girdi. Aşağıdaki her satır **1 Ağustos'taki
+> ekranla** karşılaştırıldı. Olmayan bir şeyi tarif eden satır bir tuzaktır; bulursan
+> senaryoyu değil, satırı düzelt.
+
+### Sahne kurulumu (demo başlamadan)
+
+- **Sekme 1 — Relay**, `#/` (Bugün) açık, giriş yapılmış, tanıtım turu bitmiş. Oturum çerezi
+  30 gün yaşıyor ama sahneye çıkmadan bir kez aç ve ekranın **dolu** geldiğini gör.
+- **Sekme 2 — Slack**, bağlantıdaki varsayılan kanal açık (`#all-samed`, samedco).
+- **Sekme 3 — Jira**, KAN panosu açık.
+- **Sekme 4 — yedek frontend**, `VITE_RUN_SOURCE=mock` ile açılmış ve çalıştığı görülmüş.
+- Başka sekme **yok**. Zoom %110, tam ekran (F11), bildirimler kapalı.
+- Hedef cümlesi panoda: *"Bugünkü maillerime bak, iş talebi gibi görünenleri KAN panosuna
+  kayıt olarak aç ve ilgili kanaldan ekibe haber ver."*
+  (Sohbet ekranı boşken bu cümle zaten **ilk örnek** olarak duruyor — tıklaman yeter.
+  `Landing.tsx` → `SUGGESTIONS[0]`. Panodaki kopya sigorta.)
+
+**Neden Bugün'de açılıyoruz:** boş bir sohbet kutusuyla açılmak "peki ne yazacağım" sorusunu
+jüriye de sordurur. `Bugün` ekranı ürünün iddiasını ilk saniyede gösterir — **sistem işi
+getiriyor, kullanıcı "yap" diyor.**
+
+**Neden akışı Bugün'deki karttan değil, cümleden başlatıyoruz:** karttaki eylem düğmesi
+`POST /api/runs/from-suggestion` çağırıyor ve o uç **planlayıcıyı atlayıp tek adım
+tohumluyor** (`RunService.startFromSuggestion`). Yani karttan başlatılan akışta numaralı bir
+plan yok — demonun 0:42'deki "plan cümleden çıktı" anı da yok. Kart yolu ürünün en hızlı
+yolu ama sahnede en zayıfı; **gösterilir, basılmaz.**
+
+### Saniye tablosu
 
 | Zaman | Sen ne yapıyorsun / söylüyorsun | Ekranda ne oluyor | Jüri neye bakmalı |
 |---|---|---|---|
-| **0:00–0:15** | Açılış cümlesi (bkz. §2). Ekranda boş sohbet. | Beyaz, sade Sohbet ekranı. Sol konuşma, sağ boş akış paneli. | Ürünün "boş hali" bile temiz — güven veriyor. |
-| **0:15–0:30** | *"Bugün her PM'in yaşadığı bir işi vereceğim."* Sohbet kutusuna yaz: **"Jira'daki blocker etiketli işleri bul, durumlarını güncelle, ekibe Slack'ten özet at."** → **Gönder**'e bas. | Kullanıcı balonu (mor `--accent-soft`) belirir. Sağ panelde "Planlanıyor…" durumu. | Kurulum yok, form yok, node bağlamak yok. Sadece cümle. |
-| **0:30–0:45** | *"Relay bu cümleden numaralı bir iş akışı çıkardı — hangi ajan, hangi araç, hangi parametre."* Parmağınla (imleçle) plan adımlarını yukarıdan aşağı gez. | Plan 5 sn içinde oluşur: numaralı adımlar, her satırda rol + araç adı (mono: `jira.searchIssues`, `jira.updateIssue`, `slack.postMessage`) + OKUMA/YAZMA rozeti. | **Şeffaflık #1:** daha hiçbir şey çalışmadan tüm plan parametre önizlemesiyle ortada. |
-| **0:45–1:05** | *"Okuma adımları güvenli — otomatik akıyor."* Hiçbir şeye basma; sadece akan olayları anlat. 1. adıma tıkla, parametre/sonuç JSON'unu 2 sn göster, kapat. | `jira.searchIssues` kendiliğinden koşar. Zaman çizelgesinde ajan mesajı: **Koordinatör → Jira Uzmanı:** "Blocker etiketli açık işleri getir." Sonuç: KAN projesinden gerçek ticket'lar. Üstteki maliyet şeridinde token + USD saymaya başlar. | **Ekip çalışıyor:** kim kime ne dedi, satır satır. Ve maliyet şeridi — her adımın token ve dolar karşılığı canlı. |
-| **1:05–1:25** | Ses tonunu düşür, yavaşla: *"Ve işte fark burada. Sıradaki adım Jira'ya **yazacak**. Relay yazma adımını onaysız ÇALIŞTIRMAZ. Durdu, bana soruyor."* | `jira.updateIssue` adımı **amber** renge döner, satırda **Onayla** / **Reddet** pilleri belirir. Parametreler açıkta: hangi ticket, hangi yeni durum. | **FARKLILAŞTIRICI AN.** Jüri şunu görmeli: sistem güçlü ama zincirli. Yazma adımı onaysız çalışmaz — bu cümleyi aynen söyle. |
-| **1:25–1:45** | *"Katılmıyorum diyelim — ama iptal etmeyeceğim, düzelteceğim."* Kanal alanını ekranda değiştir: `#all-samed` → `#dev-sprint`. Sonra **Düzelt ve onayla**'ya bas. | Alan düzenlenebilir; değiştirdiğin an buton "Düzelt ve onayla"ya döner. İz kaydına düşer: **Parametre kullanıcı tarafından düzenlendi (sen) — channel: "#all-samed" → "#dev-sprint"**. Adım düzeltilmiş değerle koşar. | **Gönderilen değer, senin gördüğün değer.** Kapı ikili değil: "olmasın" ile "şöyle olsun" arasında fark var. Düzenleme de iz kaydında, kim yaptığıyla birlikte. |
-| **1:45–2:05** | *"Bir de reddetmek var — o zaman adım hiç çalışmıyor."* Sıradaki yazma adımında **Reddet**'e bas, gerekçe: **"KAN-3 bilerek açık kalacak."** Jira sekmesine geç, az önce düzeltilmiş adımın sonucunu panoda göster, dön. | Adım kırmızı "reddedildi" olur ve **orada biter** — gerekçe iz kaydına, ajana giden mesaja düşer. Jira panosunda önceki adımın değişikliği gerçekten duruyor. | **Bu mock değil** — gerçek Jira. Ve red, adımı bitiren bir karar: sistem onu "yeniden dene" diye yorumlamıyor. (Replay modundaysan sekme geçişini ATLA, bkz. §4.) |
-| **2:05–2:25** | *"Son adım: ekibe özet. Bu da bir yazma — yine soruyor."* Mesaj önizlemesini yüksek sesle yarım cümle oku, **Onayla**'ya bas. Slack sekmesine geç, gelen mesajı göster, geri dön. | `slack.postMessage` onay kapısında bekler; onayla birlikte koşar. Slack `#genel` kanalına "relay" botundan özet düşer: güncellenen ticket'lar + linkler. | Araçlar **arası** iş bitti: Jira'dan okudu, Jira'ya yazdı, Slack'e raporladı — tek cümleden. |
-| **2:25–2:40** | *"Teslimden önce bir ajan daha var: Doğrulayıcı."* İmleçle Doğrulayıcı mesajını göster. | **Doğrulayıcı → Koordinatör:** "Hedef karşılandı: N iş güncellendi, özet gönderildi." Akış `tamamlandı` olur. Maliyet şeridinde toplam: **~X.XXX token · $0.0X**. | İşi yapan da denetleyen de ayrı ajan. Ve toplam maliyet kuruşu kuruşuna ekranda. |
-| **2:40–3:00** | **Geçmiş** sekmesine tıkla, biten akışı aç. *"Her şey burada: her araç çağrısı, parametresi, süresi, reddim ve gerekçem dahil. Denetlenebilir iş."* Kapanış cümlesi (bkz. §2). | Denetim izi: adımlar, kararlar (`otomatik`/`onaylandı`/`reddedildi` + gerekçe), token/USD kırılımı, ajan mesajları. | Kara kutu yok. Yarın müdürün "kim, neyi, neden değiştirdi" derse cevap bir tık uzakta. |
+| **0:00–0:18** | Açılış konuşmasının ilk yarısı (§2). Hiçbir şeye dokunma. | **Bugün** ekranı: başlık `Bugün · <gün ay>`, altında günün sayımı (*"Bugün 7 iş seni bekliyor, 1 tanesi acil · 1 toplantı."*) ve günün özeti. Ortada **`Yapılacak işler`** listesi: her satırda kaynak rozeti (`E-posta` / `Jira` / `GitHub`), acil olanlarda `Acil` çipi, başlık, "neden şimdi" satırı ve **tek bir eylem düğmesi**. En altta `Hazır akışlar` rafı. | Ürün açılır açılmaz dolu. Kurulum ekranı yok, boş kutu yok. |
+| **0:18–0:32** | *"Bunları ben yazmadım — Relay sabah dört aracı okudu ve günü buraya çıkardı."* İmleçle bir satırı göster; düğmesini oku, **BASMA**. Sonra: *"Ve bunlar öneri, eylem değil — ben basmadan hiçbir şey çalışmıyor."* | Satırın düğmesinde işin adı yazıyor: ör. `Jira kaydı aç`, `Engeli ekibe taşı`, `Taslak cevap yaz`. Ekranın kendi satırı da bunu söylüyor: *"Öneriye basmadan hiçbir şey çalışmaz."* | **Sistem işi getiriyor.** Ve getirdiği şey bir buton, bir otomasyon değil. |
+| **0:32–0:42** | *"Ama bugün size listeden değil, sıfırdan bir iş vereceğim."* Üst bardan **Sohbet**'e geç, duran ilk örnek cümleye bas (ya da panodan yapıştır) → **Gönder**. | Sohbet ekranı ikiye bölünür: **solda konuşma** (senin cümlen mor balonda), **sağda akış paneli** — üstte maliyet şeridi (`TOKEN` · `TAHMİNİ ÜCRET` · `BÜTÇE $0.50`), altında `Akış` durumu. | Kurulum yok, form yok, node bağlamak yok. Sadece bir cümle. |
+| **0:42–0:57** | *"Relay bu cümleden numaralı bir iş akışı çıkardı — hangi ajan, hangi araç, hangi parametre."* İmleçle plan adımlarını yukarıdan aşağı gez. | Plan ~5 sn'de gelir: numaralı adımlar, her satırda araç adı (mono: `gmail.listToday`, `jira.createIssue`, `slack.postMessage`) ve **OKUMA/YAZMA** rozeti. | **Şeffaflık #1:** hiçbir şey çalışmadan önce tüm plan ortada. Ve plan **şimdi** çıktı — tasarım zamanında değil. |
+| **0:57–1:12** | *"Okuma adımları güvenli — otomatik akıyor."* Hiçbir şeye basma. 1. adıma tıkla, parametre/sonuç bloğunu 2 sn göster, kapat. | `gmail.listToday` kendiliğinden koşar. Sol sütunda ajanlar arası satırlar akar (`coordinator → gmail-agent` gibi). Maliyet şeridi token ve USD saymaya başlar. | **Ekip çalışıyor:** kim kime ne dedi, satır satır. Ve her adımın parası ekranda. |
+| **1:12–1:30** | Ses tonunu düşür, yavaşla: *"Ve fark burada. Sıradaki adım Jira'ya **yazacak**. Relay yazma adımını onaysız ÇALIŞTIRMAZ. Durdu, bana soruyor."* | `jira.createIssue` adımı bekleme rengine döner; satırda **Onayla** / **Reddet** düğmeleri ve şu not: *"Yazma adımı — çalışması için onayın gerekiyor."* Parametreler açık ve **düzenlenebilir alanlar** hâlinde: `projectKey`, `summary`, `description`. | **FARKLILAŞTIRICI AN.** Sistem güçlü ama zincirli. Bu cümleyi aynen söyle: *yazma adımı onaysız çalışmaz.* |
+| **1:30–1:52** | *"Katılmıyorum diyelim — ama iptal etmeyeceğim, düzelteceğim."* `summary` alanını ekranda değiştir (ör. *"Yeni iş talebi"* → *"Ödeme hatası: sipariş tamamlanmıyor"*). Sonra **Düzelt ve onayla**'ya bas. | Alanı değiştirdiğin an düğme **`Düzelt ve onayla`**'ya döner ve altta uyarı çıkar: *"Değiştirdiğin değer olduğu gibi gönderilir — iz kaydına eski ve yeni hâliyle düşer."* Sol sütunda satır belirir: **Parametre kullanıcı tarafından düzenlendi (sen) — summary: "…" → "…"**. Adım düzeltilmiş değerle koşar. | **Gönderilen değer, senin gördüğün değer.** Kapı ikili değil: "olmasın" ile "şöyle olsun" arasında fark var — ve fark iz kaydında, kim yaptığıyla birlikte. |
+| **1:52–2:12** | Jira sekmesine geç, az açılan kaydı panoda göster, dön. *"Bu mock değil."* | KAN panosunda kayıt gerçekten duruyor, senin yazdığın başlıkla. | **Gerçek Jira.** Sekmede 8 saniyeden fazla kalma. |
+| **2:12–2:32** | *"Son adım ekibe haber vermek. Bu da bir yazma — yine soruyor. Ve bu kez reddedeceğim."* Mesaj önizlemesini yarım cümle oku, **Reddet**'e bas, gerekçe: **"Kanal yanlış, bunu müşteri ekibi görmemeli."** | `slack.postMessage` onay kapısında bekliyordu; **Reddet**'e basınca gerekçe kutusu açılır (*"Neden reddediyorsun? (ajana geri gider)"*), `Gönder` ile adım kırmızı **reddedildi** olur ve **orada biter**. Sol sütunda: *Reddedildi (sen): Kanal yanlış…* | **Red kesin bir karar.** Sistem onu "yeniden dene" diye yorumlamıyor — ve bu bilinçli (bkz. §3, "revizyon" sorusu). |
+| **2:32–2:45** | *"İki yazma adımı, iki farklı cevap: birini düzelttim, birini durdurdum. İkisi de kayıtta."* Maliyet şeridini göster. | Akış kapanır. Maliyet şeridinde toplam: **~X.XXX token · $0.0X**, `%N kullanıldı`. | Kapı ikili değil üçlü: onayla · düzelt ve onayla · reddet. Ve toplam maliyet kuruşu kuruşuna ekranda. |
+| **2:45–3:00** | **Geçmiş** sekmesine tıkla, biten akışı aç. *"Her şey burada: her araç çağrısı, parametresi, süresi, düzeltmem ve reddim gerekçesiyle. Denetlenebilir iş."* Kapanış cümlesi (§2). | `Geçmiş` → akış → `Denetim izi · <tarih>`. Adımı aç: `Durum`, `Karar: kullanıcı onayladı` / `kullanıcı reddetti` / `otomatik (politika: auto)`, `Parametreler`, `Sonuç`, `Reddetme gerekçesi`, token/USD. Solda kimin karar verdiği yazılı. | Kara kutu yok. "Kim, neyi, neden değiştirdi" bir tık uzakta. |
 
-**Zamanlama kuralları:**
-- 1:05'teki onay anı demonun kalbi — orada **acele etme**, gerekirse başka yerden kıs.
-- Plan 5 sn'de gelmezse doldurma cümlen hazır: *"Groq'ta Llama koşuyor — normalde bu iki saniye."* 10 sn'yi geçerse §4'teki B planına geç, özür dileme, akıcı devam et.
-- Sekme geçişleri (Jira, Slack) toplam 8 saniyeyi geçmesin; oralarda konuşma, göster ve dön.
+### Bu tabloda bilerek OLMAYAN şeyler
+
+Eskiden buradaydılar; ekranda karşılıkları olmadığı için çıkarıldılar:
+
+- **"Doğrulayıcı → Koordinatör" satırını gösterme.** Doğrulayıcı gerçekten çalışıyor ve
+  mesajını yazıyor (*"Adım N doğrulandı: …"*), ama arayüz ajan adlarını **çevirmiyor**:
+  canlı modda ekranda `verifier → coordinator`, `coordinator → jira-agent` yazıyor. Türkçe
+  roller yalnız mock modda var (`mockScript.ts`). Doğrulayıcıdan **söz et**, satırı işaret
+  etme; jüri ekrandaki İngilizce id'yi okur ve soru sorar.
+- **Kanal alanını düzenleme.** Eski betik `#all-samed` → `#dev-sprint` diyordu. `paramsLocked`
+  sayesinde senin yazdığın kanal aynen gider — **var olmayan bir kanala da gider** ve Slack
+  `channel_not_found` döndürür; adım hata verir, sahnede toparlanmaz. Düzeltme sahnesi bu
+  yüzden `summary` alanına taşındı. Kanalı değiştireceksen §5 madde 5'teki **ikinci gerçek
+  kanal** kurulu olmalı.
+- **`Postana sor` ekranı.** Üst bardan çıktı (karar #59), hesap menüsünde. Demoda açılmaz.
+- **`Panel` ve `Politikalar` sekmeleri.** Üç dakikaya sığmıyorlar ve soru-cevapta daha
+  değerliler: politika sorusu gelirse `#/politikalar`, ölçüm sorusu gelirse `#/panel` açılır
+  (§3). Demoda tıklanmaz.
+- **"Akışı durdur".** Var, ama yalnız `Geçmiş` → akış detayında (`Durdur`). Sohbet ekranında
+  iptal düğmesi **yok**; "istersem durdururum" deyip Sohbet ekranını gösterme.
+
+### Zamanlama kuralları
+
+- 1:12'deki onay anı demonun kalbi — orada **acele etme**, gerekirse 1:52'deki Jira
+  sekmesinden kıs.
+- Plan 5 sn'de gelmezse doldurma cümlen hazır: *"Groq'ta Llama koşuyor — normalde bu iki
+  saniye."* 10 sn'yi geçerse §4'teki B planına geç, özür dileme.
+- Sekme geçişleri (Jira, Slack) toplam 8 saniyeyi geçmesin; orada konuşma, göster ve dön.
+- **Sigorta:** bir entegrasyon (Gmail/GitHub) cevap vermezse `Bugün` ekranı boşalmaz — o
+  bölüm "bağla" kartına döner, diğerleri gelir. Jüri sorarsa: *"Kısmi başarı döndürüyoruz;
+  tek bir sağlayıcı düşünce brifing çökmüyor."* Hiçbiri gelmezse `TOOLS_MODE=replay` (§4).
 
 ---
 
@@ -68,13 +99,13 @@ tek bir sağlayıcı düşünce brifing çökmüyor."* Hiçbiri gelmezse `TOOLS_
 
 ### Açılış — kelimesi kelimesine
 
-> "Bir beyaz yakalının günü tek bir işten değil, araçlar arası koşuşturmadan oluşuyor: Jira'dan çıkar, Jira'da güncelle, Slack'te raporla. Dört araç, on beş tıklama, yirmi dakika — her gün. Sohbet asistanları metin üretiyor ama hiçbir şey *yapmıyor*; otomasyon araçları yapıyor ama önce saatlerce kurman gerekiyor. Relay üçüncü yol: işini bir cümleyle anlatıyorsun, Relay uzman ajanlardan bir ekip kuruyor — gün içinde çıkan işi araçların içinde yürüten bir ajan ekibi, ve hiçbir yazma adımını sana sormadan yapmaz. **Otomasyon kurmuyorsun, iş veriyorsun — ve ne yaptığını satır satır görüyorsun.** Gösterelim."
+> "Bir ekibi yürüten kişinin günü tek bir işten değil, araçlar arası koşuşturmadan oluşuyor: mailden çıkar, Jira'ya gir, Slack'te raporla. Dört araç, on beş tıklama, yirmi dakika — her gün. Sohbet asistanları metin üretiyor ama hiçbir şey *yapmıyor*; otomasyon araçları yapıyor ama önce saatlerce kurman gerekiyor. Relay üçüncü yol: işini bir cümleyle anlatıyorsun, Relay uzman ajanlardan bir ekip kuruyor — gün içinde çıkan işi araçların içinde yürüten bir ajan ekibi, ve hiçbir yazma adımını sana sormadan yapmaz. **Otomasyon kurmuyorsun, iş veriyorsun — ve ne yaptığını satır satır görüyorsun.** Gösterelim."
 
 (≈30 sn. "Gösterelim" dediğin an yazmaya başla — boşluk bırakma.)
 
 ### Kapanış — kelimesi kelimesine
 
-> "Üç dakikada: bir cümle verdim, bir ekip kuruldu, Jira güncellendi, ekip haberdar edildi — ve her adım, reddim dahil, denetim izinde. **Otomasyon kurmuyorsun, iş veriyorsun — ve ne yaptığını satır satır görüyorsun.** Biz Relay'iz. Teşekkürler."
+> "Üç dakikada: bir cümle verdim, bir ekip kuruldu, Jira'da kayıt açıldı — başlığını ben düzelttim, ekibe gidecek mesajı ise durdurdum. İkisi de gerekçesiyle denetim izinde. **Otomasyon kurmuyorsun, iş veriyorsun — ve ne yaptığını satır satır görüyorsun.** Biz Relay'iz. Teşekkürler."
 
 ---
 
@@ -134,7 +165,15 @@ döndürüyor (#53). Ayrı bir değerlendirme ortamı isteniyorsa `deploy/DEPLOY
 > Kendi backend'imizde — Java 21 + Spring Boot, hazır ajan framework'ü yok. Döngü dört rol: **Planner** hedefi adımlara çevirir, **Koordinatör** her adımı ilgili araç uzmanına devreder ve politikayı uygular, **ToolAgent** parametreleri kesinleştirip aracı çağırır, **Verifier** sonucu hedefe karşı denetler. Her geçiş bir olay üretir ve SSE ile arayüze akar — o yüzden her şeyi canlı gördünüz.
 
 **"İnternet ya da hesaplarınız ölürse?"**
-> Çift sigorta. Birinci kademe: `TOOLS_MODE=replay` — araç çağrıları kayıtlı gerçek yanıtlarla oynar, ağ gerekmez; onay kapısı ve akış birebir aynı çalışır. İkinci kademe: frontend mock modu — backend bile ölse arayüz senaryoyu uçtan uca oynatır. Groq tarafında da çoklu anahtar rotasyonu var; hepsi tükenirse deterministik stub'a düşer ve arayüz bunu açıkça söyler. Demo hiçbir tekil noktaya bağlı değil.
+> Çift sigorta. Birinci kademe: `TOOLS_MODE=replay` — araç çağrıları kayıtlı gerçek yanıtlarla oynar, ağ gerekmez; onay kapısı ve akış birebir aynı çalışır. İkinci kademe: frontend mock modu — backend bile ölse arayüz senaryoyu uçtan uca oynatır. Groq tarafında da çoklu anahtar rotasyonu var; hepsi tükenirse deterministik stub'a düşer — akış koşmaya devam eder, yalnız günün özeti ve öneri cümleleri kabalaşır. Demo hiçbir tekil noktaya bağlı değil.
+
+> **Bu cevapta bir zamanlar fazlası vardı:** *"…ve arayüz bunu açıkça söyler."* Söylemiyor.
+> `degraded` bilgisi `/api/health/details` ve brief yanıtında var ama **hiçbir ekranda
+> gösterilmiyor** — "sınırlı mod rozeti" diye bir şey yok. Olmayan bir rozeti göstermeyi
+> vaat etme.
+
+**"Reddettiğinizde ajan adımı düzeltip tekrar sormuyor mu?"**
+> Hayır, ve bu bilinçli. Red bizde **kesin** bir karar: adım orada biter, gerekçe iz kaydına ve sonraki adımların bağlamına girer. "Şöyle olsun" demek isteyen kullanıcı reddetmiyor zaten — alanı ekranda düzeltip onaylıyor, az önce gördünüz. Reddi bir revizyon döngüsüne çevirmek "hiç yapma" demenin yolunu kapatırdı; kararın gerekçesi `SIRADAKI-FIKIRLER.md` §4.5'te yazılı.
 
 ### Panel ekranından okunan sorular
 
@@ -167,20 +206,20 @@ Rakamı sahiplen; ölçtüğün bir sayıyı reddetmek, ölçüm iddiasını da 
 
 ### ALTIN KURAL
 
-> **Asla canlı yazma adımını onaysız gösterme.** Politikayı demo öncesi kontrol et: `jira.updateIssue`, `jira.addComment`, `slack.postMessage` → **onay iste**. Biri `otomatik`e alınmışsa demoya başlama, önce düzelt. Onay kapısı ürünün tezi; kapısız bir yazma adımı tezle çelişir ve tek karede tüm hikâyeyi çökertir.
+> **Asla canlı yazma adımını onaysız gösterme.** Demo öncesi `#/politikalar` ekranını aç ve **altı yazma aracının altısında da** `Onay ister` yazdığını gör: `jira.createIssue`, `jira.updateIssue`, `jira.addComment`, `slack.postMessage`, `github.addComment`, `gmail.createDraft`. Biri `Otomatik`e alınmışsa demoya başlama, önce düzelt — ekran bunu "N araç varsayılanından farklı çalışıyor" satırıyla zaten söylüyor. Onay kapısı ürünün tezi; kapısız bir yazma adımı tezle çelişir ve tek karede tüm hikâyeyi çökertir.
 
 ### Risk matrisi
 
 | Risk | Nasıl anlarsın | Anında yapılacak | Söylenecek cümle |
 |---|---|---|---|
 | **Salon ağı ölür / Wi-Fi yok** | Plan gelmiyor, araç çağrıları timeout | Yedek terminalde backend'i `TOOLS_MODE=replay` ile yeniden başlat (hazır komut, bkz. §5 madde 12). Telefon hotspot'u yalnızca Groq için yeter. | *"Kayıt modundan devam ediyorum — akış, onay kapısı, her şey birebir aynı; yalnızca araç yanıtları önceden kaydedilmiş gerçek yanıtlar."* |
-| **Groq anahtarları tükenir (429)** | Plan gecikir; rotasyon otomatik devreye girer | Hiçbir şey — rotasyon sıradaki anahtara kendisi geçer. Tüm anahtarlar biterse stub'a düşer ve arayüzde **görünür "sınırlı mod" rozeti** çıkar. | Rozeti sakla(ma)! Göster: *"Bakın, sistem degradasyonu bile şeffaf — Relay hiçbir şeyi gizlemez, kendi arızasını bile."* |
+| **Groq anahtarları tükenir (429)** | Plan gecikir; rotasyon otomatik devreye girer | Hiçbir şey — rotasyon sıradaki anahtara kendisi geçer. Tüm anahtarlar biterse stub'a düşer: akış koşmaya devam eder, günün özeti ve öneri cümleleri kabalaşır. **Arayüzde bunu söyleyen bir rozet YOK** — fark ederse sen söyle. | *"Model kotası doldu, deterministik yedeğe düştük — akış ve onay kapısı aynı çalışıyor, yalnız cümleler artık modelden gelmiyor."* |
 | **Jira/Slack auth patlar** (token iptal, rate limit) | Bağlantı testi kırmızı / araç adımı hata | Replay moduna geç (ağ ölümüyle aynı prosedür). Jira/Slack sekme geçişlerini demodan çıkar. | Aynı replay cümlesi. Sekmeleri özleme — kimse yokluğunu fark etmez. |
 | **Backend tümden çöker** | SSE kopuk, sayfa boş | Son çare: `VITE_RUN_SOURCE=mock` ile açılmış yedek frontend sekmesine geç (önceden açık ve test edilmiş duracak). | Mock olduğunu **söyle**: *"Bu kayıttan oynayan arayüz — canlısını sunum sonrası masamda gösteririm."* Dürüstlük puan kaybettirmez, yakalanmak kaybettirir. |
 | **Projektör/HDMI arızası** | Görüntü yok | 1) Yedek USB-C→HDMI adaptörü. 2) Çözünürlüğü 1920×1080'e sabitle (yansıtma modunda kayan çözünürlük ekranı bozar). 3) Hiçbiri olmazsa telefondaki demo videosu jüriye elden. | *"Ekranı toparlarken ürünü anlatayım…"* — açılış konuşması ekransız da ayakta durur. |
-| **Onay anında yanlış tıklama** (Reddet yerine Onayla vb.) | Adım beklenmedik ilerler | Panikleme. Akış zaten doğru şeyi yapıyor; red anını Slack adımında telafi et (o da yazma — onay kapısı orada da var). | *"Onayladım — reddi bir sonraki yazma adımında göstereyim."* |
-| **KAN'da blocker ticket kalmamış** (önceki prova tüketmiş) | `searchIssues` boş döner | Demo ÖNCESİ sıfırlama scripti bunu engeller (bkz. §5 madde 4). Sahnede yakalanırsan replay'e geç. | — |
-| **Slack mesajı yanlış kanala düşer** | `#genel`'de mesaj yok | Parametre önizlemesi onay kapısında zaten görünüyor — onaylamadan önce kanalı GÖZÜNLE kontrol et. Bu, kapının değerini bir kez daha kanıtlar. | *"Onaylamadan önce kanala baktım — kapı tam bunun için var."* |
+| **Onay anında yanlış tıklama** (Reddet yerine Onayla vb.) | Adım beklenmedik ilerler | Panikleme. Akış zaten doğru şeyi yapıyor. Demoda iki yazma adımı var: birini kaçırdıysan diğerinde telafi et. Akışı tümden durdurmak istersen tek yol `Geçmiş` → akış → **Durdur**; Sohbet ekranında iptal düğmesi yok. | *"Onayladım — reddi bir sonraki yazma adımında göstereyim."* |
+| **`Bugün` ekranı boş açılır** (Jira kayıtları sana atanmamış, mail eski) | Açılışta `Yapılacak işler` listesi boş ya da tek satır | Sahnede kurtarılmaz — bu madde **demo öncesi** çözülür (§5 madde 4, `DEMO-VERI.md` §2). Yakalanırsan Bugün'de oyalanma, doğrudan Sohbet'e geç ve cümleyi yaz. | *"Bugün ekranını geçiyorum, işi doğrudan tarif edeyim."* Boş ekranı anlatmaya çalışma. |
+| **Slack mesajı yanlış kanala düşer** | Beklenen kanalda mesaj yok | Kapı zaten parametreyi gösteriyor — onaylamadan önce kanalı GÖZÜNLE oku. Ajan da bir kez düzeltiyor: hedef cümlede geçmeyen bir kanal adı, bağlantıdaki varsayılana çevriliyor ve bunu sol sütuna yazıyor (*"Adres doğrulanamadı (#…), bağlantıdaki varsayılana çevrildi: #all-samed"*). **Ama sen alanı elle düzenlediysen o düzeltme devre dışı** (`paramsLocked`) — yazdığın kanal aynen gider, yoksa adım hata verir. | *"Onaylamadan önce kanala baktım — kapı tam bunun için var."* |
 
 ### Prova kuralı
 
@@ -201,7 +240,7 @@ Demodan **30 dakika önce** başla; her maddeyi sırayla işaretle.
    yazılı ve ezberde. Değerlendirme ortamı istenirse `deploy/DEPLOY.md` §13.
 1. ☐ Backend ayakta: `GET /api/health` → `{status: ok}` dönüyor; sağlayıcı için oturumlu `GET /api/health/details` → `llm.provider: groq`.
 2. ☐ **Bağlantılar** ekranında Jira ve Slack token'ları girili; her ikisinde **Bağlantıyı Test Et** yeşil.
-3. ☐ Politikalar doğru: `jira.search/get` → otomatik; `jira.updateIssue`, `jira.addComment`, `slack.postMessage` → **onay iste**. (ALTIN KURAL — §4.)
+3. ☐ **`#/politikalar`** açıldı ve altı yazma aracının altısı da `Onay ister`: `jira.createIssue`, `jira.updateIssue`, `jira.addComment`, `slack.postMessage`, `github.addComment`, `gmail.createDraft`. Okuma araçları `Otomatik`. Ekranın üstündeki "N araç varsayılanından farklı çalışıyor" uyarısı **görünmüyor**. (ALTIN KURAL — §4.)
 4. ☐ **Demo verisi kurulu ve doğrulandı: [`DEMO-VERI.md`](DEMO-VERI.md).** Tek maddede özeti:
    `KAN-1..4` **sana atanmış** ve durumları sıfırlanmış (§2.1, §2.5), `KAN-2`'de iki yorum var
    (§2.2), Jira bağlantısında `projectKey = KAN` (§2.4), mailler en az **iki ayrı
@@ -209,16 +248,17 @@ Demodan **30 dakika önce** başla; her maddeyi sırayla işaretle.
    Doğrulama tek komut — `DEMO-VERI.md` §5'teki `curl`. Şu üçü tutmadan devam etme:
    `work: ok 4` · `lines` içinde "bir kişiden geldi" **yok** · ilk toplantı saati demodan sonra.
    Bu madde atlanırsa `Bugün` ekranında **Üstümdeki işler boş açılır** — canlıda bir kez oldu (#55).
-5. ☐ Slack: "relay" botu `#genel` kanalına **davetli** (`/invite @relay`); kanala test mesajı atıp silindi.
+5. ☐ Slack: `relay` botu **bağlantıdaki varsayılan kanala** davetli (`/invite @relay`) ve `Bağlantılar` ekranındaki `defaultChannel` o kanal — bugün `#all-samed`. Kanala test mesajı atıp silindi.
+5b. ☐ **Kanal alanını sahnede düzenleyeceksen** ikinci bir kanal gerçekten var ve bot ona da davetli. Sebep: parametreyi elle düzenlediğin an ajanın adres düzeltmesi devre dışı kalıyor (`paramsLocked`) ve yazdığın kanal aynen Slack'e gidiyor — olmayan bir kanal `channel_not_found` ile adımı düşürür. Düzenleme sahnesi bu yüzden varsayılan olarak `summary` alanında (§1, 1:30).
 6. ☐ Groq: `GROQ_API_KEYS` en az 3 anahtar içeriyor; her biri bugün tek istekle doğrulandı.
 7. ☐ Akış bütçesi ayarlı (ör. $0.50) — maliyet şeridi ve bütçe davranışı anlatılabilir durumda.
 8. ☐ **Geçmiş** temiz: eski deneme akışları silindi ya da en üstte düzgün bir prova akışı duruyor (jüri Geçmiş'te çöp görmesin).
 8b. ☐ **Panel** temiz: `#/panel` → `Son 7 gün` açıldığında **Red gerekçeleri** listesindeki satırlar okunabilir ve iş anlamı taşıyor. `akış iptal edildi (…)` satırları bugün de bu listede görünüyor (`iptal edilen akış` etiketiyle işaretli ama ayrı bloğa taşınmadı — #54) ve QA test dizeleri (`"QA testi — mesaj gonderme…"`) hâlâ oradaysa jüri kapının değerini onlardan okuyacak. Pratikte: demodan önce **2–3 gerçek red üret** — bir kanal düzeltmesi, bir başlık düzeltmesi — ki listenin en üstünde gerçek gerekçeler dursun. Onay oranı ve tamamlanma yüzdesi ezberde (§3 "Panel ekranından okunan sorular").
 9. ☐ Tarayıcı: tam ekran (F11), zoom **%110**, yer imi çubuğu gizli, bildirimler kapalı (OS düzeyinde Rahatsız Etmeyin açık).
-10. ☐ Sekme düzeni soldan sağa: **1** Relay · **2** Slack `#genel` · **3** Jira KAN panosu · **4** mock frontend (`VITE_RUN_SOURCE=mock`, açık ve çalıştığı görülmüş). Başka sekme YOK.
+10. ☐ Sekme düzeni soldan sağa: **1** Relay (`#/` Bugün ekranında) · **2** Slack `#all-samed` · **3** Jira KAN panosu · **4** mock frontend (`VITE_RUN_SOURCE=mock`, açık ve çalıştığı görülmüş). Başka sekme YOK.
 11. ☐ Ekran çözünürlüğü 1920×1080'e sabit; projektöre bağlanıp bir kez gerçek yansıtmada kontrol edildi.
 12. ☐ Replay sigortası hazır: `TOOLS_MODE=replay` ile başlatma komutu terminalde yazılı bekliyor (Enter'a basmak yeter); replay kayıtları bugünkü senaryoyla eşleşiyor (bir kez oynatıldı).
-13. ☐ Hedef cümle panoda kopyalı: *"Jira'daki blocker etiketli işleri bul, durumlarını güncelle, ekibe Slack'ten özet at."* Red gerekçesi ezberde: *"KAN-3'ü güncelleme, o bilerek açık kalacak."*
+13. ☐ Hedef cümle panoda kopyalı: *"Bugünkü maillerime bak, iş talebi gibi görünenleri KAN panosuna kayıt olarak aç ve ilgili kanaldan ekibe haber ver."* (Sohbet ekranında ilk örnek olarak da duruyor.) Düzeltme ezberde: `summary` → *"Ödeme hatası: sipariş tamamlanmıyor"*. Red gerekçesi ezberde: *"Kanal yanlış, bunu müşteri ekibi görmemeli."*
 14. ☐ Donanım: laptop şarjda + %100, yedek USB-C→HDMI adaptörü cepte, telefon hotspot'u açılabilir durumda ve laptop ona bir kez bağlanıp test edildi.
 15. ☐ Son tam prova bugün yapıldı ve **3:00'ın altında** bitti; kapanış cümlesi yüksek sesle iki kez söylendi.
 
