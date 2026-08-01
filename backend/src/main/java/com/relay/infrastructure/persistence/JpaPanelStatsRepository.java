@@ -1,6 +1,7 @@
 package com.relay.infrastructure.persistence;
 
 import com.relay.application.stats.PanelStatsRepository;
+import com.relay.domain.AgentRole;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import java.math.BigDecimal;
@@ -54,6 +55,29 @@ public class JpaPanelStatsRepository implements PanelStatsRepository {
     private static final String CANCELLED_OFF =
             "s.decision = 'rejected' and r.status = 'cancelled' and s.reject_reason like :cancelReason";
 
+    /**
+     * "A human rewrote a parameter on this step before approving it."
+     *
+     * <p>Read from the journal rather than from {@code steps.params_locked}, and the
+     * difference matters: the column is cleared when a write bounces back to the gate
+     * after the provider refused it ({@code ToolAgent.refreshParams}), which would drop
+     * exactly the steps a person had to correct twice. {@code agent_messages} is
+     * append-only, so the record of the correction outlives the correction.
+     *
+     * <p>{@code exists} rather than a join: one step can carry several edit lines — one
+     * per field — and a join would count that step once per field it changed. The screen
+     * says "kaç karar", not "kaç alan".
+     *
+     * <p>See {@link PanelStatsRepository#PARAM_EDIT_PREFIX} for the literal and why it is
+     * one.
+     */
+    private static final String APPROVED_WITH_EDIT = """
+            s.decision = 'approved' and exists (
+                select 1 from agent_messages m
+                 where m.step_id = s.id
+                   and m.from_agent = :userAgent
+                   and m.content like :editPrefix)""";
+
     private final EntityManager em;
 
     public JpaPanelStatsRepository(EntityManager em) {
@@ -104,13 +128,15 @@ public class JpaPanelStatsRepository implements PanelStatsRepository {
                 + " count(*) filter (where s.decision in ('approved', 'rejected')"
                 + " or s.status = 'awaiting_approval'),\n"
                 + " count(*) filter (where s.decision = 'approved'),\n"
+                + " count(*) filter (where " + APPROVED_WITH_EDIT + "),\n"
                 + " count(*) filter (where s.decision = 'rejected' and not (" + CANCELLED_OFF + ")),\n"
                 + " count(*) filter (where " + CANCELLED_OFF + "),\n"
                 + " count(*) filter (where s.status = 'awaiting_approval')\n"
                 + " from steps s join runs r on r.id = s.run_id" + RUN_WINDOW;
-        Object[] cells = (Object[]) cancelPattern(window(em.createNativeQuery(sql), from, to)).getSingleResult();
+        Query query = editPattern(cancelPattern(window(em.createNativeQuery(sql), from, to)));
+        Object[] cells = (Object[]) query.getSingleResult();
         return new Gate(number(cells[0]), number(cells[1]), number(cells[2]), number(cells[3]),
-                number(cells[4]), number(cells[5]));
+                number(cells[4]), number(cells[5]), number(cells[6]));
     }
 
     @Override
@@ -196,6 +222,12 @@ public class JpaPanelStatsRepository implements PanelStatsRepository {
      */
     private static Query cancelPattern(Query query) {
         return query.setParameter("cancelReason", PanelStatsRepository.CANCEL_REASON_PREFIX + "%");
+    }
+
+    /** Same reason as {@link #cancelPattern}: bound, never spliced. */
+    private static Query editPattern(Query query) {
+        return query.setParameter("userAgent", AgentRole.USER)
+                .setParameter("editPrefix", PanelStatsRepository.PARAM_EDIT_PREFIX + "%");
     }
 
     /**

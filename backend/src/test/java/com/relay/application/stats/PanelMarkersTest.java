@@ -12,6 +12,7 @@ import com.relay.application.orchestrator.Verifier;
 import com.relay.application.policy.PolicyEngine;
 import com.relay.application.port.LlmClient;
 import com.relay.application.port.ToolRegistry;
+import com.relay.domain.AgentRole;
 import com.relay.domain.Run;
 import com.relay.domain.Step;
 import com.relay.infrastructure.llm.StubLlmClient;
@@ -112,6 +113,45 @@ class PanelMarkersTest {
      * that about free text — but the panel also requires the run to be {@code cancelled},
      * and a refusal leaves the run running. This pins that second condition.
      */
+    /**
+     * The other literal the panel reads. "Düzeltilip onaylandı" is counted from the
+     * journal, not from {@code steps.params_locked}: the column is cleared when a write
+     * bounces back to the gate after the provider refused it, which would drop exactly
+     * the steps a person had to correct twice.
+     */
+    @Test
+    void an_edited_approval_leaves_the_journal_line_the_panel_counts() {
+        Rig rig = parkedOnApproval();
+        Step gate = rig.run().steps().get(0);
+
+        rig.service().approve(rig.run().id(), gate.id(), Map.of("status", "Blocked"),
+                "qa+relay@samedbilgin.com");
+
+        assertThat(rig.run().messages())
+                .as("the panel finds an edited approval by this prefix and by from=user")
+                .anySatisfy(message -> {
+                    assertThat(message.content()).startsWith(PanelStatsRepository.PARAM_EDIT_PREFIX);
+                    assertThat(message.fromAgent()).isEqualTo(AgentRole.USER);
+                    assertThat(message.stepId()).isEqualTo(gate.id());
+                });
+    }
+
+    /**
+     * And the boundary the count depends on: approving what is on screen unchanged is not
+     * an intervention, and must not be filed as one. Otherwise "insan kararların %X'inde
+     * gönderileni değiştirdi" would just be the approval rate wearing a different name.
+     */
+    @Test
+    void approving_without_changing_anything_writes_no_edit_line() {
+        Rig rig = parkedOnApproval();
+        Step gate = rig.run().steps().get(0);
+
+        rig.service().approve(rig.run().id(), gate.id(), "qa+relay@samedbilgin.com");
+
+        assertThat(rig.run().messages()).noneSatisfy(message ->
+                assertThat(message.content()).startsWith(PanelStatsRepository.PARAM_EDIT_PREFIX));
+    }
+
     @Test
     void a_refusal_keeps_the_run_open_so_it_can_never_be_read_as_a_cancellation() {
         Rig rig = parkedOnApproval();

@@ -71,10 +71,13 @@ function normalize(raw: unknown): PanelReport {
       gated: num(approvals.gated),
       gatedRatio: num(approvals.gatedRatio),
       approved: num(approvals.approved),
+      approvedAsIs: num(approvals.approvedAsIs),
+      approvedWithEdit: num(approvals.approvedWithEdit),
       rejected: num(approvals.rejected),
       cancelled: num(approvals.cancelled),
       pending: num(approvals.pending),
       approvalRate: num(approvals.approvalRate),
+      editRate: num(approvals.editRate),
     },
     rejections: Array.isArray(r.rejections) ? r.rejections.map(normalizeRejection) : [],
     cancellations: Array.isArray(r.cancellations) ? r.cancellations.map(normalizeRejection) : [],
@@ -133,11 +136,14 @@ class MockPanelSource implements PanelSource {
         gated: 11,
         gatedRatio: 11 / 46,
         approved: 6,
+        approvedAsIs: 4,
+        approvedWithEdit: 2,
         rejected: 2,
         cancelled: 1,
         pending: 2,
         // 6 / (6 + 2). The cancelled step is nobody's decision, so it is in neither half.
         approvalRate: 6 / 8,
+        editRate: 2 / 8,
       },
       rejections: [
         {

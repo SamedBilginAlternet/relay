@@ -65,7 +65,7 @@ class PanelReportTest {
     @Test
     void the_approval_rate_ignores_the_steps_nobody_has_answered_yet() {
         // 20 steps, 8 of them stopped at the gate: 3 yes, 1 no, 4 still waiting.
-        stats.gate = new PanelStatsRepository.Gate(20, 8, 3, 1, 0, 4);
+        stats.gate = new PanelStatsRepository.Gate(20, 8, 3, 0, 1, 0, 4);
 
         PanelReport.Approvals approvals = panel.report(null, null).approvals();
 
@@ -79,7 +79,7 @@ class PanelReportTest {
         // The live shape on 1 August: 50 approvals, 6 "rejections" — of which 4 were one
         // person pressing Durdur on four runs. Reported as 89.3%, which is a number about
         // cancellations, not about the gate.
-        stats.gate = new PanelStatsRepository.Gate(190, 85, 50, 2, 4, 29);
+        stats.gate = new PanelStatsRepository.Gate(190, 85, 50, 6, 2, 4, 29);
 
         PanelReport.Approvals approvals = panel.report(null, null).approvals();
 
@@ -89,6 +89,37 @@ class PanelReportTest {
         // is the one that gets printed: removing it was the alternative issue #54 refused.
         assertThat(approvals.approvalRate()).isCloseTo(50d / 52d, within(1e-9));
         assertThat(approvals.approvalRate()).isNotCloseTo(50d / 56d, within(1e-3));
+    }
+
+    @Test
+    void the_three_decision_buckets_add_up_to_the_decisions_that_were_made() {
+        // 50 approvals, 6 of them after somebody rewrote a field, 2 refusals.
+        stats.gate = new PanelStatsRepository.Gate(190, 85, 50, 6, 2, 4, 29);
+
+        PanelReport.Approvals approvals = panel.report(null, null).approvals();
+
+        assertThat(approvals.approvedAsIs()).isEqualTo(44);
+        assertThat(approvals.approvedWithEdit()).isEqualTo(6);
+        // The property the screen is sold on: three numbers, no fourth place to hide in.
+        assertThat(approvals.approvedAsIs() + approvals.approvedWithEdit() + approvals.rejected())
+                .isEqualTo(approvals.approved() + approvals.rejected());
+        // "insan kararların %X'inde gönderileni değiştirdi" — 6 of 52, not 6 of 50.
+        assertThat(approvals.editRate()).isCloseTo(6d / 52d, within(1e-9));
+    }
+
+    /**
+     * A repository that contradicted itself used to be able to draw a bar backwards. It
+     * cannot now — but the clamp must not be reached by any honest input, so the reason it
+     * exists is written down rather than discovered later.
+     */
+    @Test
+    void an_edit_count_larger_than_the_approvals_never_produces_a_negative_bucket() {
+        stats.gate = new PanelStatsRepository.Gate(10, 5, 2, 9, 1, 0, 2);
+
+        PanelReport.Approvals approvals = panel.report(null, null).approvals();
+
+        assertThat(approvals.approvedAsIs()).isZero();
+        assertThat(approvals.approvedWithEdit()).isEqualTo(2);
     }
 
     @Test
@@ -193,7 +224,7 @@ class PanelReportTest {
         private final List<Rejection> rejections = new ArrayList<>();
         private final List<Rejection> cancellations = new ArrayList<>();
         private final List<ToolUsage> tools = new ArrayList<>();
-        private Gate gate = new Gate(0, 0, 0, 0, 0, 0);
+        private Gate gate = new Gate(0, 0, 0, 0, 0, 0, 0);
         private long runs;
         private Instant askedFrom;
         private Instant askedTo;

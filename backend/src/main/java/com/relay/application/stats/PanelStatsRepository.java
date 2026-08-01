@@ -33,6 +33,24 @@ public interface PanelStatsRepository {
      */
     String CANCEL_REASON_PREFIX = "akış iptal edildi";
 
+    /**
+     * The line {@code RunService.applyEdit} writes into {@code agent_messages} for every
+     * field a human rewrote at the approval gate, with the optional {@code " (actor)"} and
+     * the {@code " — field: before → after"} left off.
+     *
+     * <p>This is the only durable record that an approval was an edited one. The step
+     * itself carries {@code params_locked}, but {@code ToolAgent.refreshParams} clears
+     * that flag when a write bounces back to the gate after the provider refused it — so
+     * counting the column would silently drop exactly the cases where a human worked
+     * hardest. The journal is append-only and never loses a line, which is why issue #54
+     * asks for the figure to be derived from it.
+     *
+     * <p>Same caveat as {@link #CANCEL_REASON_PREFIX}: it is a literal shared by two files
+     * with no compiler-visible link between them, and {@code PanelMarkersTest} is what
+     * stands in for that link.
+     */
+    String PARAM_EDIT_PREFIX = "Parametre kullanıcı tarafından düzenlendi";
+
     /** One row per run status actually present in the window. */
     List<Count> runStatusCounts(Instant from, Instant to);
 
@@ -81,12 +99,15 @@ public interface PanelStatsRepository {
      *                  — so the bucket below keeps them visible instead of quietly dropping
      *                  them out of a total the screen prints
      * @param approved  a human said yes, edited or not
+     * @param approvedWithEdit of those, the ones where they rewrote a parameter first —
+     *                  a subset of {@code approved}, never larger than it
      * @param rejected  a human said no. Cancellation write-offs are excluded: pressing
      *                  Durdur is one decision about a run, not N decisions about its steps
      * @param cancelled steps closed by that Durdur — no human ever answered them
      * @param pending   still standing at the gate, nobody has answered yet
      */
-    record Gate(long steps, long gated, long approved, long rejected, long cancelled, long pending) {
+    record Gate(long steps, long gated, long approved, long approvedWithEdit,
+                long rejected, long cancelled, long pending) {
     }
 
     /**

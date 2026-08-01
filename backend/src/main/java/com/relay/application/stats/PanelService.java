@@ -69,6 +69,12 @@ public class PanelService {
 
         PanelStatsRepository.Totals totals = stats.runTotals(from, to);
         PanelStatsRepository.Gate gate = stats.gateCounts(from, to);
+        // The two halves are cut from the same column by the same query, so this can only
+        // go negative if the repository contradicts itself. It is clamped anyway: a bar of
+        // length -3 is a lie the reader cannot see, where a 0 next to a wrong total is one
+        // they can. The invariant is asserted in PanelReportTest.
+        long approvedWithEdit = Math.min(gate.approvedWithEdit(), gate.approved());
+        long decisions = gate.approved() + gate.rejected();
 
         return new PanelReport(
                 from,
@@ -79,10 +85,13 @@ public class PanelService {
                         gate.gated(),
                         share(gate.gated(), gate.steps()),
                         gate.approved(),
+                        gate.approved() - approvedWithEdit,
+                        approvedWithEdit,
                         gate.rejected(),
                         gate.cancelled(),
                         gate.pending(),
-                        share(gate.approved(), gate.approved() + gate.rejected())),
+                        share(gate.approved(), decisions),
+                        share(approvedWithEdit, decisions)),
                 stats.rejections(from, to, REJECTION_LIMIT),
                 stats.cancellations(from, to, REJECTION_LIMIT),
                 stats.toolUsage(from, to),

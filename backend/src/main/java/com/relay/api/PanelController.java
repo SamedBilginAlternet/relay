@@ -54,10 +54,16 @@ public class PanelController {
         gate.put("gated", approvals.gated());
         gate.put("gatedRatio", approvals.gatedRatio());
         gate.put("approved", approvals.approved());
+        // Sent as three numbers rather than one rate and a hint. "Onaylandı / düzeltilip
+        // onaylandı / reddedildi" is a different claim from "%89 onaylandı", and the screen
+        // must not have to reconstruct it by subtraction.
+        gate.put("approvedAsIs", approvals.approvedAsIs());
+        gate.put("approvedWithEdit", approvals.approvedWithEdit());
         gate.put("rejected", approvals.rejected());
         gate.put("cancelled", approvals.cancelled());
         gate.put("pending", approvals.pending());
         gate.put("approvalRate", approvals.approvalRate());
+        gate.put("editRate", approvals.editRate());
         body.put("approvals", gate);
 
         // Two lists, not one filtered on the client. Stopping a run closes its unfinished

@@ -55,10 +55,13 @@ function panel(overrides: Partial<PanelReport> = {}): PanelReport {
       gated: 85,
       gatedRatio: 85 / 190,
       approved: 50,
+      approvedAsIs: 44,
+      approvedWithEdit: 6,
       rejected: 2,
       cancelled: 4,
       pending: 29,
       approvalRate: 50 / 52,
+      editRate: 6 / 52,
     },
     rejections: [],
     cancellations: [],
@@ -128,6 +131,55 @@ it('the_gate_breakdown_shows_the_stopped_steps_instead_of_dropping_them', async 
   expect(within(gate).getByLabelText(/^Reddedildi: 2/)).toBeTruthy();
 });
 
+it('an_edited_approval_is_counted_apart_from_a_straight_one', async () => {
+  // The whole of #54's first half. A yes where the person rewrote the channel and a yes
+  // where they read a line and pressed the button are not the same event, and one number
+  // covering both was the answer that made the gate look like a rubber stamp.
+  report.mockResolvedValue(panel());
+
+  render(<PanelScreen />);
+
+  const gate = await screen.findByRole('region', { name: /Onay kapısı/i });
+  expect(within(gate).getByLabelText(/^Onaylandı: 44/)).toBeTruthy();
+  expect(within(gate).getByLabelText(/^Düzeltilip onaylandı: 6/)).toBeTruthy();
+  expect(within(gate).getByLabelText(/^Reddedildi: 2/)).toBeTruthy();
+  // 44 + 6 + 2 = the 52 decisions the rate is computed over. Nothing lands anywhere else.
+  expect(within(gate).getByText(/52 kararın/)).toBeTruthy();
+});
+
+it('the_headline_hint_names_all_three_outcomes_not_just_yes_and_no', async () => {
+  report.mockResolvedValue(panel());
+
+  render(<PanelScreen />);
+
+  await waitFor(() => expect(screen.getByText(/44 onay · 6 düzeltilip onay · 2 red/)).toBeTruthy());
+});
+
+it('no_decisions_means_no_intervention_rate_rather_than_a_confident_zero', async () => {
+  // A percentage computed over nothing is not a measurement, and "%0" reads like one.
+  report.mockResolvedValue({
+    ...panel(),
+    approvals: {
+      steps: 12,
+      gated: 3,
+      gatedRatio: 3 / 12,
+      approved: 0,
+      approvedAsIs: 0,
+      approvedWithEdit: 0,
+      rejected: 0,
+      cancelled: 0,
+      pending: 3,
+      approvalRate: 0,
+      editRate: 0,
+    },
+  });
+
+  render(<PanelScreen />);
+
+  const gate = await screen.findByRole('region', { name: /Onay kapısı/i });
+  expect(within(gate).queryByText(/gönderilecek değeri değiştirdi/)).toBeNull();
+});
+
 it('an_empty_range_says_so_instead_of_drawing_a_chart_out_of_zeros', async () => {
   report.mockResolvedValue(
     panel({
@@ -137,10 +189,13 @@ it('an_empty_range_says_so_instead_of_drawing_a_chart_out_of_zeros', async () =>
         gated: 0,
         gatedRatio: 0,
         approved: 0,
+        approvedAsIs: 0,
+        approvedWithEdit: 0,
         rejected: 0,
         cancelled: 0,
         pending: 0,
         approvalRate: 0,
+        editRate: 0,
       },
       totals: { tokens: 0, costUsd: 0 },
     }),

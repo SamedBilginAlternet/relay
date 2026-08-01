@@ -32,19 +32,30 @@ public record PanelReport(
     }
 
     /**
-     * @param gatedRatio   share of steps that stopped for a human, 0..1
-     * @param cancelled    steps written off when somebody stopped the whole run. Kept out
-     *                     of {@code rejected} and out of {@code approvalRate}: nobody
-     *                     answered them, so counting them as refusals made the gate look
-     *                     more discriminating than it is
-     * @param approvalRate approved / (approved + rejected), 0..1; 0 when nothing was
-     *                     decided. Dropping the cancellations out of the denominator moves
-     *                     this number <em>up</em> — that is the honest direction and it is
-     *                     the uncomfortable one, which is why it is still on the screen
+     * @param gatedRatio       share of steps that stopped for a human, 0..1
+     * @param approved         every yes, edited or not. Kept alongside the two halves so
+     *                         the reader can check that they add up to it
+     * @param approvedAsIs     approved exactly as the agent proposed it
+     * @param approvedWithEdit approved after a human rewrote a parameter — the journal
+     *                         holds the field, the old value and the new one
+     * @param cancelled        steps written off when somebody stopped the whole run. Kept
+     *                         out of {@code rejected} and out of {@code approvalRate}:
+     *                         nobody answered them, so counting them as refusals made the
+     *                         gate look more discriminating than it is
+     * @param approvalRate     approved / (approved + rejected), 0..1; 0 when nothing was
+     *                         decided. Dropping the cancellations out of the denominator
+     *                         moves this number <em>up</em> — that is the honest direction
+     *                         and the uncomfortable one, which is why it is still shown
+     * @param editRate         approvedWithEdit / (approved + rejected): how often a human
+     *                         changed what was about to be sent. The single approval rate
+     *                         said nothing about this, and it is the more interesting half
+     *                         of the story — a gate that only ever says yes or no is a
+     *                         speed bump; one that corrects the payload is doing work
      */
     public record Approvals(long steps, long gated, double gatedRatio,
-                            long approved, long rejected, long cancelled, long pending,
-                            double approvalRate) {
+                            long approved, long approvedAsIs, long approvedWithEdit,
+                            long rejected, long cancelled, long pending,
+                            double approvalRate, double editRate) {
     }
 
     public record Totals(long tokens, double usd) {

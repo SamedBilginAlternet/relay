@@ -26,7 +26,16 @@ export type PanelApprovals = {
   gated: number;
   /** `gated / steps`, 0..1. */
   gatedRatio: number;
+  /** Every yes, edited or not. `approvedAsIs + approvedWithEdit`. */
   approved: number;
+  /** Approved exactly as the agent proposed it. */
+  approvedAsIs: number;
+  /**
+   * Approved after a human rewrote a parameter at the gate. Counted from the agent
+   * journal, which records the field, the old value and the new one — not from a flag on
+   * the step, which is cleared when a write goes back to the gate a second time.
+   */
+  approvedWithEdit: number;
   /** A human refused this step. Steps closed by stopping a run are not in here. */
   rejected: number;
   /**
@@ -45,6 +54,12 @@ export type PanelApprovals = {
    * a judge who asks about it should get the real answer, not a missing card.
    */
   approvalRate: number;
+  /**
+   * `approvedWithEdit / (approved + rejected)`, 0..1. How often the human at the gate
+   * changed what was about to be sent — the half of the story a single approval rate
+   * cannot tell.
+   */
+  editRate: number;
 };
 
 /** One refusal, with the sentence a human typed and the door back to the record. */

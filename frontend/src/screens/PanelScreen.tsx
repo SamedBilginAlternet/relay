@@ -1,4 +1,4 @@
-import { BarChart3, CircleSlash, MessageSquareX, RefreshCw, Wrench } from 'lucide-react';
+import { BarChart3, CircleSlash, MessageSquareX, PencilLine, RefreshCw, Wrench } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
@@ -211,10 +211,15 @@ export function PanelScreen() {
                 value={percent(report.approvals.gatedRatio)}
                 hint={`${report.approvals.gated} / ${report.approvals.steps} adım`}
               />
+              {/*
+                Three numbers under the rate, not one. "%89 onaylandı" was true and said
+                nothing: it counted an approval where the human rewrote the channel the
+                same as one where they read a line and pressed the button (#54).
+              */}
               <Kpi
                 label="Onay oranı"
                 value={percent(report.approvals.approvalRate)}
-                hint={`${report.approvals.approved} onay · ${report.approvals.rejected} red`}
+                hint={`${report.approvals.approvedAsIs} onay · ${report.approvals.approvedWithEdit} düzeltilip onay · ${report.approvals.rejected} red`}
               />
               <Kpi
                 label="Maliyet"
@@ -264,8 +269,15 @@ export function PanelScreen() {
                         key: 'approved',
                         label: 'Onaylandı',
                         color: 'var(--success)',
-                        value: report.approvals.approved,
-                        display: String(report.approvals.approved),
+                        value: report.approvals.approvedAsIs,
+                        display: String(report.approvals.approvedAsIs),
+                      },
+                      {
+                        key: 'approvedWithEdit',
+                        label: 'Düzeltilip onaylandı',
+                        color: 'var(--info)',
+                        value: report.approvals.approvedWithEdit,
+                        display: String(report.approvals.approvedWithEdit),
                       },
                       {
                         key: 'rejected',
@@ -291,6 +303,19 @@ export function PanelScreen() {
                     ]}
                     caption={`Onaya düşen ${report.approvals.gated} adım. "Akış durdurulduğu için kapandı" bir insan kararı değil — onay oranı bu adımları saymaz.`}
                   />
+                )}
+                {/*
+                  The sentence the issue asked for, and the reason the split is worth the
+                  screen space: a gate that only says yes or no is a speed bump, and one
+                  that changes the payload is doing work. It is only printed when there is
+                  a decision behind it — "%0'ında" out of nothing is not a measurement.
+                */}
+                {report.approvals.approved + report.approvals.rejected > 0 && (
+                  <p className="t-caption panel-note">
+                    <PencilLine size={14} aria-hidden />
+                    İnsan, {report.approvals.approved + report.approvals.rejected} kararın{' '}
+                    {percent(report.approvals.editRate)}'inde gönderilecek değeri değiştirdi.
+                  </p>
                 )}
               </motion.section>
             </div>
