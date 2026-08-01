@@ -53,6 +53,35 @@ it('a_reason_that_rewrites_the_title_in_the_passive_is_dropped', () => {
   ).toBe(false);
 });
 
+it('a_reason_that_restates_the_title_as_cause_and_effect_is_dropped', () => {
+  // The same tautology wearing a subordinate clause: "hata alınıyor" and
+  // "sipariş tamamlanmasını engelliyor" are the two halves of the title with a
+  // "because" between them, and the row already says both.
+  expect(
+    reasonEarnsItsLine(
+      'Ödeme adımında hata alıyoruz — sipariş tamamlanmıyor',
+      'Ödeme adımında hata alınıyor ve bu sipariş tamamlanmasını engelliyor.',
+    ),
+  ).toBe(false);
+});
+
+it('a_reason_is_kept_when_the_subject_line_barely_says_anything', () => {
+  // "Re: Cevap" is two words and neither is about the mail. Almost any sentence
+  // beats it, and the echo test says so without needing a special case.
+  expect(reasonEarnsItsLine('Re: Cevap', 'Cevap bekleyen bir mail var.')).toBe(true);
+});
+
+it('a_summary_that_quotes_the_title_but_names_who_is_waiting_is_kept', () => {
+  // The boundary the rule is tuned to, taken from the live screen: the title
+  // comes back whole, and what follows it is a person and an action.
+  expect(
+    reasonEarnsItsLine(
+      'Re: Ödeme adımında hata alıyoruz — sipariş tamamlanmıyor',
+      'Ödeme adımında hata alıyoruz — sipariş tamamlanmıyor, Samed Bilgin’e cevap yaz',
+    ),
+  ).toBe(true);
+});
+
 it('a_reason_naming_the_deadline_the_title_does_not_mention_is_kept', () => {
   expect(
     reasonEarnsItsLine(
