@@ -152,4 +152,65 @@ class RoutingRecoveryTest {
 
         assertThat(client.degraded()).isFalse();
     }
+
+    // ---- the paid tier behind the free one ---------------------------------
+
+    /** Routes to whichever provider the URL belongs to, so both tiers can be scripted. */
+    private static RoutingLlmClient twoTier(HttpTransport transport, TestDoubles.FixedClock clock) {
+        GroqLlmClient free = new GroqLlmClient(
+                new ApiKeyPool(List.of("free-key"), Duration.ofSeconds(60), clock),
+                transport, "https://groq.test/v1", "llama-3.3-70b-versatile", 0.59, 0.79);
+        GroqLlmClient paid = new GroqLlmClient(
+                new ApiKeyPool(List.of("paid-key"), Duration.ofSeconds(60), clock),
+                transport, "https://deepseek.test", "deepseek-v4-flash", 0.14, 0.28,
+                null, null, "deepseek");
+        return new RoutingLlmClient(free, paid, new StubLlmClient(new ToolRegistryImpl(List.of())));
+    }
+
+    /**
+     * The whole reason the second tier exists. A day of testing spent five Groq
+     * organisations' daily budgets in an afternoon and the product dropped to the stub,
+     * which writes no digest and no summary — the demo would have run on counts alone.
+     */
+    @Test
+    void the_paid_provider_answers_when_the_free_one_is_out_of_budget() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        RoutingLlmClient client = twoTier((url, key, body) -> url.startsWith("https://groq.test")
+                ? new HttpTransport.Reply(429, "{}")
+                : new HttpTransport.Reply(200, OK_BODY), clock);
+
+        assertThat(client.complete(request()).model()).isEqualTo("deepseek-v4-flash");
+        // Not degraded: the product is answering. It is only not free this minute, and a red
+        // health line here would send someone hunting an outage that was already absorbed.
+        assertThat(client.degraded()).isFalse();
+        assertThat(client.health().get("provider")).isEqualTo("deepseek");
+        assertThat(client.health()).extracting("fallback").isNotNull();
+    }
+
+    /** While the free tier works, the paid one is never called and nothing is billed. */
+    @Test
+    void the_paid_provider_is_not_touched_while_the_free_one_answers() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        java.util.List<String> called = new java.util.ArrayList<>();
+        RoutingLlmClient client = twoTier((url, key, body) -> {
+            called.add(url);
+            return new HttpTransport.Reply(200, OK_BODY);
+        }, clock);
+
+        client.complete(request());
+
+        assertThat(called).allMatch(url -> url.startsWith("https://groq.test"));
+    }
+
+    /** Both out is the stub's job, and the record has to name both refusals. */
+    @Test
+    void both_providers_out_falls_back_to_the_stub() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        RoutingLlmClient client = twoTier((url, key, body) -> new HttpTransport.Reply(429, "{}"), clock);
+
+        assertThat(client.complete(request()).fallback()).isTrue();
+        assertThat(client.degraded()).isTrue();
+        assertThat(String.valueOf(client.health().get("lastError")))
+                .contains("groq").contains("deepseek");
+    }
 }

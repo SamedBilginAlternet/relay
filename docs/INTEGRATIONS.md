@@ -147,6 +147,42 @@ Kota bittiğinde ne yapılır, ucuzdan pahalıya:
 Bir demo günü ölçüsü: bir brifing yenilemesi ~2.300 token. 100k/gün ≈ 40 yenileme
 artı akışlar. QA yükünü demo gününde canlıya bindirmeyin.
 
+### 5.2 İkinci sağlayıcı: bedava biterse ücretli devralsın
+
+Groq'un bedava planında duvar **günlük token** (TPD). Duvarı olmayan bir sağlayıcı
+arkaya konursa, bedava kota bittiği anda ürün stub'a düşmek yerine ondan devam eder.
+
+```
+LLM_FALLBACK_API_KEYS=sk-...          # boşsa ikinci sağlayıcı yok, hiçbir şey değişmez
+LLM_FALLBACK_BASE_URL=https://api.deepseek.com
+LLM_FALLBACK_MODEL=deepseek-v4-flash
+LLM_FALLBACK_PROVIDER=deepseek
+LLM_FALLBACK_PRICE_INPUT=0.14
+LLM_FALLBACK_PRICE_OUTPUT=0.28
+```
+
+Sıra: **Groq → ikinci sağlayıcı → stub.** Groq çalışırken ikinciye tek istek gitmez,
+yani fatura da oluşmaz. `/api/health/details` hangi katmanın cevapladığını (`provider`)
+ve ikincinin anahtar durumunu (`fallback`) ayrı ayrı gösterir.
+
+Neden DeepSeek varsayılan: OpenAI uyumlu (`{base}/chat/completions`), `response_format:
+json_object` destekliyor — planlayıcı ve parametre üreticisi buna bağlı — ve **günlük
+token tavanı yok**; sınır eşzamanlılıkta (v4-flash için 2500). Fiyat 0,14$/1M giriş,
+0,28$/1M çıkış. Ölçü: bir günlük tüm QA yükümüz 373.132 token, yani ~**0,07$**.
+
+Aynı üç değişkenle başka sağlayıcılar da çalışır:
+
+| Sağlayıcı | base-url | not |
+|---|---|---|
+| DeepSeek | `https://api.deepseek.com` | ücretli, günlük tavan yok, kayıtta tek seferlik 5M token |
+| Cerebras | `https://api.cerebras.ai/v1` | günde 1M token bedava, ama bedava katmanda **8K bağlam sınırı** var — brifing istemleri buna sığmayabilir |
+| Together / OpenRouter | kendi base-url'leri | çok model, kredi bazlı |
+
+JSON kipi uyarısı: DeepSeek `json_object` için istemde "json" kelimesinin geçmesini
+şart koşuyor. Bizim şema eklendiğinde sistem istemine yazdığımız cümle
+("Answer with JSON only, matching this schema") bunu zaten karşılıyor — o cümle
+kaldırılırsa DeepSeek'te JSON kipi bozulur.
+
 ## 5. Ortam değişkenleri (Coolify)
 
 | Değişken | Zorunlu | Not |

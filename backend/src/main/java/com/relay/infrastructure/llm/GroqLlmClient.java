@@ -36,6 +36,15 @@ public class GroqLlmClient implements LlmClient {
      * Sharing one pool would park it for both and throw that capacity away.
      */
     private final ApiKeyPool smallKeys;
+    /**
+     * Whose API this is, in the sentences an operator reads.
+     *
+     * <p>The class speaks OpenAI's chat-completions dialect, which is also DeepSeek's,
+     * Cerebras', Together's and everyone else's. Once a second provider is configured, an
+     * error line that says "groq HTTP 429" about a DeepSeek refusal sends whoever reads it
+     * to the wrong console.
+     */
+    private final String provider;
 
     public GroqLlmClient(ApiKeyPool keys, HttpTransport transport, String baseUrl, String model,
                          double inputUsdPerMillion, double outputUsdPerMillion) {
@@ -45,6 +54,14 @@ public class GroqLlmClient implements LlmClient {
     public GroqLlmClient(ApiKeyPool keys, HttpTransport transport, String baseUrl, String model,
                          double inputUsdPerMillion, double outputUsdPerMillion,
                          String smallModel, ApiKeyPool smallKeys) {
+        this(keys, transport, baseUrl, model, inputUsdPerMillion, outputUsdPerMillion,
+                smallModel, smallKeys, "groq");
+    }
+
+    public GroqLlmClient(ApiKeyPool keys, HttpTransport transport, String baseUrl, String model,
+                         double inputUsdPerMillion, double outputUsdPerMillion,
+                         String smallModel, ApiKeyPool smallKeys, String provider) {
+        this.provider = provider == null || provider.isBlank() ? "groq" : provider.trim();
         this.keys = keys;
         this.transport = transport;
         this.baseUrl = baseUrl;
@@ -67,7 +84,7 @@ public class GroqLlmClient implements LlmClient {
         if (smallModel != null && smallKeys != null) {
             Attempt small = attempt(request, smallModel, smallKeys);
             if (small.response() != null) {
-                LOG.log(Level.INFO, "groq answered on {0} — {1} is rate limited", smallModel, model);
+                LOG.log(Level.INFO, provider + " answered on {0} — {1} is rate limited", smallModel, model);
                 return small.response();
             }
             smallError = small.error();
@@ -75,7 +92,7 @@ public class GroqLlmClient implements LlmClient {
         // Both tiers, both named. The two models have separate limits, so "everything is
         // exhausted" and "the big model is exhausted and the small one was never tried"
         // are different situations and used to read the same on the health endpoint.
-        throw new LlmUnavailableException("all groq keys exhausted (" + model + ": " + big.error()
+        throw new LlmUnavailableException("all " + provider + " keys exhausted (" + model + ": " + big.error()
                 + (smallError == null ? "" : "; " + smallModel + ": " + smallError) + ")");
     }
 
@@ -175,7 +192,7 @@ public class GroqLlmClient implements LlmClient {
             if (reply.ok()) {
                 return new Attempt(parse(reply.body(), targetModel), null);
             }
-            lastError = "groq HTTP " + reply.status() + hint(reply);
+            lastError = provider + " HTTP " + reply.status() + hint(reply);
             lastRefusal.put(targetModel, lastError);
             java.util.regex.Matcher org = ORGANISATION.matcher(lastError);
             if (org.find()) {
@@ -186,25 +203,30 @@ public class GroqLlmClient implements LlmClient {
                 // does. Parking both for 60s would keep resurrecting a dead key.
                 if (reply.refused()) {
                     pool.retire(key.get());
-                    LOG.log(Level.WARNING, "groq key {0} retired ({1}) — provider refused it",
+                    LOG.log(Level.WARNING, provider + " key {0} retired ({1}) — provider refused it",
                             ApiKeyPool.mask(key.get()), reply.status());
                 } else {
                     pool.penalize(key.get(), reply.retryAfter());
-                    LOG.log(Level.WARNING, "groq key {0} parked on {1} ({2}, retry-after {3}) — rotating",
+                    LOG.log(Level.WARNING, provider + " key {0} parked on {1} ({2}, retry-after {3}) — rotating",
                             ApiKeyPool.mask(key.get()), targetModel, reply.status(),
                             String.valueOf(reply.retryAfter()));
                 }
                 continue;
             }
             // A genuine bad request (400 with a schema problem) will not be fixed by another key.
-            throw new LlmUnavailableException("groq rejected the request: HTTP " + reply.status());
+            throw new LlmUnavailableException(provider + " rejected the request: HTTP " + reply.status());
         }
         return new Attempt(null, lastError);
     }
 
     @Override
     public String name() {
-        return "groq:" + model;
+        return provider + ":" + model;
+    }
+
+    /** {@code groq}, {@code deepseek} — whose console to open when this one is refusing. */
+    public String provider() {
+        return provider;
     }
 
     @Override

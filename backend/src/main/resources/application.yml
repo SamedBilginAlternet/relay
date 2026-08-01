@@ -88,6 +88,18 @@ app:
     price:
       input-usd-per-million: ${GROQ_PRICE_INPUT:0.59}
       output-usd-per-million: ${GROQ_PRICE_OUTPUT:0.79}
+  llm:
+    # The paid tier behind the free one. Empty = no second provider, and the stub stays the
+    # only safety net. Any OpenAI-compatible endpoint works: this code posts to
+    # {base-url}/chat/completions with a bearer key.
+    fallback:
+      api-keys: ${LLM_FALLBACK_API_KEYS:}
+      base-url: ${LLM_FALLBACK_BASE_URL:https://api.deepseek.com}
+      model: ${LLM_FALLBACK_MODEL:deepseek-v4-flash}
+      provider: ${LLM_FALLBACK_PROVIDER:deepseek}
+      price:
+        input-usd-per-million: ${LLM_FALLBACK_PRICE_INPUT:0.14}
+        output-usd-per-million: ${LLM_FALLBACK_PRICE_OUTPUT:0.28}
 
 logging:
   level:
