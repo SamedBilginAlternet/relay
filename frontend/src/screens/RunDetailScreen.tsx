@@ -6,6 +6,7 @@ import { WorkflowPanel } from '../components/WorkflowPanel';
 import { getRunSource } from '../data';
 import { formatDateTime } from '../lib/format';
 import { isTerminal, useRunStore } from '../store/runStore';
+import type { StepEditError } from '../store/runStore';
 import type { Run } from '../types/api';
 
 type Props = { runId: string; onBack: () => void; onNavigate: (hash: string) => void };
@@ -18,6 +19,37 @@ export function RunDetailScreen({ runId, onBack, onNavigate }: Props) {
   const [cancelling, setCancelling] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const openRun = useRunStore((s) => s.openRun);
+  const [rejectingStepId, setRejectingStepId] = useState<string | null>(null);
+  const [busyStepId, setBusyStepId] = useState<string | null>(null);
+  const [editError, setEditError] = useState<StepEditError | null>(null);
+
+  /**
+   * Decide on a step from the history screen and reload, so the trail below updates with
+   * the same request. The store drives the live chat panel; this screen owns a run it
+   * fetched itself, so it talks to the source directly.
+   */
+  const decide = useCallback(
+    async (stepId: string, action: 'approve' | 'reject', params?: Record<string, unknown>,
+           reason?: string) => {
+      setBusyStepId(stepId);
+      setEditError(null);
+      try {
+        const source = getRunSource();
+        if (action === 'approve') {
+          await source.approveStep(runId, stepId, params);
+        } else {
+          await source.rejectStep(runId, stepId, reason ?? '');
+        }
+        setRejectingStepId(null);
+        await load();
+      } catch (err) {
+        setEditError({ stepId, message: err instanceof Error ? err.message : 'İşlem başarısız.', fields: {} });
+      } finally {
+        setBusyStepId(null);
+      }
+    },
+    [runId],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -150,14 +182,26 @@ export function RunDetailScreen({ runId, onBack, onNavigate }: Props) {
             error={null}
             readOnly
           />
+          {/*
+            A finished run is history and reads as history. A run that is still waiting on
+            a human is not: this is the screen someone lands on from Geçmiş, and the trail
+            on it says "akış panelinde Onayla veya Reddet" — so the buttons have to be here,
+            or the sentence is a dead end.
+          */}
           <WorkflowPanel
             run={run}
             phase={loading ? 'loading' : 'ready'}
             error={null}
             streamStatus="closed"
             expandedStepId={expandedStepId}
-            readOnly
+            readOnly={run == null || isTerminal(run.status)}
+            rejectingStepId={rejectingStepId}
+            busyStepId={busyStepId}
+            editError={editError}
             onToggleStep={(id) => setExpandedStepId((cur) => (cur === id ? null : id))}
+            onApprove={(id, params) => void decide(id, 'approve', params)}
+            onReject={(id, reason) => void decide(id, 'reject', undefined, reason)}
+            onStartReject={setRejectingStepId}
             onRetry={() => void load()}
           />
         </div>
