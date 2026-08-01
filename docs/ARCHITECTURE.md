@@ -1,5 +1,190 @@
 # Relay — Mimari
 
+---
+
+## 0. Nasıl çalışıyor — istem mimarisi
+
+**Tek bir "master prompt" yok ve olmaması bilinçli.** Sekiz ayrı iş var, her birinin
+kendi sistem istemi, kendi JSON şeması, kendi model katmanı ve kendi koruma kapıları
+var. Tek bir dev istem olsaydı üç şeyi kaybederdik: hangi işin ne kadar tuttuğunu
+ayrı ayrı ölçemezdik, ucuz işi ucuz modele veremezdik, ve bir iş için yazılmış kural
+başka bir işi bozardı.
+
+| Amaç (`LlmPurpose`) | Kod | Ne soruyor | Şema | Katman |
+|---|---|---|---|---|
+| `PLAN` | [`Planner.systemPrompt()`](../backend/src/main/java/com/relay/application/orchestrator/Planner.java) | Hedef → sıralı adımlar, her adımda araç + parametre taslağı | var | güçlü |
+| `TOOL_PARAMS` | [`ToolAgent.finaliseParams()`](../backend/src/main/java/com/relay/application/orchestrator/ToolAgent.java) | Bu aracın şemasına uyan kesin parametreler | aracın şeması | güçlü |
+| `VERIFY` | [`Verifier.verify()`](../backend/src/main/java/com/relay/application/orchestrator/Verifier.java) | Sonuç adımın hedefini karşıladı mı | `{pass, reason}` | küçük |
+| `SUMMARIZE` | [`Summarizer.summarise()`](../backend/src/main/java/com/relay/application/orchestrator/Summarizer.java) | Akış bitti, ne oldu — en fazla üç cümle | yok | küçük |
+| `INSIGHT` | [`InsightService`](../backend/src/main/java/com/relay/application/brief/InsightService.java) | Bir mail/kayıt ne, ne kadar acil, ne yapılabilir | var | güçlü |
+| `DIGEST` | [`DigestService`](../backend/src/main/java/com/relay/application/brief/DigestService.java) | Günün özeti, sıralama ve tek öneri | var | güçlü |
+| `ASK_ROUTE` | [`SourceRouter`](../backend/src/main/java/com/relay/application/assistant/SourceRouter.java) | Soru → hangi okuma aracı, hangi sorgu | var | küçük |
+| `ASK_ANSWER` | [`AskService`](../backend/src/main/java/com/relay/application/assistant/AskService.java) | Bulunanlardan kaynaklı Türkçe yanıt | yok | güçlü |
+
+Katman ayrımı [`LlmPurpose.DEFAULT_SMALL`](../backend/src/main/java/com/relay/application/port/LlmPurpose.java)
+ve `LLM_SMALL_PURPOSES` ortam değişkeniyle yapılandırılır. Kural: **yanlış olduğunda
+yanlış yere yazılan işler güçlü modelde kalır** (`PLAN`, `TOOL_PARAMS`), yanlış olduğunda
+yalnız bir cümle kötüleşen işler küçük modele iner (`VERIFY`, `SUMMARIZE`, `ASK_ROUTE`).
+Bilinmeyen bir amaç güçlü modele düşer — güvenli yön.
+
+### Modelin çıktısına asla olduğu gibi güvenilmez
+
+Her istemin arkasında kapılar var; hepsi canlıda görülmüş bir hatadan doğdu.
+
+| Kapı | Kod | Neyi durdurur |
+|---|---|---|
+| Şema doğrulama | `SchemaValidator` | Araç şemasına uymayan parametre |
+| Uydurulmuş kimlik | `ToolAgent.ungroundedIdentifier` | Hiçbir yerde geçmeyen `KAN-42` ile yazma |
+| Kap doğrulama | `ToolAgent.groundContainers` | Uydurulmuş `projectKey`/`channel` → bağlantıdaki varsayılan |
+| Yer tutucu | `ToolAgent.unresolvedPlaceholder` | `{{steps[3].channel}}` sağlayıcıya gitmez |
+| Şablon metin | `Filler.looksLikeFiller` | "Adımlar yürütüldü" gibi içi boş mesaj |
+| Uydurulmuş kayıt | `Summarizer.invents` | Koşunun hiç görmediği anahtarı anan özet |
+| Özet kusuru | `DigestService.defect` | İç kimlik, başka dil, ham enum sızıntısı |
+| Ekip adı | `Planner.crewName` | Modelin yazdığı `assistant` rolü |
+
+Bunların hepsi **sessiz düşürme** ilkesiyle çalışır: kusurlu çıktı düzeltilmez, gösterilmez.
+Sayılan veriler (`DayTally`) modelden bağımsız üretildiği için ekran yine de boş kalmaz.
+
+---
+
+## 0.1 Bir koşu, baştan sona
+
+```mermaid
+sequenceDiagram
+    actor K as Kullanıcı
+    participant API as RunController
+    participant C as Coordinator
+    participant P as Planner
+    participant T as ToolAgent
+    participant PE as PolicyEngine
+    participant D as Sağlayıcı (Jira/Slack…)
+    participant V as Verifier
+
+    K->>API: POST /api/runs {goal}
+    API->>C: drive(runId)
+    C->>P: plan(run)
+    P-->>C: adımlar (araç + taslak parametre)
+    Note over C: run.planned → SSE
+
+    loop her adım
+        C->>PE: evaluate(toolName)
+        alt forbidden
+            PE-->>C: yasak
+            Note over C: adım reddedilir, iz kaydına yazılır
+        else ask (yazma)
+            C->>T: refreshParams(step)
+            T-->>C: kesin parametreler
+            Note over C: step.awaiting → SSE · koşu DURUR
+            K->>API: approve / reject
+            API->>C: decide(...)
+        end
+        C->>T: execute(step)
+        T->>T: kapılar: şema · kimlik · kap · yer tutucu · içerik
+        T->>D: HTTP çağrısı
+        D-->>T: sonuç
+        T-->>C: StepOutcome (+ model, premium maliyet)
+        C->>V: verify(step, result)
+        V-->>C: {pass, reason}
+        Note over C: step.finished + run.cost → SSE
+    end
+
+    C->>C: Summarizer.summarise(run)
+    Note over C: run.finished → SSE
+```
+
+Kaynaklar: [`RunController`](../backend/src/main/java/com/relay/api/RunController.java) ·
+[`Coordinator.walk()`](../backend/src/main/java/com/relay/application/orchestrator/Coordinator.java) ·
+[`SseEventPublisher`](../backend/src/main/java/com/relay/infrastructure/sse/SseEventPublisher.java)
+
+**Onay kapısının tek kuralı:** parametreler kapıya gelmeden *önce* kesinleştirilir. Aksi
+hâlde insan planlayıcının boş taslağını onaylar. Onaydan sonra parametreler değişirse
+karar temizlenir ve adım kapıya geri gelir — bkz. `retryWithProviderFeedback` ve
+`insertLookupBefore`.
+
+---
+
+## 0.2 Model yönlendirme ve düşme sırası
+
+```mermaid
+flowchart LR
+    R[LlmRequest<br/>purpose] --> Q{amaç küçük<br/>listede mi?}
+    Q -->|evet| S[küçük model<br/>llama-3.1-8b]
+    Q -->|hayır| B[güçlü model<br/>llama-3.3-70b]
+    S -->|429 / tükendi| B
+    B -->|429 / tükendi| S
+    S --> F{ikinci sağlayıcı<br/>yapılandırılmış mı?}
+    B --> F
+    F -->|evet| D[DeepSeek<br/>günlük tavan yok]
+    F -->|hayır| ST[StubLlmClient<br/>çevrimdışı]
+    D -->|başarısız| ST
+```
+
+Kaynaklar: [`RoutingLlmClient`](../backend/src/main/java/com/relay/infrastructure/llm/RoutingLlmClient.java) ·
+[`GroqLlmClient`](../backend/src/main/java/com/relay/infrastructure/llm/GroqLlmClient.java) ·
+[`ApiKeyPool`](../backend/src/main/java/com/relay/infrastructure/llm/ApiKeyPool.java)
+
+Bilinmesi gereken üç şey:
+
+1. **Groq kotası kuruluş başına sayılır, anahtar başına değil.** Aynı hesabın beş
+   anahtarı tek bütçeyi paylaşır. `/api/health/details` reddeden kuruluşları listeler.
+2. **Sağlayıcının istediği bekleme süresi uygulanır** (en fazla 1 saat). Eskiden 60
+   saniyeye kırpılıyordu; bu, tükenmiş anahtarın her dakika sıraya girip sağlam olanı
+   da aynı 429'a sokması demekti.
+3. **402 emekliye ayırmaz, bekletir.** "Bakiye yok" öbür taraftan düzelen bir şey;
+   emekliye ayrılan anahtar bir sonraki deploy'a kadar ölü kalırdı.
+
+Her adım hangi modelin cevapladığını ve **aynı token'ların güçlü modelde ne tutacağını**
+kaydeder (`steps.model`, `steps.premium_cost_usd`). Karşılaştırma aritmetiktir: aynı
+ölçülmüş token, ikinci fiyat listesi. Fiyatlanamayan bir çağrı varsa değer `null` olur —
+sıfır değil, çünkü sıfır bir iddiadır.
+
+---
+
+## 0.3 Günün özeti — model çalışmasa da ayakta
+
+```mermaid
+flowchart TD
+    B[BriefService] --> P1[gmail.listToday]
+    B --> P2[jira.listMyIssues]
+    B --> P3[github.listMyPullRequests]
+    B --> P4[calendar.listUpcoming]
+    P1 & P2 & P3 & P4 --> M[interleave<br/>her kaynak sınıflandırıcıya ulaşsın]
+    M --> I[InsightService<br/>kart + önerilen eylem]
+    M --> T[DayTally<br/>SAYILAN — model yok]
+    I --> D[DigestService<br/>günün cümlesi]
+    D --> G{kusur kapısı}
+    G -->|temiz| UI[Bugün ekranı]
+    G -->|kusurlu| X[alan düşürülür]
+    T --> UI
+    X --> UI
+```
+
+Kaynaklar: [`BriefService`](../backend/src/main/java/com/relay/application/brief/BriefService.java) ·
+[`DayTally`](../backend/src/main/java/com/relay/application/brief/DayTally.java) ·
+[`InsightService`](../backend/src/main/java/com/relay/application/brief/InsightService.java) ·
+[`DigestService`](../backend/src/main/java/com/relay/application/brief/DigestService.java)
+
+`DayTally` bu şemanın en önemli kutusu: **sayılan gün modelden bağımsız üretilir.** Kota
+bittiğinde yorum cümleleri gelmez ama "bugün 5 iş var, 2 tanesi acil" satırı yerinde durur.
+Sağlayıcılar paralel çağrılır ve biri düşerse yalnız o bölüm `unavailable` olur.
+
+---
+
+## 0.4 Katmanlar ve bağımlılık yönü
+
+```mermaid
+flowchart TD
+    API[api/<br/>REST + SSE · iş kuralı yok] --> APP
+    APP[application/<br/>orchestrator · brief · assistant · policy · cost] --> DOM
+    APP --> PORT[application/port/<br/>LlmClient · ToolRegistry · RunRepository]
+    INFRA[infrastructure/<br/>llm · tools · persistence · sse] -.uygular.-> PORT
+    DOM[domain/<br/>Run · Step · Policy · saf Java]
+```
+
+Ok yönü bağımlılık yönüdür ve **içe akar**. `infrastructure` hiçbir yerden çağrılmaz;
+portları uygular ve Spring onu bağlar. Bunun pratik karşılığı: Groq'u DeepSeek'le
+değiştirmek üç ortam değişkeni, Jira'ya yeni bir araç eklemek tek bir sınıf.
+
 ## 1. Stack
 
 | Katman | Teknoloji |

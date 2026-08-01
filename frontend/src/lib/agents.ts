@@ -33,6 +33,10 @@ const TOOL_AGENTS: Record<string, string> = {
   slack: 'Slack Uzmanı',
   gmail: 'Gmail Uzmanı',
   github: 'GitHub Uzmanı',
+  // Takvim is a registered provider like the other four; leaving it out meant the
+  // Ekip screen printed `calendar-agent` raw — correct by this file's own rule, and
+  // wrong about a specialist the product actually ships.
+  calendar: 'Takvim Uzmanı',
   generalist: 'Genel Uzman',
 };
 
