@@ -3,9 +3,11 @@ package com.relay.application.brief;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.relay.application.port.ToolRegistry;
+import com.relay.application.text.Filler;
 import com.relay.infrastructure.llm.StubLlmClient;
 import com.relay.infrastructure.tools.FixtureStore;
 import com.relay.infrastructure.tools.GitHubTool;
+import com.relay.infrastructure.tools.GmailTool;
 import com.relay.infrastructure.tools.JiraTool;
 import com.relay.infrastructure.tools.SlackTool;
 import com.relay.infrastructure.tools.ToolRegistryImpl;
@@ -121,6 +123,38 @@ class InsightServiceTest {
         assertThat(result.insights()).allSatisfy(insight ->
                 assertThat(insight.actions()).allSatisfy(action ->
                         assertThat(slim.find(action.tool())).isPresent()));
+    }
+
+    /**
+     * The suggestion that puts Relay in everyone's day rather than the engineering team's:
+     * a mail waiting for an answer offers to write the answer. It has to arrive with the
+     * thread it belongs to and with a body that carries something — an action whose text
+     * looks like filler is refused at the write gate, so a suggestion that produces one
+     * would only ever fail after the user pressed it.
+     */
+    @Test
+    void a_mail_waiting_for_an_answer_offers_a_reply_draft_on_its_own_thread() {
+        ToolRegistry withDraft = new ToolRegistryImpl(List.of(
+                new GmailTool.CreateDraft("replay", new FixtureStore(), null)));
+        BriefItem asking = new BriefItem("gmail:9", "gmail", "mail", "",
+                "Sözleşme onayını rica ediyorum", "Ayşe Yıldız", "2sa önce", "Ayşe Yıldız",
+                "https://mail.google.com/mail/u/0/#inbox/9", "2026-07-31T05:41:00Z", BriefItem.WARN,
+                Map.of("messageId", "9", "threadId", "18f2c9a10b3d4e01",
+                        "from", "Ayşe Yıldız <ayse@alterteam.dev>"));
+
+        InsightService.Insight insight = new InsightService(
+                new TestDoubles.StaticLlmClient("no json here"), withDraft)
+                .analyze(List.of(asking), "KAN").insights().get(0);
+
+        InsightService.Action draft = insight.actions().stream()
+                .filter(action -> "gmail.createDraft".equals(action.tool()))
+                .findFirst().orElseThrow();
+        assertThat(draft.label()).isEqualTo("Taslak cevap yaz");
+        assertThat(draft.params())
+                .containsEntry("to", "Ayşe Yıldız <ayse@alterteam.dev>")
+                .containsEntry("threadId", "18f2c9a10b3d4e01");
+        assertThat(String.valueOf(draft.params().get("subject"))).startsWith("Re: ");
+        assertThat(Filler.looksLikeFiller(String.valueOf(draft.params().get("body")))).isFalse();
     }
 
     @Test

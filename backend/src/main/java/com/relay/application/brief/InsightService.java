@@ -349,6 +349,21 @@ public class InsightService {
             params.put("body", "Relay: bugün bakıyorum.");
             actions.add(new Action("github.addComment", "GitHub'a yorum yaz", params));
         }
+        // A mail that wants an answer can be answered. The draft lands in Drafts unsent, so
+        // the suggestion offers the user's own next move rather than a ticket about it.
+        if ("gmail".equals(item.source()) && (reply || bug) && actions.size() < MAX_ACTIONS
+                && has("gmail.createDraft")) {
+            Map<String, Object> params = new LinkedHashMap<>();
+            params.put("to", String.valueOf(item.ref().getOrDefault("from", item.from())));
+            params.put("subject", "Re: " + item.title());
+            params.put("body", "Merhaba,\n\n\"" + item.title() + "\" konusunu aldım, bugün "
+                    + "içinde dönüş yapacağım.\n\nİyi çalışmalar,");
+            Object threadId = item.ref().get("threadId");
+            if (threadId != null && !String.valueOf(threadId).isBlank()) {
+                params.put("threadId", String.valueOf(threadId));
+            }
+            actions.add(new Action("gmail.createDraft", "Taslak cevap yaz", params));
+        }
         if (actions.size() < MAX_ACTIONS && has("slack.postMessage") && (bug || reply)) {
             Map<String, Object> params = new LinkedHashMap<>();
             params.put("channel", "#engineering");

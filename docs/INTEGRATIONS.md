@@ -79,9 +79,11 @@ Sonra **Reinstall to Workspace** → yeni `xoxb-...` token. Kanal tarafında bir
 2. **APIs & Services → Library** → etkinleştir: **Gmail API**, **Google Calendar API**
 3. **OAuth consent screen** → *External* → uygulama adı `Relay`, destek e-postası kendi adresin
    → **Test users**'a `samedbilgin322@gmail.com` ekle. (Test modu yeterli; yayın onayı beklemiyoruz.)
-4. **Scopes** — yalnız okuma:
+4. **Scopes** — iki okuma, bir taslak:
    - `https://www.googleapis.com/auth/gmail.readonly`
    - `https://www.googleapis.com/auth/calendar.readonly`
+   - `https://www.googleapis.com/auth/gmail.compose` — `gmail.createDraft` için.
+     Bu izin **gönderemez**, yalnız taslak oluşturur; `gmail.send` istenmiyor.
 5. **Credentials → Create credentials → OAuth client ID → Web application**
    Authorized redirect URIs:
    ```
@@ -92,6 +94,11 @@ Sonra **Reinstall to Workspace** → yeni `xoxb-...` token. Kanal tarafında bir
 
 Sonrası uygulamada: Bağlantılar → Google → **Bağlan** → Google izin ekranı → geri dönüş.
 Refresh token bağlantı config'ine şifreli yazılır; ilk izinden sonra bir daha sorulmaz.
+
+> Kapsam genişlediğinde (`gmail.compose` eklendi) **eski bağlantı bozulmaz**: okuma işleri
+> aynen çalışmaya devam eder, yalnız taslak yazma çalışmaz ve araç Türkçe bir cümleyle
+> "Bağlantılar'dan yeniden bağlan" der. `/api/oauth/google/status` bunu `canCompose` ile
+> söyler — `connected: true, canCompose: false` = yeniden bağlanma gerekiyor.
 
 > İzin ekranında "Google bu uygulamayı doğrulamadı" uyarısı normaldir — test kullanıcısı olduğun
 > için *Advanced → Go to Relay (unsafe)* ile devam edilir.

@@ -37,11 +37,47 @@ public class GoogleOAuth {
 
     public static final String PROVIDER = "google";
 
-    /** Read-only is all the daily brief needs. */
+    /**
+     * The one write Relay asks Google for: a draft in the user's own Drafts folder.
+     * {@code gmail.compose} cannot send — it can only create and edit drafts — so the
+     * grant itself, not just our code, rules out mail leaving on the user's behalf.
+     */
+    public static final String COMPOSE_SCOPE = "https://www.googleapis.com/auth/gmail.compose";
+
+    /** Reading is what the daily brief needs; composing is what answering a mail needs. */
     public static final String SCOPES = String.join(" ",
             "https://www.googleapis.com/auth/gmail.readonly",
+            COMPOSE_SCOPE,
             "https://www.googleapis.com/auth/calendar.readonly",
             "openid", "email");
+
+    /**
+     * Does the grant behind this connection cover {@code scope}?
+     *
+     * <p>Widening {@link #SCOPES} does not revoke anything: a connection made before
+     * {@link #COMPOSE_SCOPE} was asked for keeps reading mail and calendar exactly as
+     * before. It simply cannot write, and the honest place to say so is before the call,
+     * in a sentence naming the button to press — not as a provider 403 halfway through.
+     *
+     * <p>A connection with no recorded {@code scope} is treated as unknown rather than
+     * empty: those tokens predate the field, and refusing them here would invent a
+     * permission problem the provider may not have.
+     */
+    public static boolean granted(Connection connection, String scope) {
+        if (connection == null || scope == null || scope.isBlank()) {
+            return false;
+        }
+        String recorded = connection.get("scope");
+        if (recorded == null || recorded.isBlank()) {
+            return true;
+        }
+        for (String one : recorded.trim().split("\\s+")) {
+            if (one.equals(scope)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     private static final String AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
     private static final String TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
@@ -175,6 +211,12 @@ public class GoogleOAuth {
         out.put("configured", configured());
         out.put("connected", connected());
         out.put("scopes", SCOPES);
+        // Whether the *stored* grant still matches the asked-for one. A connection made
+        // before gmail.compose reads connected=true and canCompose=false — which is the
+        // whole difference between "reconnect" and "nothing to do".
+        out.put("canCompose", connections.findByProvider(PROVIDER)
+                .map(connection -> granted(connection, COMPOSE_SCOPE))
+                .orElse(false));
         out.put("redirectUri", redirectUri);
         out.put("startUrl", "/api/oauth/google/start");
         return out;

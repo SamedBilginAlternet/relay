@@ -32,6 +32,7 @@ class ToolSchemaTest {
                 new GmailTool.ListToday("replay", FIXTURES, null),
                 new GmailTool.GetMessage("replay", FIXTURES, null),
                 new GmailTool.Search("replay", FIXTURES, null),
+                new GmailTool.CreateDraft("replay", FIXTURES, null),
                 new CalendarTool.ListToday("replay", FIXTURES, null, "Europe/Istanbul"),
                 new CalendarUpcomingTool("replay", FIXTURES, null, "Europe/Istanbul"));
     }
@@ -164,6 +165,18 @@ class ToolSchemaTest {
         // A search without a query is a search over the whole mailbox — rejected at the gate.
         assertThat(new GmailTool.Search("replay", FIXTURES, null).execute(Json.object(), null).ok())
                 .isFalse();
+
+        // A draft with no recipient, no subject or no text is not a draft.
+        assertThat(new GmailTool.CreateDraft("replay", FIXTURES, null).execute(Json.object(), null).ok())
+                .isFalse();
+        ObjectNode draft = Json.object();
+        draft.put("to", "ayse@alterteam.dev");
+        draft.put("subject", "Re: Ödeme servisi staging'de patlıyor");
+        draft.put("body", "Bakıyorum, 14:00'ten önce dönerim.");
+        ToolResult drafted = new GmailTool.CreateDraft("replay", FIXTURES, null).execute(draft, null);
+        assertThat(drafted.ok()).isTrue();
+        assertThat(drafted.data().path("sent").asBoolean(true)).isFalse();
+        assertThat(drafted.data().path("subject").asText()).contains("patlıyor");
 
         ToolResult events = new CalendarTool.ListToday("replay", FIXTURES, null, "Europe/Istanbul")
                 .execute(Json.object(), null);

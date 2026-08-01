@@ -61,6 +61,7 @@ onay kapısı, aynı şeffaflık. Yani Bugün ekranı yeni bir motor değil, mot
 |---|---|---|
 | `gmail.listToday` | READ | Bugünün mailleri, `q=newer_than:1d` |
 | `gmail.getMessage` | READ | Tek mail gövdesi |
+| `gmail.createDraft` | WRITE | Taslak cevap — **gönderilmez**, taslaklar klasörüne düşer |
 | `calendar.listToday` | READ | Bugünün etkinlikleri |
 | `github.listMyPullRequests` | READ | `review-requested` + `author` |
 | `github.listMyIssues` | READ | `assignee:@me` |

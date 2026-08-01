@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,6 +26,9 @@ import org.springframework.stereotype.Component;
  * <p>Gmail's list endpoint returns ids only, so {@code listToday} fans the metadata reads out
  * over virtual threads and normalises them into one flat array — the brief never sees
  * base64url payload parts.
+ *
+ * <p>Three of the four tools here read. The fourth, {@link CreateDraft}, is the only write
+ * Relay makes into a mailbox, and it is a draft: nothing is ever sent.
  */
 public abstract class GmailTool extends GoogleTool {
 
@@ -330,6 +334,298 @@ public abstract class GmailTool extends GoogleTool {
             out.put("snippet", message.path("snippet").asText(""));
             out.put("body", plainText(message.path("payload")));
             return out;
+        }
+    }
+
+    // --------------------------------------------------------- createDraft
+
+    /**
+     * A reply the user still has to send.
+     *
+     * <p>Relay read mail and could not answer it, so everything it wrote went to Jira,
+     * Slack or GitHub — a tool for people who ship software. A draft is the write that
+     * fits the thesis instead of straining it: it is undoable by construction. Nothing
+     * leaves the mailbox, the text sits in Drafts, and the approval gate has already
+     * shown it (and let it be edited) before it is created.
+     *
+     * <p>Only {@code drafts.create} is reachable from here. There is no code path to
+     * {@code messages.send} and the OAuth scope Relay asks for ({@code gmail.compose})
+     * cannot send either, so "it will not mail on your behalf" is enforced twice.
+     */
+    @Component
+    public static class CreateDraft extends GmailTool {
+
+        /** The one endpoint this tool talks to. */
+        static final String DRAFTS = API + "/drafts";
+
+        /**
+         * What a token issued before {@code gmail.compose} is told. It names the screen and
+         * the reason, because "insufficient authentication scopes" names neither.
+         */
+        static final String NEEDS_CONSENT =
+                "Google izni yalnız okuma; taslak yazmak için Bağlantılar'dan Google'a yeniden "
+                + "bağlan (yeni izin: taslak oluşturma). Mevcut bağlantın okuma işlerini "
+                + "yapmaya devam ediyor.";
+
+        public CreateDraft(@Value("${app.tools.mode:replay}") String mode, FixtureStore fixtures,
+                           GoogleOAuth oauth) {
+            super(ToolsMode.parse(mode), fixtures, oauth);
+        }
+
+        @Override
+        public String name() {
+            return "gmail.createDraft";
+        }
+
+        @Override
+        public String description() {
+            return "Write a reply into the user's Gmail drafts folder — it is NEVER sent, the "
+                    + "user opens Gmail and presses send. Pass threadId (and inReplyTo when the "
+                    + "message id is known) so the draft hangs under the conversation it answers. "
+                    + "Use it whenever a mail is waiting for an answer.";
+        }
+
+        @Override
+        public RiskLevel risk() {
+            return RiskLevel.WRITE;
+        }
+
+        @Override
+        public JsonNode schema() {
+            ObjectNode schema = Json.object();
+            schema.put("type", "object");
+            schema.putArray("required").add("to").add("subject").add("body");
+            ObjectNode props = schema.putObject("properties");
+            ObjectNode to = props.putObject("to");
+            to.put("type", "string");
+            to.put("minLength", 3);
+            to.put("description", "Recipient, e.g. \"Ayşe Yıldız <ayse@example.com>\" — "
+                    + "for a reply, the from field of the message being answered");
+            ObjectNode subject = props.putObject("subject");
+            subject.put("type", "string");
+            subject.put("minLength", 1);
+            ObjectNode body = props.putObject("body");
+            body.put("type", "string");
+            body.put("minLength", 1);
+            body.put("description", "The reply itself, plain text, in the language of the mail");
+            ObjectNode thread = props.putObject("threadId");
+            thread.put("type", "string");
+            thread.put("description", "Gmail thread id of the conversation being answered — "
+                    + "omit for a brand-new mail");
+            ObjectNode inReplyTo = props.putObject("inReplyTo");
+            inReplyTo.put("type", "string");
+            inReplyTo.put("description", "RFC 2822 Message-ID of the mail being answered, "
+                    + "e.g. \"<CAB1@mail.gmail.com>\"");
+            return schema;
+        }
+
+        /**
+         * Puts the {@code Re:} on a reply here rather than at call time, so the subject the
+         * approval screen shows is the subject Gmail will store.
+         */
+        @Override
+        public JsonNode withDefaults(JsonNode params, Connection connection) {
+            if (!params.isObject() || !isReply(params)) {
+                return params;
+            }
+            String subject = params.path("subject").asText("").trim();
+            if (subject.isEmpty() || subject.toLowerCase(Locale.ROOT).startsWith("re:")) {
+                return params;
+            }
+            ObjectNode out = ((ObjectNode) params).deepCopy();
+            out.put("subject", "Re: " + subject);
+            return out;
+        }
+
+        private static boolean isReply(JsonNode params) {
+            return !params.path("threadId").asText("").isBlank()
+                    || !params.path("inReplyTo").asText("").isBlank();
+        }
+
+        @Override
+        protected JsonNode call(JsonNode params, Connection connection) throws Exception {
+            if (!GoogleOAuth.granted(connection, GoogleOAuth.COMPOSE_SCOPE)) {
+                throw new HttpJson.ToolCallException(NEEDS_CONSENT);
+            }
+            String to = oneLine(params.path("to").asText(""));
+            String subject = oneLine(params.path("subject").asText(""));
+            String threadId = oneLine(params.path("threadId").asText(""));
+            String inReplyTo = messageId(oneLine(params.path("inReplyTo").asText("")));
+
+            ObjectNode message = Json.object();
+            message.put("raw", raw(to, subject, params.path("body").asText(""), inReplyTo));
+            if (!threadId.isBlank()) {
+                // The handle Gmail threads on. In-Reply-To/References are for every other
+                // mail client, once the user presses send.
+                message.put("threadId", threadId);
+            }
+            ObjectNode payload = Json.object();
+            payload.set("message", message);
+
+            JsonNode created;
+            try {
+                created = post(DRAFTS, headers(connection), payload);
+            } catch (HttpJson.ToolCallException e) {
+                throw explain(e);
+            }
+
+            ObjectNode out = Json.object();
+            out.put("draftId", created.path("id").asText(""));
+            out.put("threadId", created.path("message").path("threadId").asText(threadId));
+            out.put("messageId", created.path("message").path("id").asText(""));
+            out.put("to", to);
+            out.put("subject", subject);
+            // Said out loud in the result, because the timeline is where a reader decides
+            // what Relay just did to their mailbox.
+            out.put("sent", false);
+            out.put("status", "draft");
+            out.put("url", "https://mail.google.com/mail/u/0/#drafts");
+            return out;
+        }
+
+        /**
+         * The single network call, isolated so a test can watch it. Everything that would
+         * make this tool send mail would have to be added here — and a test asserts nothing
+         * but {@link #DRAFTS} ever is.
+         */
+        JsonNode post(String url, Map<String, String> headers, JsonNode body) throws Exception {
+            return HttpJson.send("POST", url, headers, body);
+        }
+
+        /**
+         * Google answers a token that predates {@code gmail.compose} with 401/403 and
+         * "Request had insufficient authentication scopes". That is the same problem as the
+         * pre-flight check catches, reached by a different road — a connection whose recorded
+         * scope we could not read, or a grant the user revoked from Google's own settings —
+         * so it gets the same sentence. The provider's body is never repeated.
+         */
+        private static RuntimeException explain(HttpJson.ToolCallException failure) {
+            int status = failure.status();
+            String body = failure.body() == null ? "" : failure.body().toLowerCase(Locale.ROOT);
+            if ((status == 401 || status == 403)
+                    && (body.contains("insufficient") || body.contains("scope"))) {
+                return new HttpJson.ToolCallException(NEEDS_CONSENT, status, failure.body());
+            }
+            if (status == 401 || status == 403) {
+                return new HttpJson.ToolCallException("Google taslağı reddetti (HTTP " + status
+                        + "). Bağlantılar'dan Google'a yeniden bağlanmayı dene.", status,
+                        failure.body());
+            }
+            return failure;
+        }
+
+        // ---- RFC 2822 ------------------------------------------------------
+
+        /**
+         * Headers plus body, base64url-encoded the way {@code drafts.create} wants its
+         * {@code raw} field.
+         *
+         * <p>The body is base64 with an explicit UTF-8 charset rather than dropped in as
+         * text: a Turkish reply is not ASCII, and a MIME part that lies about its encoding
+         * arrives as mojibake in the reader's client — the one place the user cannot fix it.
+         */
+        static String raw(String to, String subject, String body, String inReplyTo) {
+            StringBuilder mime = new StringBuilder();
+            mime.append("To: ").append(address(to)).append("\r\n");
+            mime.append("Subject: ").append(encodedWord(subject)).append("\r\n");
+            if (!inReplyTo.isBlank()) {
+                mime.append("In-Reply-To: ").append(inReplyTo).append("\r\n");
+                mime.append("References: ").append(inReplyTo).append("\r\n");
+            }
+            mime.append("MIME-Version: 1.0\r\n");
+            mime.append("Content-Type: text/plain; charset=\"UTF-8\"\r\n");
+            mime.append("Content-Transfer-Encoding: base64\r\n\r\n");
+            mime.append(Base64.getMimeEncoder().encodeToString(body.getBytes(StandardCharsets.UTF_8)));
+            return Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(mime.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        /** {@code Ayşe Yıldız <ayse@x.dev>} — only the display name may be encoded. */
+        static String address(String to) {
+            int open = to.lastIndexOf('<');
+            int close = to.lastIndexOf('>');
+            if (open < 0 || close < open) {
+                return encodedWord(to);
+            }
+            String name = to.substring(0, open).trim();
+            if (name.length() > 1 && name.startsWith("\"") && name.endsWith("\"")) {
+                name = name.substring(1, name.length() - 1).trim();
+            }
+            String angle = to.substring(open, close + 1);
+            return name.isEmpty() ? angle : encodedWord(name) + " " + angle;
+        }
+
+        /**
+         * RFC 2047 encoded word.
+         *
+         * <p>A header line is US-ASCII, so "Ödeme servisi patlıyor" cannot travel as itself.
+         * The 45-byte chunking is not decoration: an encoded word is capped at 75 characters,
+         * and a Turkish subject long enough to exceed it comes out truncated or garbled in
+         * clients that enforce the limit. Chunks split on code points, never inside one.
+         */
+        static String encodedWord(String text) {
+            if (isAscii(text)) {
+                return text;
+            }
+            List<String> words = new ArrayList<>();
+            StringBuilder chunk = new StringBuilder();
+            int bytes = 0;
+            for (int i = 0; i < text.length(); ) {
+                int codePoint = text.codePointAt(i);
+                int width = new String(Character.toChars(codePoint), 0, Character.charCount(codePoint))
+                        .getBytes(StandardCharsets.UTF_8).length;
+                if (bytes > 0 && bytes + width > MAX_WORD_BYTES) {
+                    words.add(word(chunk.toString()));
+                    chunk.setLength(0);
+                    bytes = 0;
+                }
+                chunk.appendCodePoint(codePoint);
+                bytes += width;
+                i += Character.charCount(codePoint);
+            }
+            if (chunk.length() > 0) {
+                words.add(word(chunk.toString()));
+            }
+            // Folded onto continuation lines — two encoded words on one line would exceed 78.
+            return String.join("\r\n ", words);
+        }
+
+        /** 45 UTF-8 bytes → 60 base64 chars → 72 with the "=?UTF-8?B??=" wrapper. */
+        private static final int MAX_WORD_BYTES = 45;
+
+        private static String word(String part) {
+            return "=?UTF-8?B?"
+                    + Base64.getEncoder().encodeToString(part.getBytes(StandardCharsets.UTF_8))
+                    + "?=";
+        }
+
+        private static boolean isAscii(String text) {
+            for (int i = 0; i < text.length(); i++) {
+                if (text.charAt(i) > 127) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /**
+         * A header value is one line.
+         *
+         * <p>Every one of these strings arrives from a language model. A newline inside
+         * {@code subject} would end the Subject header and start whatever came next —
+         * {@code Bcc:} being the interesting one. Folding it back into a space costs a
+         * cosmetic space and closes the hole.
+         */
+        static String oneLine(String value) {
+            return value == null ? "" : value.replaceAll("[\\r\\n]+", " ").trim();
+        }
+
+        /** {@code CAB1@mail.gmail.com} → {@code <CAB1@mail.gmail.com>}; already-angled ids pass. */
+        static String messageId(String id) {
+            if (id.isBlank()) {
+                return "";
+            }
+            return id.startsWith("<") && id.endsWith(">") ? id : "<" + id + ">";
         }
     }
 }
