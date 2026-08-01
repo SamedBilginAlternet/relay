@@ -1460,9 +1460,15 @@ a.btn {
 /* Issue #12: nav labels used to disappear here, leaving unlabeled     */
 /* icon buttons. Labels now ALWAYS stay; the strip wraps to its own    */
 /* row, and below 430px the decorative icon is dropped instead.        */
+/*                                                                     */
+/* The breakpoint moved 640 -> 980 with issue #14: a sixth destination */
+/* (Politikalar) no longer fits beside the brand and the account chip, */
+/* and without this the header silently grew to THREE rows — the nav   */
+/* on its own row, the account chip pushed onto a third. Giving the    */
+/* nav a full row on purpose keeps the header at two.                  */
 /* ------------------------------------------------------------------ */
 
-@media (max-width: 640px) {
+@media (max-width: 980px) {
   .header {
     padding: 0 var(--s-12);
     padding-bottom: 8px;
@@ -2493,6 +2499,344 @@ a.btn {
 }
 .ans__src-meta > svg {
   flex: 0 0 auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Politikalar — the rule table (issue #14)                            */
+/*                                                                     */
+/* A settings screen, so it is allowed to be long — but every row has  */
+/* to answer three things without a click: which tool, how risky, and  */
+/* what it is running under right now. Mode is a segmented radio       */
+/* group; the line under it says whether that mode is still the        */
+/* default and offers the way back when it is not.                     */
+/* ------------------------------------------------------------------ */
+
+.page__inner.pol {
+  max-width: 1040px;
+}
+
+/* The sentence, counted: three cells, a number each. */
+.pol-sum {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-12);
+}
+.pol-sum__cell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: var(--s-8);
+  padding: 10px var(--s-12);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.pol-sum__n {
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+.pol-sum__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.pol-sum__hint {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--fg-muted);
+}
+.pol-sum__cell--auto .pol-sum__label > svg {
+  color: var(--success);
+}
+.pol-sum__cell--ask .pol-sum__label > svg {
+  color: var(--warn);
+}
+.pol-sum__cell--forbidden .pol-sum__label > svg {
+  color: var(--danger);
+}
+
+.pol-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+  padding: var(--s-16);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.pol-group__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  flex-wrap: wrap;
+}
+.pol-group__head h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pol-group__icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-btn);
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--fg-muted);
+}
+/* The last block is a rule, not a provider — dashed edge says "no rows here". */
+.pol-group--rule {
+  border-style: dashed;
+  background: var(--bg-subtle);
+  box-shadow: none;
+}
+
+.pol-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pol-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-16);
+  row-gap: 2px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.pol-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.pol-row__id {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  flex-wrap: wrap;
+}
+.pol-row__name {
+  font-size: 13.5px;
+  color: var(--fg);
+  word-break: break-word;
+}
+.pol-row__src {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--fg-muted);
+}
+.pol-row__ok,
+.pol-row__saving,
+.pol-row__flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+/* Deviation is never colour alone: an icon, a word, and a way back. */
+.pol-row__flag {
+  font-weight: 600;
+  color: #92400e;
+}
+.pol-row__reset {
+  padding: 4px 8px;
+  margin-left: -4px;
+}
+.pol-row--off {
+  /* the row itself gets an edge so a scan down the list finds it */
+  box-shadow: inset 3px 0 0 0 var(--warn);
+  padding-left: var(--s-12);
+}
+
+/* ---- mode: a three-way segmented radio ---------------------------- */
+
+.pol-seg {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle);
+}
+.pol-seg__opt {
+  /* the radio inside is `.sr-only` (absolute) — keep it anchored here */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px; /* touch target — the segment IS the control */
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 160ms ease-out, color 160ms ease-out,
+    border-color 160ms ease-out;
+}
+.pol-seg__opt:hover {
+  color: var(--fg);
+  background: #fff;
+}
+/* The radio itself is `.sr-only`, so the ring has to come from the label. */
+.pol-seg__opt:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.pol-seg__opt:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.pol-seg__opt--on {
+  font-weight: 600;
+  background: #fff;
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.pol-seg__opt--auto {
+  color: var(--success);
+  border-color: rgba(21, 128, 61, 0.35);
+}
+.pol-seg__opt--ask {
+  color: var(--warn);
+  border-color: rgba(180, 83, 9, 0.35);
+}
+.pol-seg__opt--forbidden {
+  color: #b91c1c;
+  border-color: rgba(185, 28, 28, 0.35);
+}
+
+/* ---- risk badge --------------------------------------------------- */
+
+.pol-risk {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+.pol-risk--read {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.pol-risk--write {
+  border-color: rgba(180, 83, 9, 0.28);
+  background: #fffbeb;
+  color: #92400e;
+}
+.pol-risk--destructive {
+  border-color: rgba(185, 28, 28, 0.28);
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+/* ---- the tools that are not in the table -------------------------- */
+
+.pol-unknown {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-16);
+  row-gap: 4px;
+}
+/* Prose, not a status line: flex would break the sentence around the inline
+   `<code>` and leave the closing bracket stranded on its own row. */
+.pol-unknown .pol-row__src {
+  grid-column: 1 / -1;
+  display: block;
+}
+.pol-unknown .pol-row__src code {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.pol-fixed {
+  grid-column: 2;
+  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px dashed rgba(185, 28, 28, 0.4);
+  border-radius: var(--r-pill);
+  background: #fef2f2;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b91c1c;
+  white-space: nowrap;
+}
+.pol-note {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+  padding-top: var(--s-8);
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 860px) {
+  .pol-sum {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pol-row,
+  .pol-unknown {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pol-seg,
+  .pol-fixed {
+    grid-column: 1;
+    grid-row: auto;
+    margin-top: 6px;
+  }
+  .pol-seg {
+    justify-content: space-between;
+  }
+  .pol-seg__opt {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 6px 8px;
+  }
+  .pol-fixed {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 430px) {
+  /* the word is the label; the icon is decoration and goes first */
+  .pol-seg__opt {
+    gap: 4px;
+    font-size: 12px;
+  }
 }
 
 /* ------------------------------------------------------------------ */
