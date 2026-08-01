@@ -148,3 +148,25 @@ it('a_server_that_ignores_the_filter_does_not_turn_records_into_decisions', asyn
 
   expect(await screen.findByText('Onayını bekleyen 1 çalıştırma')).toBeTruthy();
 });
+
+/**
+ * The waiting block is fetched separately and is usually longer than the page
+ * of history, so counting repeats over the page alone hid the id on exactly
+ * the rows that needed it: live, fifteen parkings of one prompt drew fifteen
+ * rows with the same goal, the same age and the same token count.
+ */
+it('a_prompt_parked_twice_is_told_apart_even_when_the_page_holds_it_once', async () => {
+  listRuns.mockImplementation(async (options?: { status?: string }) =>
+    options?.status === 'awaiting_approval'
+      ? [
+          run({ id: 'aaaaaaaa-1111', goal: 'aynı istem', status: 'awaiting_approval' }),
+          run({ id: 'bbbbbbbb-2222', goal: 'aynı istem', status: 'awaiting_approval' }),
+        ]
+      : [run({ id: 'aaaaaaaa-1111', goal: 'aynı istem', status: 'awaiting_approval' })],
+  );
+
+  render(<HistoryScreen onOpen={() => {}} />);
+
+  expect(await screen.findByText('#aaaaaa')).toBeTruthy();
+  expect(screen.getByText('#bbbbbb')).toBeTruthy();
+});

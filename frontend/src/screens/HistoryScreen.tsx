@@ -92,8 +92,18 @@ export function HistoryScreen({ onOpen }: Props) {
   }, [load]);
 
   const { waiting: onPage, settled } = useMemo(() => splitByDecision(rows ?? []), [rows]);
-  const waiting = parked ? parked.filter((row) => row.status === WAITING) : onPage;
-  const repeated = useMemo(() => repeatedGoals(rows ?? []), [rows]);
+  const waiting = useMemo(
+    () => (parked ? parked.filter((row) => row.status === WAITING) : onPage),
+    [parked, onPage],
+  );
+  /*
+    Counted over what is drawn, not over the page that was fetched. The waiting
+    block comes from its own request (#100) and is usually the longer of the
+    two, so a prompt run fifteen times and parked fifteen times appeared as
+    fifteen identical rows — same goal, same age, same token count — while the
+    id that tells them apart was suppressed for being "unique on the page".
+  */
+  const repeated = useMemo(() => repeatedGoals([...waiting, ...settled]), [waiting, settled]);
 
   return (
     <div className="page">
