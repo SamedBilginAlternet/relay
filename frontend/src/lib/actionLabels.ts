@@ -45,6 +45,9 @@ const LABELS: Record<string, string> = {
   'slack.postMessage': 'Slack’e özet at',
   'slack.listChannels': 'Kanalları getir',
 
+  // Notion
+  'notion.createPage': 'Notion’a not aç',
+
   // Calendar
   'calendar.listToday': 'Bugünün toplantılarını getir',
   'calendar.listUpcoming': 'Yaklaşan toplantıları getir',

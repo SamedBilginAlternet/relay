@@ -7,7 +7,7 @@ Relay hiçbir entegrasyon olmadan da çalışır: bağlantısı olmayan sağlay�
 **replay** moduna düşer (`AbstractTool`), `/api/brief` de o bölümü `unavailable` işaretleyip
 diğerlerini döndürür. Yani eksik entegrasyon ekranı boşaltmaz — sadece o kutuyu "bağla"ya çevirir.
 
-Zorluk sırası: **GitHub → Jira → Slack → Google**. İlk üçü tek token, sonuncusu OAuth.
+Zorluk sırası: **Notion → GitHub → Jira → Slack → Google**. İlk dördü tek token, sonuncusu OAuth.
 
 ---
 
@@ -71,7 +71,69 @@ Sonra **Reinstall to Workspace** → yeni `xoxb-...` token. Kanal tarafında bir
 
 ---
 
-## 4. Google — Gmail + Calendar (OAuth)
+## 4. Notion (integration token — OAuth yok)
+
+Relay'in tek yazma aracı olan sağlayıcı: `notion.createPage`. Okuma aracı **yok** ve
+bilerek yok — okuyan bir araç her sabah briefte iki model turu daha demektir, yazan bir
+araç ise yalnız kullanıldığı akışta ~100 token. Notion'dan okuma isteniyorsa bu bir ürün
+kararıdır, eksik değil.
+
+**Nereden:** [notion.so/my-integrations](https://www.notion.so/my-integrations) →
+*New integration* → tipi **Internal**, yetenekleri **Insert content** (+ istenirse *Read
+content*) → **Internal Integration Secret** kopyalanır (`ntn_...`).
+
+**Relay'e girilecek** (Bağlantılar ekranı → `notion`):
+
+| Anahtar | Zorunlu | Değer |
+|---|---|---|
+| `token` | evet | `ntn_...` — Internal Integration Secret |
+| `parentDatabaseId` | hayır | Sayfaların açılacağı varsayılan veritabanının 32 karakterlik kimliği |
+
+`parentDatabaseId` girilmezse her adımda hedef veritabanını modelin bulması gerekir ve
+bulamaz — bu alanı bir kez doldurmak, akışın her seferinde çalışması demektir. Kimlik,
+veritabanını Notion'da açtığınızda adres çubuğunda durur:
+
+```
+https://www.notion.so/workspace/2f0a1b9c4d5e4f60a1b2c3d4e5f60718?v=...
+                               └──────── parentDatabaseId ────────┘
+```
+
+> ### ⚠️ ÖNCE BUNU YAPIN: sayfayı integration ile paylaşın
+>
+> **Bir Notion integration'ı, kendisiyle açıkça paylaşılmamış hiçbir sayfayı göremez.**
+> Token doğru, kimlik doğru, yetkiler doğru olsa bile paylaşım yoksa her çağrı
+> `object_not_found` döner — Notion, izin verilmemiş sayfayı "yok" diye cevaplar,
+> "yetkiniz yok" diye değil. Kurulumda atlanan tek adım budur ve canlı demoyu bozan bir
+> numaralı hata budur.
+>
+> **Yapılacak:** hedef sayfayı/veritabanını Notion'da açın → sağ üstteki **•••** →
+> **Connections** (Türkçe arayüzde *Bağlantılar*) → **Connect to** → oluşturduğunuz
+> integration'ı seçin. Bir üst sayfada yapılırsa alt sayfalar da devralır.
+>
+> Bu, Slack'teki `/invite @relay` ile birebir aynı sınıftan bir adımdır: kimlik bilgisi
+> erişim değildir, erişim ayrıca verilir.
+>
+> Relay bu hatayı ham haliyle göstermez. `object_not_found` geldiğinde adım şu Türkçe
+> cümleyle durur: *"Notion hedef sayfayı ya da veritabanını göremiyor. Bu neredeyse her
+> zaman izin sorunudur, id hatası değil… ••• menüsünden Connections → Relay
+> integration'ını ekleyin."* Yani ekranda id'yi değil paylaşımı kontrol etmeniz yazar.
+
+Notlar:
+
+- Her istek `Notion-Version: 2022-06-28` başlığıyla gider. Bu başlık **zorunludur**;
+  olmadan Notion gövdeye bakmadan HTTP 400 döner. Kodda sabitlenmiştir
+  (`NotionTool.API_VERSION`), ortam değişkeni değildir.
+- Sayfa başlığı, veritabanının ilk sütununun *adına* göre değil `title` kimliğine göre
+  yazılır — sütunun adı "Name", "Ad" ya da "Başlık" olabilir, hiçbiri fark etmez.
+- `content` düz metin ya da hafif markdown olabilir: `# `, `## `, `### ` başlıklar ve
+  `- ` maddeler bloklara çevrilir, gerisi paragraf olur.
+- `notion.createPage` **WRITE** risklidir → politika motoru onay kapısını kendiliğinden
+  açar, ayrıca kural yazmak gerekmez.
+- Bağlantı yoksa araç replay moduna düşer ve demo yine baştan sona çalışır.
+
+---
+
+## 5. Google — Gmail + Calendar (OAuth)
 
 **Nereden:** [console.cloud.google.com](https://console.cloud.google.com)
 
@@ -183,7 +245,7 @@ JSON kipi uyarısı: DeepSeek `json_object` için istemde "json" kelimesinin ge�
 ("Answer with JSON only, matching this schema") bunu zaten karşılıyor — o cümle
 kaldırılırsa DeepSeek'te JSON kipi bozulur.
 
-## 5. Ortam değişkenleri (Coolify)
+## 6. Ortam değişkenleri (Coolify)
 
 | Değişken | Zorunlu | Not |
 |---|---|---|
@@ -195,12 +257,15 @@ kaldırılırsa DeepSeek'te JSON kipi bozulur.
 | `GOOGLE_CLIENT_SECRET` | Google için | — |
 | `GOOGLE_REDIRECT_URI` | Google için | `https://relay.samedbilgin.com/api/oauth/google/callback` |
 
-Jira/Slack/GitHub kimlik bilgileri **ortam değişkeni değildir** — veritabanında şifreli
-tutulur, Bağlantılar ekranından girilir. Böylece demo sırasında yeniden deploy gerekmez.
+Jira/Slack/GitHub/**Notion** kimlik bilgileri **ortam değişkeni değildir** — veritabanında
+şifreli (AES-GCM) tutulur, Bağlantılar ekranından girilir. Böylece demo sırasında yeniden
+deploy gerekmez. Notion için Coolify'a girilecek **hiçbir şey yoktur**: `ntn_...` token'ı
+doğrudan Bağlantılar → Notion formuna yapıştırılır.
 
 ---
 
-## 6. Hackathon sonrası
+## 7. Hackathon sonrası
 
-Bu belgede geçen tüm token'lar (Groq, Jira, Slack, GitHub PAT, Google secret) **iptal edilip
-yeniden üretilmeli**. Hiçbiri repoya yazılmadı; yalnız Coolify ve veritabanında duruyorlar.
+Bu belgede geçen tüm token'lar (Groq, Jira, Slack, GitHub PAT, Google secret, Notion
+integration secret) **iptal edilip yeniden üretilmeli**. Hiçbiri repoya yazılmadı; yalnız
+Coolify ve veritabanında duruyorlar.

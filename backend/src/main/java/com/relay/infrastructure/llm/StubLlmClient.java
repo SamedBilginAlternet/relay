@@ -77,6 +77,12 @@ public class StubLlmClient implements LlmClient {
         boolean jiraComment = mentions(g, "yorum", "comment", "note", "not düş");
         boolean slack = mentions(g, "slack", "kanal", "channel", "ekibe", "team", "duyur", "announce", "özet at",
                 "mesaj", "message", "bildir", "notify", "paylaş", "share");
+        // Deliberately narrower than the Slack list. "not" and "sayfa" are ordinary Turkish
+        // words that turn up in goals about anything, so the words here have to name the
+        // writing-it-down job itself — otherwise the fallback planner would open a Notion
+        // page on every second goal.
+        boolean notion = mentions(g, "notion", "not sayfası", "not defteri", "wiki", "doküman",
+                "dokümana", "belgeye", "kayıt altına al", "yaz kaydet");
 
         if (jiraRead && has("jira.searchIssues")) {
             steps.add(step("Jira'da ilgili işleri bul", "jira-agent", "jira.searchIssues",
@@ -88,6 +94,9 @@ public class StubLlmClient implements LlmClient {
         }
         if (jiraComment && has("jira.addComment")) {
             steps.add(step("İlgili işe yorum ekle", "jira-agent", "jira.addComment", Map.of()));
+        }
+        if (notion && has("notion.createPage")) {
+            steps.add(step("Notion'a not sayfası aç", "notion-agent", "notion.createPage", Map.of()));
         }
         if (slack && has("slack.listChannels")) {
             steps.add(step("Slack kanallarını listele", "slack-agent", "slack.listChannels", Map.of()));

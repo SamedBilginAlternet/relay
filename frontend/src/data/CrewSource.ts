@@ -165,6 +165,7 @@ const MOCK_TOOLS: [string, RiskLevel][] = [
   ['jira.listMyIssues', 'read'],
   ['jira.searchIssues', 'read'],
   ['jira.updateIssue', 'write'],
+  ['notion.createPage', 'write'],
   ['slack.listChannels', 'read'],
   ['slack.postMessage', 'write'],
 ];

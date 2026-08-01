@@ -75,7 +75,7 @@ class ApiPlaybookSource implements PlaybookSource {
   }
 }
 
-/** Offline twin: the same two flows the scripted demo can actually play. */
+/** Offline twin: the same flows the scripted demo can actually play. */
 class MockPlaybookSource implements PlaybookSource {
   private static readonly ROWS: Playbook[] = [
     {
@@ -99,6 +99,26 @@ class MockPlaybookSource implements PlaybookSource {
       steps: [
         { title: 'Bekleyen kayıtları ara', tool: 'jira.searchIssues', optional: false },
         { title: 'Hatırlatma gönder', tool: 'slack.postMessage', optional: false },
+      ],
+      runnable: true,
+      missing: [],
+    },
+    /*
+      Notion is here rather than only live because the shelf is the first screen
+      anybody sees, and a shelf whose every flow ends in a chat message says the
+      product is for engineers. This one ends in a written page, and its last
+      step is optional for the same reason the live playbook's is: a workspace
+      with no Notion connection still runs the flow, minus the note.
+    */
+    {
+      id: 'karar-notu',
+      title: 'Gün sonu notu',
+      goal: 'Bugünkü toplantıları ve mailleri özetle, alınan kararları Notion’a not sayfası olarak yaz.',
+      subtitle: 'Takvim · Gmail okunur, Notion sayfası onayına gelir',
+      steps: [
+        { title: 'Bugünün toplantılarını getir', tool: 'calendar.listToday', optional: false },
+        { title: 'Bugünün maillerini oku', tool: 'gmail.listToday', optional: true },
+        { title: 'Notion’a not sayfası aç', tool: 'notion.createPage', optional: true },
       ],
       runnable: true,
       missing: [],

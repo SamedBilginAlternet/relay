@@ -142,7 +142,8 @@ class ToolResultProjectionTest {
                 new JiraTool.UpdateIssue("replay", FIXTURES),
                 new JiraTool.AddComment("replay", FIXTURES),
                 new SlackTool.ListChannels("replay", FIXTURES),
-                new SlackTool.PostMessage("replay", FIXTURES));
+                new SlackTool.PostMessage("replay", FIXTURES),
+                new NotionTool.CreatePage("replay", FIXTURES));
 
         for (AbstractTool tool : tools) {
             JsonNode recorded = FIXTURES.load(tool.name(), Json.object());

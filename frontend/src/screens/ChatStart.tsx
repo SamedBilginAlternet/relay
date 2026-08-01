@@ -45,6 +45,17 @@ const SUGGESTIONS: { text: string; tools: string }[] = [
     text: 'Üç gündür ilerlemeyen işleri bul, nerede takıldıklarını not düş ve sahiplerine haber ver.',
     tools: 'jira.searchIssues · jira.addComment · slack.postMessage',
   },
+  /*
+    The fourth example exists to say the quiet part: none of this is about
+    software. "Bugün ne konuşuldu, ne karara bağlandı" is the job of a lawyer's
+    assistant, a consultant and an operations manager, and Notion is where all
+    three keep it. The other three examples end in a channel; this one ends in a
+    document somebody will still be reading next month.
+  */
+  {
+    text: 'Bugünkü toplantıların ve maillerin özetini çıkar, alınan kararları Notion’a not sayfası olarak yaz.',
+    tools: 'calendar.listToday · gmail.listToday · notion.createPage',
+  },
 ];
 
 export function ChatStart({ onSubmit, busy = false, sourceKind }: Props) {

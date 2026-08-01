@@ -126,6 +126,7 @@ class MockPolicySource implements PolicySource {
       ['jira', 'jira.listMyIssues', 'read'],
       ['jira', 'jira.searchIssues', 'read'],
       ['jira', 'jira.updateIssue', 'write'],
+      ['notion', 'notion.createPage', 'write'],
       ['slack', 'slack.listChannels', 'read'],
       ['slack', 'slack.postMessage', 'write'],
     ] as [string, string, RiskLevel][]

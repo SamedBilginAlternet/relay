@@ -33,6 +33,16 @@ const SUGGESTIONS: { text: string; tools: string }[] = [
     text: 'Üç gündür ilerlemeyen işleri bul, nerede takıldıklarını not düş ve sahiplerine haber ver.',
     tools: 'jira.searchIssues · jira.addComment · slack.postMessage',
   },
+  /*
+    The fourth example is the one that is not about software at all. Three cards
+    ending in a Slack channel is a picture of an engineering team; this one ends
+    in a document, which is where a lawyer, a consultant and an operations
+    manager keep the same day's work.
+  */
+  {
+    text: 'Bugünkü toplantıların ve maillerin özetini çıkar, alınan kararları Notion’a not sayfası olarak yaz.',
+    tools: 'calendar.listToday · gmail.listToday · notion.createPage',
+  },
 ];
 
 export function Landing({ onSubmit, busy = false, sourceKind }: Props) {

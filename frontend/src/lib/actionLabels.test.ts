@@ -47,6 +47,7 @@ describe('actionLabel', () => {
       'github.addComment',
       'github.listMyPullRequests',
       'github.listMyIssues',
+      'notion.createPage',
       'slack.postMessage',
       'slack.listChannels',
       'calendar.listToday',
@@ -83,6 +84,6 @@ describe('actionLabel', () => {
   });
 
   it('keeps the model’s words for a tool it has never heard of', () => {
-    expect(actionLabel('notion.createPage', 'Notion sayfası aç')).toBe('Notion sayfası aç');
+    expect(actionLabel('linear.createIssue', 'Linear kaydı aç')).toBe('Linear kaydı aç');
   });
 });

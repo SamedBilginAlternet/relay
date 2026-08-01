@@ -28,10 +28,15 @@ public final class Playbooks {
             "Maili işe çevir",
             "Bugünkü maillerime bak; iş talebi ya da hata bildirimi olanlar için Jira kaydı aç "
                     + "ve kaydı açtığımı ilgili kanaldan bildir.",
-            "Gmail okunur, Jira kaydı ve Slack bildirimi ayrı ayrı onayına gelir",
+            "Gmail okunur; Jira kaydı, Notion notu ve Slack bildirimi ayrı ayrı onayına gelir",
             List.of(
                     Move.required("Bugünün maillerini oku", "gmail.listToday", Map.of()),
                     Move.required("Jira kaydını aç", "jira.createIssue", Map.of()),
+                    // Optional, so a workspace with no Notion connection runs the flow
+                    // unchanged: PlaybookService drops an optional step whose provider is
+                    // not connected. The note is where the work is written down for the
+                    // people who never open the issue tracker.
+                    Move.optional("Notion'a not sayfası aç", "notion.createPage", Map.of()),
                     Move.optional("Kanala bildir", "slack.postMessage", Map.of())));
 
     public static final Playbook BLOCKERS = new Playbook(

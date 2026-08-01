@@ -35,7 +35,8 @@ class ToolSchemaTest {
                 new GmailTool.Search("replay", FIXTURES, null),
                 new GmailTool.CreateDraft("replay", FIXTURES, null),
                 new CalendarTool.ListToday("replay", FIXTURES, null, "Europe/Istanbul"),
-                new CalendarUpcomingTool("replay", FIXTURES, null, "Europe/Istanbul"));
+                new CalendarUpcomingTool("replay", FIXTURES, null, "Europe/Istanbul"),
+                new NotionTool.CreatePage("replay", FIXTURES));
     }
 
     @ParameterizedTest

@@ -304,7 +304,8 @@ public class ToolAgent {
             "channel", List.of("defaultChannel"),
             "channelid", List.of("defaultChannel"),
             "repo", List.of("repo", "defaultRepo"),
-            "repository", List.of("repo", "defaultRepo"));
+            "repository", List.of("repo", "defaultRepo"),
+            "parentdatabaseid", List.of("parentDatabaseId", "defaultDatabaseId"));
 
     /** One field the model addressed wrongly, and what was done about it. */
     private record Grounding(JsonNode params, String note) {
@@ -433,13 +434,19 @@ public class ToolAgent {
 
     /**
      * Fields naming a <em>container</em> to write into rather than a record to change:
-     * a project to create an issue in, a channel to post to, a repository to comment under.
-     * Those come from connection defaults or from the user's own setup, so demanding that
-     * the goal mention them would block ordinary work. Getting one wrong costs a 400, not
-     * a stranger's issue.
+     * a project to create an issue in, a channel to post to, a repository to comment under,
+     * a Notion database to open a page in. Those come from connection defaults or from the
+     * user's own setup, so demanding that the goal mention them would block ordinary work.
+     * Getting one wrong costs a 400, not a stranger's issue.
+     *
+     * <p>{@code parentDatabaseId} has to be named here rather than left to
+     * {@link #isIdentifier}'s "ends with id" rule. By that rule it reads as a pointer at one
+     * existing record, and a Notion database id is a 32-character uuid nobody types into a
+     * goal — so every single page creation would be refused as ungrounded.
      */
     private static final java.util.Set<String> CONTAINER_FIELDS = java.util.Set.of(
-            "projectkey", "project", "repo", "repository", "owner", "channel", "channelid");
+            "projectkey", "project", "repo", "repository", "owner", "channel", "channelid",
+            "parentdatabaseid");
 
     /**
      * Did the run really see this value, as a value — or does it just happen to sit inside a

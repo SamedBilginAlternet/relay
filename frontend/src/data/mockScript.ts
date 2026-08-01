@@ -5,6 +5,7 @@ export const AGENTS = {
   coordinator: 'Koordinatör',
   jira: 'Jira Uzmanı',
   slack: 'Slack Uzmanı',
+  notion: 'Notion Uzmanı',
   verifier: 'Doğrulayıcı',
   user: 'Kullanıcı',
 } as const;
@@ -375,14 +376,24 @@ export function seededHistory(): Run[] {
           costUsd: 0,
           durationMs: 0,
         },
+        /*
+          The rejected message does not evaporate: it is written down where the
+          account manager will find it. This is also the only history row whose
+          last step is not a chat message, which is the point of the provider —
+          the work outlives the channel it was going to be announced in.
+        */
         {
-          title: 'Özeti taslak olarak sakla',
-          role: AGENTS.coordinator,
-          toolName: null,
-          params: { store: 'draft' },
+          title: 'Özeti Notion’a not sayfası olarak yaz',
+          role: AGENTS.notion,
+          toolName: 'notion.createPage',
+          params: {
+            parentDatabaseId: '2f0a1b9c4d5e4f60',
+            title: 'Acme — haftalık durum (taslak)',
+            content: 'Geçen hafta 12 kayıt kapandı. Mesaj hesap yöneticisinin onayını bekliyor.',
+          },
           status: 'done',
-          decision: 'auto',
-          result: { saved: true },
+          decision: 'approved',
+          result: { created: true, title: 'Acme — haftalık durum (taslak)' },
           tokens: 190,
           costUsd: 0.0009,
           durationMs: 700,
@@ -393,6 +404,11 @@ export function seededHistory(): Run[] {
           from: AGENTS.coordinator,
           to: AGENTS.slack,
           content: 'Kullanıcı reddetti: “Mesajı önce hesap yöneticisi görsün”. Gönderme, taslağa al.',
+        },
+        {
+          from: AGENTS.coordinator,
+          to: AGENTS.notion,
+          content: 'Metni sil değil, yaz: aynı özeti Notion’da bir not sayfası olarak aç.',
         },
       ],
     ),

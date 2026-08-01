@@ -19,7 +19,7 @@
  *     is there to hold.
  *
  * The keys come from the registered tools' `schema()` (Jira, Slack, Gmail,
- * Calendar, GitHub). Matching is case-insensitive because the schemas are not
+ * Calendar, GitHub, Notion). Matching is case-insensitive because the schemas are not
  * consistent themselves — Jira's create step spells it `issueType` in one place
  * and `issuetype` in another.
  */
@@ -42,6 +42,10 @@ const LABELS: Record<string, string> = {
   channel: 'Kanal',
   text: 'Mesaj',
   threadts: 'Yanıtlanan mesaj',
+
+  // Notion
+  parentdatabaseid: 'Veritabanı',
+  content: 'İçerik',
 
   // Gmail
   to: 'Kime',
