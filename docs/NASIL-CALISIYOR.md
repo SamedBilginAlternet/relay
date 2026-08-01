@@ -128,6 +128,16 @@ geçirilmez, çünkü içinde URL, istek gövdesi veya token olabilir. Ayrıca c
 bağlantısı olmayan bir araç fixture döndürürse (`mode = "replay (no connection)"`) bu `ok`
 değil `unavailable` sayılır — demo verisi kullanıcının gerçek gelen kutusu diye sunulmaz.
 
+**Başarılı yanıt da çevrilir.** Aynı kural araç *sonucu* için de geçerli: her araç
+`AbstractTool.project` ile ne taşıdığını söylemek zorunda (soyut metot — yeni entegrasyon
+unutamaz). Ölçü "kullanıcı ne okuyor": bir Jira kaydından `key`, `fields.summary`,
+`status.name`, `priority.name`, `issuetype.name`, `assignee.displayName`, `updated` kalır;
+`self`, `id`, `expand`, `iconUrl`, `avatarUrls`, `statusCategory`, `accountId` ve
+`nextPageToken` kalmaz. Seçilen biçim fixture'ların biçimi: hem Bugün ekranı hem asistan
+zaten `fields.status.name` okuyor, ve canlı ile replay'in farklı cevap vermesi ayrı bir
+hatadır. Fixture'lar da projeksiyondan geçer, böylece bu doğru kalır. Ölçüm (canlı,
+2026-08-01): tek okuma adımının `step.finished` olayı 21.424 → 2.219 bayt.
+
 **Insight katmanı.** `InsightService` bütün öğeleri **tek** şema kısıtlı LLM çağrısına
 sokar; 12 öğelik brief 12 tur değil 1 tur eder. Yanıt güvenilmez kabul edilir: önerilen her
 `tool` `ToolRegistry`'ye karşı doğrulanır, olmayan araç düşürülür. Model ulaşılamazsa
