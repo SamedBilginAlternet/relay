@@ -49,6 +49,11 @@ function isToUser(message: AgentMessage): boolean {
  * amount, a uuid, a `key=value` pair. Everything else stays prose. A false
  * positive sets a Turkish word in mono and is worse than a miss, so no rule
  * here guesses at a bare word.
+ *
+ * <p>Single quotes are deliberately absent from that list. Turkish attaches
+ * suffixes with an apostrophe — `Jira'da`, `KAN-20'yi` — so a rule that opens a
+ * span at one apostrophe closes it at the next word's, and "Jira'da 'RELAY'
+ * anahtarlı" came out with `'da '` set in mono on the live trail.
  */
 const MACHINE = new RegExp(
   [
@@ -57,7 +62,6 @@ const MACHINE = new RegExp(
     'https?://\\S+', //                                    a link is never a sentence
     '[\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+', //                 the address that approved a step
     '"[^"\\n]{1,80}"', //                                  a straight-quoted value
-    "'[^'\\n]{1,80}'", //                                  …and its single-quoted form
     '\\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b',
     '\\b[a-z][a-z0-9_]+(?:\\.[a-z][a-zA-Z0-9_]*)+\\b', //  jira.createIssue
     '\\b[A-Z][A-Z0-9]{1,9}-\\d+\\b', //                    KAN-20

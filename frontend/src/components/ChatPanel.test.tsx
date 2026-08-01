@@ -167,6 +167,15 @@ it('splitting_a_line_never_loses_a_character_of_it', () => {
   expect(splitMachine(line).map((p) => p.text).join('')).toBe(line);
 });
 
+it('an_apostrophe_in_a_turkish_word_never_opens_a_machine_span', () => {
+  // Turkish glues its suffixes on with an apostrophe, so a quoting rule that
+  // opens at one closes at the next word's: the live trail printed the suffix
+  // in `Jira'da 'RELAY' anahtarlı` in mono, mid-sentence.
+  const parts = splitMachine("jira.createIssue: Jira'da 'RELAY' anahtarlı bir proje yok");
+
+  expect(parts.filter((p) => p.machine).map((p) => p.text)).toEqual(['jira.createIssue']);
+});
+
 it('an_ordinary_turkish_sentence_is_left_entirely_in_prose', () => {
   // The rules are allowed to miss a fact; they are not allowed to set a word in
   // mono, because that is a claim that the word came from a machine.
