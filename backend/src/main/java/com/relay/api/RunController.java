@@ -93,15 +93,35 @@ public class RunController {
         return Views.run(runService.get(id));
     }
 
+    /** As many runs as one request will hand out, however many were asked for. */
+    static final int MAX_PAGE_SIZE = 100;
+
+    /**
+     * History, a page at a time — and the page it answers with is the page it describes.
+     *
+     * <p>{@code size} was passed through untouched while the store quietly capped it at a
+     * hundred, so {@code ?size=99999} returned 100 rows and called them 99999. A client that
+     * divides {@code total} by {@code size} to count pages concluded there was one page and
+     * it had all of it; with 114 runs recorded, fourteen were unreachable and nothing said
+     * so. Out-of-range sizes are pulled to the limit and the limit is what comes back, so
+     * {@code items.length <= size} holds on every response.
+     *
+     * <p>A negative {@code page} is refused rather than corrected: it is a negative offset,
+     * which no caller can mean, and answering 200 to it hides the caller's bug in ours.
+     */
     @GetMapping
     public Map<String, Object> list(@RequestParam(defaultValue = "0") int page,
                                     @RequestParam(defaultValue = "20") int size) {
+        if (page < 0) {
+            throw new IllegalArgumentException("Sayfa numarası 0 ya da daha büyük olmalı.");
+        }
+        int applied = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         List<Map<String, Object>> items = new ArrayList<>();
-        runService.list(page, size).forEach(run -> items.add(Views.runSummary(run)));
+        runService.list(page, applied).forEach(run -> items.add(Views.runSummary(run)));
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("items", items);
         body.put("page", page);
-        body.put("size", size);
+        body.put("size", applied);
         body.put("total", runService.count());
         return body;
     }
