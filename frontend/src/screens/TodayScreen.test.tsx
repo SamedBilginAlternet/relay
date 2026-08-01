@@ -243,3 +243,54 @@ it('a_write_says_it_will_stop_for_a_signature_before_it_is_pressed', async () =>
   // And the way back to the original.
   expect(screen.getByRole('link', { name: /E-posta’da aç/ })).toBeTruthy();
 });
+
+/**
+ * Building a brief calls five providers and spends two model turns — 3.6s when the model
+ * answers and 14.3s when every key is at its daily wall. The server hands back the last
+ * brief it had while it builds the next one, so the screen paints at once.
+ *
+ * <p>Two things have to hold for that to be honest rather than merely fast: the reader is
+ * told the answer is being replaced, and the replacement actually arrives without anyone
+ * pressing anything. The second one is a `setTimeout` away from silently never happening.
+ */
+it('a_stale_brief_says_so_and_is_replaced_without_a_refresh', async () => {
+  vi.useFakeTimers();
+  try {
+    getBrief
+      .mockResolvedValueOnce(briefWith({ stale: true }))
+      .mockResolvedValueOnce(briefWith({ stale: false }));
+
+    render(<TodayScreen onNavigate={() => {}} />);
+
+    await vi.waitFor(() => expect(screen.getByText(/yenileniyor/)).toBeTruthy());
+    expect(getBrief).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(6100);
+
+    // Collected once, and the line stops claiming a rebuild that has finished.
+    expect(getBrief).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(screen.queryByText(/yenileniyor/)).toBeNull());
+
+    // Once, not a poll: nothing else goes out however long the screen stays open.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(getBrief).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+/** A current brief asks for nothing more, whatever the clock does. */
+it('a_current_brief_is_not_re_fetched_behind_the_readers_back', async () => {
+  vi.useFakeTimers();
+  try {
+    getBrief.mockResolvedValue(briefWith({ stale: false }));
+
+    render(<TodayScreen onNavigate={() => {}} />);
+    await vi.waitFor(() => expect(getBrief).toHaveBeenCalledTimes(1));
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(getBrief).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.useRealTimers();
+  }
+});

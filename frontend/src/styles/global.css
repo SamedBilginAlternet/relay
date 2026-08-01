@@ -2077,6 +2077,14 @@ a.btn {
   flex-direction: column;
   gap: var(--s-8);
 }
+/* Only after 2.5s, and only on a cold build — three grey bars look identical at
+   200ms and at fourteen seconds, which is the difference between "loading" and
+   "broken" going unsaid. */
+.brief-prio__slow {
+  margin: 0;
+  padding-top: var(--s-4);
+  max-width: 52ch;
+}
 .brief-prio__clear {
   display: flex;
   align-items: center;
@@ -3141,56 +3149,6 @@ a.btn {
   max-width: 1040px;
 }
 
-/* The sentence, counted: three cells, a number each. */
-.pol-sum {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--s-12);
-}
-.pol-sum__cell {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: baseline;
-  column-gap: var(--s-8);
-  padding: 10px var(--s-12);
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
-.pol-sum__n {
-  grid-row: 1 / span 2;
-  align-self: center;
-  font-family: var(--font-mono);
-  font-size: 22px;
-  font-weight: 500;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg);
-}
-.pol-sum__label {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--fg);
-}
-.pol-sum__hint {
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--fg-muted);
-}
-.pol-sum__cell--auto .pol-sum__label > svg {
-  color: var(--success);
-}
-.pol-sum__cell--ask .pol-sum__label > svg {
-  color: var(--warn);
-}
-.pol-sum__cell--forbidden .pol-sum__label > svg {
-  color: var(--danger);
-}
-
 .pol-group {
   display: flex;
   flex-direction: column;
@@ -3422,18 +3380,7 @@ a.btn {
   color: #b91c1c;
   white-space: nowrap;
 }
-.pol-note {
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--fg-muted);
-  padding-top: var(--s-8);
-  border-top: 1px solid var(--border);
-}
-
 @media (max-width: 860px) {
-  .pol-sum {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .pol-row,
   .pol-unknown {
     grid-template-columns: minmax(0, 1fr);

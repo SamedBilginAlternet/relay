@@ -123,6 +123,15 @@ export type BriefToday = {
 
 export type Brief = {
   date: string;
+  /**
+   * The server handed back the last brief it had and is building a new one behind it.
+   *
+   * <p>It is how the screen paints instantly instead of waiting three to fourteen seconds
+   * for five providers and two model turns. Absent or false means "this is current" — the
+   * safe direction, because a screen that claims it is refreshing when nothing is
+   * refreshing waits for an update that never lands.
+   */
+  stale?: boolean;
   today?: BriefToday | null;
   digest?: BriefDigest | null;
   priority: InsightCard[];

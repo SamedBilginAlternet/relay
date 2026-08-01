@@ -184,6 +184,9 @@ export function normalizeBrief(raw: unknown): Brief {
   const r = asRecord(raw);
   return {
     date: asString(r.date) || new Date().toISOString(),
+    // `=== true`, not truthy and not `?? false`: a server that has never heard of the
+    // field must read as "current", never as "a fresh one is on its way".
+    stale: r.stale === true,
     today: normalizeToday(r.today),
     digest: normalizeDigest(r.digest),
     priority: Array.isArray(r.priority) ? r.priority.map(normalizeCard) : [],

@@ -170,6 +170,51 @@ export function TodayScreen({ onNavigate }: Props) {
     void load('initial');
   }, [load]);
 
+  /*
+    A stale brief is a promise the server made: it handed over the last one it had and
+    went to build a new one. This collects on that promise exactly once, without a
+    refresh — a refresh would force a second build and wait for it, which is the thing
+    the stale answer exists to avoid.
+
+    Once, not a loop: if the rebuild is still running the next answer is stale again, and
+    a screen that re-asks every six seconds forever is a poll nobody asked for. The Yenile
+    button is still there for someone who wants to insist.
+  */
+  const staleAt = brief?.stale ? brief.date : null;
+  useEffect(() => {
+    if (!staleAt) return;
+    let alive = true;
+    const id = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const next = await getBriefSource().getBrief();
+          if (alive) setBrief(next);
+        } catch {
+          /* The reader already has a brief on screen. Leave it standing. */
+        }
+      })();
+    }, 6000);
+    return () => {
+      alive = false;
+      window.clearTimeout(id);
+    };
+  }, [staleAt]);
+
+  /*
+    A cold build is 3.6s when the model answers and 14.3s when every key is at its daily
+    wall. Three grey bars look the same at 200ms and at fourteen seconds, so past two and
+    a half the screen says what is taking the time instead of pretending nothing is.
+  */
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (phase !== 'loading') {
+      setSlow(false);
+      return;
+    }
+    const id = window.setTimeout(() => setSlow(true), 2500);
+    return () => window.clearTimeout(id);
+  }, [phase]);
+
   /* The shelf is not part of the brief and must not wait for it: a slow
      provider should never be the reason a written-down flow cannot be
      started. Separate request, separate failure. */
@@ -483,7 +528,13 @@ export function TodayScreen({ onNavigate }: Props) {
                 className={`src-dot src-dot--${RUN_SOURCE_KIND}${phase === 'error' ? ' src-dot--down' : ''}`}
                 aria-hidden
               />
-              {phase === 'error' ? `${SOURCE_NOTE} — yanıt yok` : SOURCE_NOTE}
+              {/* Three states, in the one line that already says where the data comes
+                  from: dead, being rebuilt behind this answer, current. */}
+              {phase === 'error'
+                ? `${SOURCE_NOTE} — yanıt yok`
+                : brief?.stale
+                  ? `${SOURCE_NOTE} — yenileniyor`
+                  : SOURCE_NOTE}
             </p>
           </div>
           <button
@@ -576,6 +627,12 @@ export function TodayScreen({ onNavigate }: Props) {
                   <div className="skeleton" style={{ height: 68 }} />
                   <div className="skeleton" style={{ height: 68, opacity: 0.6 }} />
                   <div className="skeleton" style={{ height: 68, opacity: 0.4 }} />
+                  {slow && (
+                    <p className="t-caption brief-prio__slow">
+                      Dört kaynak taranıyor ve günün özeti yazılıyor. İlk açılışta birkaç
+                      saniye sürer; sonrasında ekran anında gelir.
+                    </p>
+                  )}
                 </div>
               )}
 
