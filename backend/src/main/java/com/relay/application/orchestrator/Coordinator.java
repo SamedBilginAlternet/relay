@@ -85,26 +85,35 @@ public class Coordinator {
         try (RunLocks.Lease lease = locks.acquire(runId)) {
             // The recovery below writes the aggregate too, so it stays inside the lease
             // rather than in a catch around it.
+            /*
+              Held outside the try so the recovery can close the run that actually ran,
+              not a fresh copy of it. Re-reading threw away everything the failed attempt
+              had already spent: a plan that costs 5 000 tokens and then comes back
+              unreadable closed with "0 token · $0.000000" on a product whose pitch is
+              that it counts what it spends.
+            */
+            Run driven = null;
             try {
-                Run run = runs.findById(runId).orElse(null);
-                if (run == null) {
+                driven = runs.findById(runId).orElse(null);
+                if (driven == null) {
                     LOG.log(Level.WARNING, "drive: run {0} not found", runId);
                     return;
                 }
-                if (run.status().terminal()) {
+                if (driven.status().terminal()) {
                     return;
                 }
-                if (stopIfCancelled(run)) {
+                if (stopIfCancelled(driven)) {
                     return;
                 }
-                walk(run);
+                walk(driven);
             } catch (RuntimeException e) {
                 LOG.log(Level.ERROR, "run " + runId + " blew up", e);
-                runs.findById(runId).ifPresent(run -> {
-                    journal.say(run, null, AgentRole.COORDINATOR, AgentRole.USER,
+                Run failing = driven != null ? driven : runs.findById(runId).orElse(null);
+                if (failing != null) {
+                    journal.say(failing, null, AgentRole.COORDINATOR, AgentRole.USER,
                             "Akış hata ile durdu: " + e.getMessage());
-                    finish(run, RunStatus.FAILED);
-                });
+                    finish(failing, RunStatus.FAILED);
+                }
             }
         }
     }
