@@ -21,7 +21,7 @@ import { Slack } from 'lucide-react';
  * line glyph the icon set already ships, in Slack's own aubergine.
  */
 
-type Provider = 'jira' | 'github' | 'gmail' | 'calendar' | 'slack';
+export type Provider = 'jira' | 'github' | 'gmail' | 'calendar' | 'slack';
 
 const MARKS: Record<Exclude<Provider, 'slack'>, { d: string; color: string; title: string }> = {
   jira: {
@@ -45,6 +45,17 @@ const MARKS: Record<Exclude<Provider, 'slack'>, { d: string; color: string; titl
     title: 'Google Calendar',
   },
 };
+
+/**
+ * What the product is called, for the places the mark is not merely decoration.
+ *
+ * Kept here rather than beside each caller: these are the products' own names,
+ * they are already written once for the `<title>` of each mark, and a second
+ * copy somewhere else is a second copy to get wrong.
+ */
+export function providerTitle(provider: Provider): string {
+  return provider === 'slack' ? 'Slack' : MARKS[provider].title;
+}
 
 /** `jira.createIssue` → `jira`; anything unrecognised returns null and draws nothing. */
 export function providerOf(toolName: string | null | undefined): Provider | null {

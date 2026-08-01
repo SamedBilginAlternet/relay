@@ -7,6 +7,7 @@ import type {
   BriefHighlight,
   BriefHighlightSource,
   BriefToday,
+  BriefTodayLine,
   InsightCard,
   InsightSource,
   InsightUrgency,
@@ -154,6 +155,28 @@ function normalizeHighlight(raw: unknown): BriefHighlight | null {
   };
 }
 
+/**
+ * `{source, text}` from a current server, a bare string from one that predates it.
+ *
+ * The same discipline `stale` and `doneStepCount` are held to: an older server
+ * degrades, it does not crash, and it never has a value invented on its behalf.
+ * A string has no source, so the line comes back with `source: null` and the
+ * screen draws it exactly as it drew it before — text, no mark. Falling back to
+ * a source guessed from the Turkish would be the inference this shape exists to
+ * remove.
+ */
+function normalizeTodayLine(raw: unknown): BriefTodayLine | null {
+  if (typeof raw === 'string') {
+    const text = raw.trim();
+    return text ? { source: null, text } : null;
+  }
+  const r = asRecord(raw);
+  const text = asString(r.text).trim();
+  if (!text) return null;
+  const source = asString(r.source) as BriefHighlightSource;
+  return { source: HIGHLIGHT_SOURCES.includes(source) ? source : null, text };
+}
+
 function normalizeToday(raw: unknown): BriefToday | null {
   const r = asRecord(raw);
   const headline = asString(r.headline).trim();
@@ -162,7 +185,7 @@ function normalizeToday(raw: unknown): BriefToday | null {
   return {
     headline,
     lines: Array.isArray(r.lines)
-      ? r.lines.map((line) => asString(line).trim()).filter(Boolean)
+      ? r.lines.map(normalizeTodayLine).filter((line): line is BriefTodayLine => line != null)
       : [],
     highlights: Array.isArray(r.highlights)
       ? r.highlights

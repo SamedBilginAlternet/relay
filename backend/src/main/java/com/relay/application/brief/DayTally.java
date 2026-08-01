@@ -17,8 +17,36 @@ import java.util.Map;
  * requests wait, when the first meeting starts. Numbers that cannot be wrong, and that are
  * there whether or not a model answered.
  */
-public record DayTally(String headline, List<String> lines, List<Highlight> highlights,
+public record DayTally(String headline, List<Line> lines, List<Highlight> highlights,
                       Map<String, Integer> counts) {
+
+    /**
+     * One counted arrival, and the provider it was counted from.
+     *
+     * <p>The text alone used to be the whole line, and the screen wanted to draw Gmail's
+     * mark beside "6 mail bir kişiden geldi" and GitHub's beside "3 PR ve issue sende".
+     * The only thing the client could have done with a bare string is guess from the
+     * Turkish — match "mail", match "PR" — which is an inference the copy invalidates the
+     * first time it is reworded, and which no test in either half of the codebase would
+     * have caught doing it.
+     *
+     * <p>It is not a guess here. Every line is emitted inside the {@code if} that already
+     * knows which of the four section lists it counted, so the source is read off the
+     * branch rather than off the sentence.
+     *
+     * @param source gmail | jira | github | calendar — the same vocabulary {@link Highlight}
+     *               uses, so the UI has one mapping from source to mark and not two
+     * @param text   the counted phrase, unchanged
+     */
+    public record Line(String source, String text) {
+
+        public Map<String, Object> view() {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("source", source);
+            map.put("text", text);
+            return map;
+        }
+    }
 
     /**
      * One named thing, not a number.
@@ -47,7 +75,9 @@ public record DayTally(String headline, List<String> lines, List<Highlight> high
     public Map<String, Object> view() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("headline", headline);
-        map.put("lines", lines);
+        List<Map<String, Object>> counted = new ArrayList<>();
+        lines.forEach(line -> counted.add(line.view()));
+        map.put("lines", counted);
         List<Map<String, Object>> named = new ArrayList<>();
         highlights.forEach(highlight -> named.add(highlight.view()));
         map.put("highlights", named);
@@ -81,23 +111,26 @@ public record DayTally(String headline, List<String> lines, List<Highlight> high
         counts.put("calendar", calendar.size());
         counts.put("urgent", urgent);
 
-        List<String> lines = new ArrayList<>();
+        // Each line is built inside the branch that knows which list it counted, and it
+        // carries that provider out with it. Reading the source back off the Turkish is
+        // the one thing the screen must never have to do.
+        List<Line> lines = new ArrayList<>();
         if (!inbox.isEmpty()) {
-            lines.add(personalMail == 0
+            lines.add(new Line("gmail", personalMail == 0
                     ? inbox.size() + " mail geldi, hepsi bülten ve bildirim"
                     : personalMail + " mail bir kişiden geldi"
-                            + (mailings > 0 ? " (" + mailings + " bülten ayrıldı)" : ""));
+                            + (mailings > 0 ? " (" + mailings + " bülten ayrıldı)" : "")));
         }
         if (!work.isEmpty()) {
-            lines.add(work.size() + " kayıt üstünde");
+            lines.add(new Line("jira", work.size() + " kayıt üstünde"));
         }
         if (!code.isEmpty()) {
-            lines.add(code.size() + " PR ve issue sende");
+            lines.add(new Line("github", code.size() + " PR ve issue sende"));
         }
         if (!calendar.isEmpty()) {
             String first = calendar.get(0).meta();
-            lines.add(calendar.size() + " toplantı"
-                    + (first == null || first.isBlank() ? "" : " — ilki " + first));
+            lines.add(new Line("calendar", calendar.size() + " toplantı"
+                    + (first == null || first.isBlank() ? "" : " — ilki " + first)));
         }
 
         return new DayTally(headline(personalMail, work.size(), code.size(), calendar.size(), urgent),

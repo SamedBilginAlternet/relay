@@ -3562,10 +3562,28 @@ a.btn {
   different counts of three different things, read as a single claim.
 */
 .day-rail__stat {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
   font-size: 13px;
   line-height: 1.45;
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
+}
+/*
+  The provider's mark, on the line it was counted from. It is decoration beside
+  a sentence that already says "mail" or "PR", so it is aria-hidden and it never
+  appears on a line the server did not name a source for.
+  Nudged down by 2px: the glyph is optically centred on a 13px cap height, not
+  on the 19px line box.
+*/
+.day-rail__mark {
+  flex: 0 0 auto;
+  display: inline-flex;
+  margin-top: 2px;
+}
+.day-rail__stat-text {
+  min-width: 0;
 }
 .day-rail__note {
   margin: 0;

@@ -33,7 +33,8 @@ class DayTallyTest {
 
         assertThat(tally.counts()).containsEntry("inbox", 3)
                 .containsEntry("inboxPersonal", 1).containsEntry("inboxBulk", 2);
-        assertThat(tally.lines()).first().asString().contains("1 mail bir kişiden", "2 bülten");
+        assertThat(tally.lines()).first().extracting(DayTally.Line::text).asString()
+                .contains("1 mail bir kişiden", "2 bülten");
         assertThat(tally.headline()).contains("1 iş");
     }
 
@@ -47,7 +48,8 @@ class DayTallyTest {
                 2);
 
         assertThat(tally.headline()).isEqualTo("Bugün 3 iş seni bekliyor, 2 tanesi acil · 1 toplantı.");
-        assertThat(tally.lines()).anySatisfy(line -> assertThat(line).contains("ilki 14:00"));
+        assertThat(tally.lines()).anySatisfy(line ->
+                assertThat(line.text()).contains("ilki 14:00"));
     }
 
     /** An empty day says so plainly instead of dressing up zeros. */
@@ -74,7 +76,49 @@ class DayTallyTest {
                 List.of(), List.of(), List.of(), 0);
 
         assertThat(tally.headline()).isEqualTo("Bugün seni bekleyen bir şey görünmüyor.");
-        assertThat(tally.lines()).first().asString().contains("hepsi bülten");
+        assertThat(tally.lines()).first().extracting(DayTally.Line::text).asString()
+                .contains("hepsi bülten");
+    }
+
+    /**
+     * The screen draws each arrival with its provider's mark beside it. The only other way
+     * to know which mark a line wants is to read the Turkish back — match "mail", match
+     * "PR" — and that guess breaks silently the first time the copy is reworded or a count
+     * reaches a plural form nobody tested. So the source rides on the line, from the branch
+     * that counted it.
+     */
+    @Test
+    void every_counted_line_says_which_provider_it_was_counted_from() {
+        DayTally tally = DayTally.of(
+                List.of(mail("1", false)),
+                List.of(item("KAN-4", "jira", "issue", "25dk önce")),
+                List.of(item("acme/pay#12", "github", "pr", "1sa önce")),
+                List.of(item("evt", "calendar", "event", "14:00")),
+                0);
+
+        assertThat(tally.lines()).extracting(DayTally.Line::source)
+                .containsExactly("gmail", "jira", "github", "calendar");
+    }
+
+    /** A source that appears on no line is a source that contributed nothing today. */
+    @Test
+    void a_provider_with_nothing_in_it_contributes_no_line_to_put_a_mark_on() {
+        DayTally tally = DayTally.of(List.of(), List.of(), List.of(),
+                List.of(item("evt", "calendar", "event", "09:30")), 0);
+
+        assertThat(tally.lines()).extracting(DayTally.Line::source).containsExactly("calendar");
+    }
+
+    /** The wire shape, because the client rebuilds every field by name. */
+    @Test
+    void the_payload_carries_the_source_next_to_the_text_it_belongs_to() {
+        DayTally tally = DayTally.of(List.of(), List.of(), List.of(),
+                List.of(item("evt", "calendar", "event", "09:30")), 0);
+
+        assertThat(tally.view()).extracting("lines").asInstanceOf(
+                        org.assertj.core.api.InstanceOfAssertFactories.list(Map.class))
+                .singleElement()
+                .isEqualTo(Map.of("source", "calendar", "text", "1 toplantı — ilki 09:30"));
     }
 
     /** A count says there is something; a name says what — and mail is where that matters. */

@@ -173,7 +173,7 @@ it('the_word_bugun_is_said_once_at_the_top_and_not_again_underneath', async () =
     briefWith({
       today: {
         headline: 'sunucunun kendi cümlesi — bu ekranda gösterilmiyor',
-        lines: ['6 mail bir kişiden geldi'],
+        lines: [{ source: 'gmail', text: '6 mail bir kişiden geldi' }],
         highlights: [],
         counts: {
           inbox: 6,
@@ -212,7 +212,10 @@ it('what_arrived_today_is_counted_and_labelled_next_to_what_must_be_done', async
     briefWith({
       today: {
         headline: 'Bugün 10 iş seni bekliyor · 1 toplantı.',
-        lines: ['7 mail bir kişiden geldi (8 bülten ayrıldı)', '1 toplantı — ilki 09:00'],
+        lines: [
+          { source: 'gmail', text: '7 mail bir kişiden geldi (8 bülten ayrıldı)' },
+          { source: 'calendar', text: '1 toplantı — ilki 09:00' },
+        ],
         highlights: [],
         counts: { inbox: 15, inboxPersonal: 7, inboxBulk: 8, work: 0, code: 3, calendar: 1, urgent: 0 },
       },
@@ -232,6 +235,100 @@ it('what_arrived_today_is_counted_and_labelled_next_to_what_must_be_done', async
   // above it, which is where everything ABOUT the day moved in #142.
   expect(screen.getByText(/Önce ödeme hatasını çöz/)).toBeTruthy();
   expect(document.querySelector('.day-rail')?.textContent).toContain('Önce ödeme hatasını');
+});
+
+/**
+ * Each arrival carries the mark of the app it is about — and it carries it
+ * because the server said which list it counted, not because anything read the
+ * Turkish and matched "mail" or "PR". That guess would break the first time the
+ * copy is reworded, so the test asserts the pairing rather than the drawing:
+ * the source on the payload is the source on the line.
+ */
+it('each_arrival_wears_the_mark_of_the_app_the_server_counted_it_from', async () => {
+  getBrief.mockResolvedValue(
+    briefWith({
+      today: {
+        headline: '—',
+        lines: [
+          { source: 'gmail', text: '6 mail bir kişiden geldi' },
+          { source: 'github', text: '3 PR ve issue sende' },
+          { source: 'calendar', text: '1 toplantı — ilki 05:00' },
+        ],
+        highlights: [],
+        counts: {
+          inbox: 6, inboxPersonal: 6, inboxBulk: 0,
+          work: 0, code: 3, calendar: 1, urgent: 0,
+        },
+      },
+    }),
+  );
+
+  render(<TodayScreen onNavigate={() => {}} />);
+  await screen.findByText('6 mail bir kişiden geldi');
+
+  const stats = [...document.querySelectorAll('.day-rail__stat')];
+  expect(
+    stats.map((li) => [
+      li.querySelector('.day-rail__mark [aria-label]')?.getAttribute('aria-label'),
+      li.querySelector('.day-rail__stat-text')?.textContent,
+    ]),
+  ).toEqual([
+    ['Gmail', '6 mail bir kişiden geldi'],
+    ['GitHub', '3 PR ve issue sende'],
+    ['Google Calendar', '1 toplantı — ilki 05:00'],
+  ]);
+});
+
+/**
+ * The sentence never writes the product's name, so the mark is the only thing on
+ * the line carrying it. A mark that is drawn and not named leaves a screen
+ * reader with a count and no source at all.
+ */
+it('the_mark_says_which_app_out_loud_and_not_only_in_colour', async () => {
+  getBrief.mockResolvedValue(
+    briefWith({
+      today: {
+        headline: '—',
+        lines: [{ source: 'jira', text: '3 kayıt üstünde' }],
+        highlights: [],
+        counts: {
+          inbox: 0, inboxPersonal: 0, inboxBulk: 0,
+          work: 3, code: 0, calendar: 0, urgent: 0,
+        },
+      },
+    }),
+  );
+
+  render(<TodayScreen onNavigate={() => {}} />);
+  await screen.findByText('3 kayıt üstünde');
+
+  expect(screen.getByRole('img', { name: 'Jira' })).toBeTruthy();
+});
+
+/**
+ * An older backend sends bare strings, which carry no source. It degrades the
+ * way `stale` does — the line is still drawn, with no mark — rather than
+ * crashing, and rather than having a mark guessed for it from the copy.
+ */
+it('a_line_with_no_source_is_drawn_without_a_mark_rather_than_a_guessed_one', async () => {
+  getBrief.mockResolvedValue(
+    briefWith({
+      today: {
+        headline: '—',
+        lines: [{ source: null, text: '6 mail bir kişiden geldi' }],
+        highlights: [],
+        counts: {
+          inbox: 6, inboxPersonal: 6, inboxBulk: 0,
+          work: 0, code: 0, calendar: 0, urgent: 0,
+        },
+      },
+    }),
+  );
+
+  render(<TodayScreen onNavigate={() => {}} />);
+
+  expect(await screen.findByText('6 mail bir kişiden geldi')).toBeTruthy();
+  expect(document.querySelector('.day-rail__mark')).toBeNull();
 });
 
 /** A day the server counted nothing for draws no empty label and no stray dot. */

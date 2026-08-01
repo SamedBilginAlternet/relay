@@ -24,10 +24,14 @@ function buildBrief(): Brief {
        three insight cards came back `high`. */
     today: {
       headline: 'Bugün 10 iş seni bekliyor, 1 tanesi acil.',
+      /* Each line names the list it was counted from, exactly as the server
+         does — the screen draws that provider's mark beside it and must never
+         read the source back off the Turkish. Calendar is `unavailable` below,
+         so it contributes no line and therefore no mark. */
       lines: [
-        '3 mail bir kişiden geldi (1 bülten ayrıldı)',
-        '4 kayıt üstünde',
-        '3 PR ve issue sende',
+        { source: 'gmail', text: '3 mail bir kişiden geldi (1 bülten ayrıldı)' },
+        { source: 'jira', text: '4 kayıt üstünde' },
+        { source: 'github', text: '3 PR ve issue sende' },
       ],
       /* The same rule the server follows: the first two mails from a person,
          then the top record and the top pull request. `mail-4` is the automatic

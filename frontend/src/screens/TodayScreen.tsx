@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActionRow, GapRow, MeetingRow } from '../components/ActionFeed';
+import { BrandMark, providerOf, providerTitle } from '../components/BrandMark';
 import { PlaybookShelf, SectionPanel, SectionTile } from '../components/BriefSections';
 import type { SectionMeta } from '../components/BriefSections';
 import { describeLoadError, LoadError } from '../components/LoadError';
@@ -843,11 +844,32 @@ export function TodayScreen({ onNavigate }: Props) {
                       above was not already doing. */}
                   <h2 className="t-label day-rail__label">Gelenler</h2>
                   <ul className="day-rail__stats">
-                    {dayLines.map((line) => (
-                      <li key={line} className="day-rail__stat">
-                        {line}
-                      </li>
-                    ))}
+                    {dayLines.map((line) => {
+                      /* The server said which list it counted; this only turns
+                         that word into a mark. A line with no source — an older
+                         server sent bare strings — draws no mark at all, rather
+                         than one guessed from the sentence. */
+                      const provider = providerOf(line.source);
+                      return (
+                        <li key={line.text} className="day-rail__stat">
+                          {provider && (
+                            /* Named, not decorative: the sentence says "mail"
+                               and "PR", never "Gmail" or "GitHub", so the mark
+                               is the only thing on the line carrying the
+                               product it came from. Colour alone would leave a
+                               screen reader with nothing. */
+                            <span className="day-rail__mark">
+                              <BrandMark
+                                provider={provider}
+                                size={13}
+                                title={providerTitle(provider)}
+                              />
+                            </span>
+                          )}
+                          <span className="day-rail__stat-text">{line.text}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </section>
               )}

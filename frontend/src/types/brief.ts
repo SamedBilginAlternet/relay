@@ -96,6 +96,22 @@ export type BriefTodayCounts = {
 export type BriefHighlightSource = 'gmail' | 'jira' | 'github' | 'calendar';
 
 /**
+ * One counted arrival — "3 PR ve issue sende" — and the provider it was counted
+ * from, so the screen can draw that provider's mark beside it.
+ *
+ * The source is sent, never inferred. Reading it back off the Turkish would mean
+ * matching words in copy that changes, on counts whose plural forms nobody
+ * tested, with no test in either half of the codebase able to notice the guess
+ * going wrong. `null` is what an older backend leaves behind — it sent bare
+ * strings — and a line with no source is drawn with no mark rather than with a
+ * guessed one.
+ */
+export type BriefTodayLine = {
+  source: BriefHighlightSource | null;
+  text: string;
+};
+
+/**
  * One item the day summary names instead of only counting.
  *
  * "1 mail bir kişiden geldi" says something is waiting without saying what, so
@@ -124,8 +140,8 @@ export type BriefHighlight = {
 export type BriefToday = {
   /** One sentence. On an empty day it says so instead of dressing up zeros. */
   headline: string;
-  /** Short counted phrases; empty on a quiet day. */
-  lines: string[];
+  /** Short counted phrases, each with the provider it counted; empty on a quiet day. */
+  lines: BriefTodayLine[];
   /** A few of the day's items by name. Empty when only mailings arrived. */
   highlights: BriefHighlight[];
   counts: BriefTodayCounts;
