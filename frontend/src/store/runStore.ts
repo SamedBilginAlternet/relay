@@ -1,10 +1,21 @@
 import { create } from 'zustand';
 import { getRunSource } from '../data';
+import { ApiError } from '../data/ApiRunSource';
 import { applyEvent } from '../data/applyEvent';
 import type { StreamStatus, Unsubscribe } from '../data/RunSource';
 import type { Run } from '../types/api';
 
 export type RunPhase = 'idle' | 'creating' | 'loading' | 'ready' | 'error';
+
+/**
+ * A parameter edit the server refused. Kept per step, with the server's own sentence per
+ * field, because the screen shows each one under the box that caused it.
+ */
+export type StepEditError = {
+  stepId: string;
+  message: string;
+  fields: Record<string, string>;
+};
 
 type RunState = {
   run: Run | null;
@@ -14,6 +25,7 @@ type RunState = {
   expandedStepId: string | null;
   rejectingStepId: string | null;
   busyStepId: string | null;
+  editError: StepEditError | null;
   lastGoal: string;
   /** Mobile: is the workflow bottom sheet open? */
   sheetOpen: boolean;
@@ -22,7 +34,8 @@ type RunState = {
   openRun: (runId: string) => Promise<void>;
   retry: () => Promise<void>;
   rerun: () => Promise<void>;
-  approve: (stepId: string) => Promise<void>;
+  /** `params` carries only the fields the user corrected at the gate. */
+  approve: (stepId: string, params?: Record<string, unknown>) => Promise<void>;
   reject: (stepId: string, reason: string) => Promise<void>;
   toggleStep: (stepId: string) => void;
   setRejecting: (stepId: string | null) => void;
@@ -77,6 +90,7 @@ export const useRunStore = create<RunState>((set, get) => {
     expandedStepId: null,
     rejectingStepId: null,
     busyStepId: null,
+    editError: null,
     lastGoal: '',
     sheetOpen: false,
 
@@ -90,6 +104,7 @@ export const useRunStore = create<RunState>((set, get) => {
         lastGoal: trimmed,
         expandedStepId: null,
         rejectingStepId: null,
+        editError: null,
         streamStatus: 'idle',
         run: null,
       });
@@ -135,6 +150,7 @@ export const useRunStore = create<RunState>((set, get) => {
         run: null,
         expandedStepId: null,
         rejectingStepId: null,
+        editError: null,
         streamStatus: 'idle',
       });
       await load(runId, { stream: true });
@@ -180,15 +196,21 @@ export const useRunStore = create<RunState>((set, get) => {
       }
     },
 
-    async approve(stepId: string) {
+    async approve(stepId: string, params?: Record<string, unknown>) {
       const runId = get().run?.id;
       if (!runId) return;
-      set({ busyStepId: stepId });
+      set({ busyStepId: stepId, editError: null });
       try {
-        await getRunSource().approveStep(runId, stepId);
+        await getRunSource().approveStep(runId, stepId, params);
         set({ rejectingStepId: null });
       } catch (err) {
-        set({ error: errorText(err) });
+        // A refused edit is not a broken run: the step is still at the gate, so the reason
+        // belongs next to the field, not in the banner that replaces the whole panel.
+        if (err instanceof ApiError && err.status === 400) {
+          set({ editError: { stepId, message: err.message, fields: err.fields } });
+        } else {
+          set({ error: errorText(err) });
+        }
       } finally {
         set({ busyStepId: null });
       }
@@ -229,6 +251,7 @@ export const useRunStore = create<RunState>((set, get) => {
         streamStatus: 'idle',
         expandedStepId: null,
         rejectingStepId: null,
+        editError: null,
         sheetOpen: false,
       });
     },

@@ -2,7 +2,7 @@ import { AnimatePresence } from 'motion/react';
 import { ListChecks, Repeat2, TriangleAlert, Workflow } from 'lucide-react';
 import type { StreamStatus } from '../data/RunSource';
 import { runStatusMeta } from '../lib/status';
-import type { RunPhase } from '../store/runStore';
+import type { RunPhase, StepEditError } from '../store/runStore';
 import type { Run } from '../types/api';
 import { CostBar } from './CostBar';
 import { EmptyState } from './EmptyState';
@@ -16,9 +16,11 @@ type Props = {
   expandedStepId: string | null;
   rejectingStepId?: string | null;
   busyStepId?: string | null;
+  /** A refused parameter edit, shown on the step it belongs to and nowhere else. */
+  editError?: StepEditError | null;
   readOnly?: boolean;
   onToggleStep: (stepId: string) => void;
-  onApprove?: (stepId: string) => void;
+  onApprove?: (stepId: string, params?: Record<string, unknown>) => void;
   onReject?: (stepId: string, reason: string) => void;
   onStartReject?: (stepId: string | null) => void;
   onRetry?: () => void;
@@ -34,6 +36,7 @@ export function WorkflowPanel(props: Props) {
     expandedStepId,
     rejectingStepId,
     busyStepId,
+    editError,
     readOnly = false,
     onToggleStep,
     onApprove,
@@ -147,6 +150,7 @@ export function WorkflowPanel(props: Props) {
               readOnly={readOnly}
               busy={busyStepId === step.id}
               rejecting={rejectingStepId === step.id}
+              editError={editError?.stepId === step.id ? editError : null}
               onApprove={onApprove}
               onReject={onReject}
               onStartReject={onStartReject}

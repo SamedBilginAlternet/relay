@@ -14,10 +14,21 @@ type Props = {
   readOnly?: boolean;
   busy?: boolean;
   rejecting?: boolean;
-  onApprove?: (stepId: string) => void;
+  /** Second argument: only the fields the user rewrote. Absent means "send what you see". */
+  onApprove?: (stepId: string, params?: Record<string, unknown>) => void;
   onReject?: (stepId: string, reason: string) => void;
   onStartReject?: (stepId: string | null) => void;
+  /** The server's answer to a refused edit — a sentence per field, plus one summary line. */
+  editError?: { message: string; fields: Record<string, string> } | null;
 };
+
+/** Scalars a person can sensibly retype in a text box: a channel, a sentence, a status. */
+function editableParams(params: Record<string, unknown>): [string, string | number][] {
+  return Object.entries(params).filter(
+    (entry): entry is [string, string | number] =>
+      typeof entry[1] === 'string' || typeof entry[1] === 'number',
+  );
+}
 
 export function StepRow({
   step,
@@ -30,6 +41,7 @@ export function StepRow({
   onApprove,
   onReject,
   onStartReject,
+  editError = null,
 }: Props) {
   const reduce = useReducedMotion();
   const meta = stepStatusMeta(step.status);
@@ -37,6 +49,8 @@ export function StepRow({
   const [reason, setReason] = useState('');
   const reasonRef = useRef<HTMLInputElement>(null);
   const [, forceTick] = useState(0);
+  /** Only the boxes the user actually typed in; everything else reads the live value. */
+  const [edits, setEdits] = useState<Record<string, string>>({});
 
   // Live duration while the step is running.
   useEffect(() => {
@@ -52,6 +66,33 @@ export function StepRow({
   const duration = stepDuration(step.startedAt, step.finishedAt);
   const awaiting = step.status === 'awaiting_approval';
   const showGate = awaiting && !readOnly;
+  const fields = editableParams(step.params);
+  const paramsKey = JSON.stringify(step.params);
+
+  // The agent may replace the parameters while the step is parked — after a provider
+  // rejection it comes back with new ones. Half-typed edits to values that no longer exist
+  // would be approved against something the user never saw, so they go.
+  useEffect(() => {
+    setEdits({});
+  }, [paramsKey]);
+
+  const valueOf = (key: string, value: string | number): string =>
+    edits[key] ?? String(value);
+
+  /** Only what differs from the screen — approving untouched sends no params at all. */
+  const changedParams = (): Record<string, unknown> | undefined => {
+    const changed: Record<string, unknown> = {};
+    for (const [key, value] of fields) {
+      const typed = edits[key];
+      if (typed === undefined || typed === String(value)) continue;
+      changed[key] =
+        typeof value === 'number' && typed.trim() !== '' && !Number.isNaN(Number(typed))
+          ? Number(typed)
+          : typed;
+    }
+    return Object.keys(changed).length > 0 ? changed : undefined;
+  };
+  const dirty = changedParams() !== undefined;
 
   const rowClass = [
     'step',
@@ -125,15 +166,78 @@ export function StepRow({
             <ShieldQuestion size={14} aria-hidden />
             Yazma adımı — çalışması için onayın gerekiyor.
           </span>
+
+          {!rejecting && fields.length > 0 && (
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {fields.map(([key, value]) => {
+                const text = valueOf(key, value);
+                const multiline = typeof value === 'string' && (text.length > 60 || text.includes('\n'));
+                const problem = editError?.fields[key];
+                const inputStyle = {
+                  minHeight: multiline ? 72 : 40,
+                  padding: '8px 12px',
+                  borderRadius: 'var(--r-btn)',
+                  border: `1px solid ${problem ? 'var(--danger)' : 'var(--border)'}`,
+                  background: 'var(--bg)',
+                  outline: 'none',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 13,
+                  resize: 'vertical' as const,
+                  width: '100%',
+                };
+                return (
+                  <label className="field" key={key}>
+                    <span className="t-label">{key}</span>
+                    {multiline ? (
+                      <textarea
+                        value={text}
+                        rows={3}
+                        disabled={busy}
+                        style={inputStyle}
+                        aria-invalid={problem ? true : undefined}
+                        onChange={(e) => setEdits((cur) => ({ ...cur, [key]: e.target.value }))}
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={text}
+                        disabled={busy}
+                        style={inputStyle}
+                        aria-invalid={problem ? true : undefined}
+                        onChange={(e) => setEdits((cur) => ({ ...cur, [key]: e.target.value }))}
+                      />
+                    )}
+                    {problem && (
+                      <span className="field__hint" style={{ color: 'var(--danger)' }}>
+                        {problem}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+              {editError && (
+                <span className="field__hint" style={{ color: 'var(--danger)' }}>
+                  {editError.message}
+                </span>
+              )}
+              {dirty && !editError && (
+                <span className="field__hint">
+                  Değiştirdiğin değer olduğu gibi gönderilir — iz kaydına eski ve yeni hâliyle
+                  düşer.
+                </span>
+              )}
+            </div>
+          )}
+
           {!rejecting ? (
             <>
               <button
                 type="button"
                 className="btn btn--sm"
                 disabled={busy}
-                onClick={() => onApprove?.(step.id)}
+                onClick={() => onApprove?.(step.id, changedParams())}
               >
-                Onayla
+                {dirty ? 'Düzelt ve onayla' : 'Onayla'}
               </button>
               <button
                 type="button"

@@ -45,7 +45,12 @@ export interface RunSource {
 
   streamRun(runId: string, handlers: RunStreamHandlers): Unsubscribe;
 
-  approveStep(runId: string, stepId: string): Promise<void>;
+  /**
+   * Approves the step. `params` carries only the fields the user corrected on screen —
+   * omit it to approve exactly what is shown, which is what approval always did.
+   * An edit the tool's schema refuses throws with `fields` filled in and changes nothing.
+   */
+  approveStep(runId: string, stepId: string, params?: Record<string, unknown>): Promise<void>;
   rejectStep(runId: string, stepId: string, reason: string): Promise<void>;
 
   getConnections(): Promise<Connection[]>;

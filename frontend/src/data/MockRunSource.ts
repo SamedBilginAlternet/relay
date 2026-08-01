@@ -13,7 +13,9 @@ import type { RunSource, RunStreamHandlers, Unsubscribe } from './RunSource';
 import { AGENTS, DEMO_SCRIPT, mockId, seededHistory, stepsFromScript } from './mockScript';
 import type { ScriptStep } from './mockScript';
 
-type Decision = { kind: 'approve' } | { kind: 'reject'; reason: string };
+type Decision =
+  | { kind: 'approve'; params?: Record<string, unknown> }
+  | { kind: 'reject'; reason: string };
 
 type Playback = {
   run: Run;
@@ -178,9 +180,13 @@ export class MockRunSource implements RunSource {
     };
   }
 
-  async approveStep(runId: string, stepId: string): Promise<void> {
+  async approveStep(
+    runId: string,
+    stepId: string,
+    params?: Record<string, unknown>,
+  ): Promise<void> {
     await delay(150);
-    this.runs.get(runId)?.pending.get(stepId)?.({ kind: 'approve' });
+    this.runs.get(runId)?.pending.get(stepId)?.({ kind: 'approve', params });
   }
 
   async rejectStep(runId: string, stepId: string, reason: string): Promise<void> {
@@ -347,6 +353,21 @@ export class MockRunSource implements RunSource {
             });
             await this.wait(p, 500);
             continue;
+          }
+          // The real backend writes one trail line per corrected field, with both values
+          // and who typed them. The demo says the same thing — an edit nobody can see
+          // afterwards is not governance, it is just a text box.
+          for (const [field, value] of Object.entries(decision.params ?? {})) {
+            const before = step.params[field];
+            this.emit(p, {
+              type: 'agent.message',
+              from: AGENTS.user,
+              to: def.role,
+              content: `Parametre kullanıcı tarafından düzenlendi — ${field}: “${String(before ?? '')}” → “${String(value)}”`,
+              stepId,
+            });
+            step.params = { ...step.params, [field]: value };
+            await this.wait(p, 350);
           }
         }
 

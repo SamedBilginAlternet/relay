@@ -13,10 +13,17 @@ import type { RunSource, RunStreamHandlers, Unsubscribe } from './RunSource';
 
 export class ApiError extends Error {
   readonly status: number;
-  constructor(message: string, status: number) {
+  /**
+   * Field name → why the server refused it. Only the approval gate fills this in today:
+   * a rejected parameter edit has to be shown next to the box that caused it.
+   */
+  readonly fields: Record<string, string>;
+
+  constructor(message: string, status: number, fields: Record<string, string> = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.fields = fields;
   }
 }
 
@@ -50,9 +57,15 @@ export class ApiRunSource implements RunSource {
     }
     if (!res.ok) {
       let detail = '';
+      let fields: Record<string, string> = {};
       try {
-        const body = (await res.json()) as { message?: string; error?: string };
+        const body = (await res.json()) as {
+          message?: string;
+          error?: string;
+          fields?: Record<string, string>;
+        };
         detail = body.message || body.error || '';
+        if (body.fields && typeof body.fields === 'object') fields = body.fields;
       } catch {
         /* body was not json — ignore */
       }
@@ -62,7 +75,7 @@ export class ApiRunSource implements RunSource {
           : res.status === 404
             ? 'Kayıt bulunamadı (HTTP 404).'
             : `İstek başarısız (HTTP ${res.status})`;
-      throw new ApiError(detail || fallback, res.status);
+      throw new ApiError(detail || fallback, res.status, fields);
     }
     if (res.status === 204) return undefined as T;
     const text = await res.text();
@@ -119,10 +132,14 @@ export class ApiRunSource implements RunSource {
     });
   }
 
-  async approveStep(runId: string, stepId: string): Promise<void> {
+  async approveStep(
+    runId: string,
+    stepId: string,
+    params?: Record<string, unknown>,
+  ): Promise<void> {
     await this.request<void>(
       `/runs/${encodeURIComponent(runId)}/steps/${encodeURIComponent(stepId)}/approve`,
-      { method: 'POST', body: '{}' },
+      { method: 'POST', body: params ? JSON.stringify({ params }) : '{}' },
     );
   }
 

@@ -15,6 +15,7 @@ export function ChatScreen() {
   const expandedStepId = useRunStore((s) => s.expandedStepId);
   const rejectingStepId = useRunStore((s) => s.rejectingStepId);
   const busyStepId = useRunStore((s) => s.busyStepId);
+  const editError = useRunStore((s) => s.editError);
   const sheetOpen = useRunStore((s) => s.sheetOpen);
 
   const startRun = useRunStore((s) => s.startRun);
@@ -52,8 +53,9 @@ export function ChatScreen() {
       expandedStepId={expandedStepId}
       rejectingStepId={rejectingStepId}
       busyStepId={busyStepId}
+      editError={editError}
       onToggleStep={toggleStep}
-      onApprove={(id) => void approve(id)}
+      onApprove={(id, params) => void approve(id, params)}
       onReject={(id, reason) => void reject(id, reason)}
       onStartReject={setRejecting}
       onRetry={() => void retry()}
