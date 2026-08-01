@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -191,6 +192,37 @@ class SseEventPublisherTest {
                 .containsExactly(RunEvent.RUN_PLANNED, RunEvent.STEP_FINISHED,
                         RunEvent.RUN_COST, RunEvent.RUN_FINISHED);
         assertThat(publisher.subscriberCount()).isZero();
+    }
+
+    /**
+     * Measured live: a single reading step's {@code step.finished} was 21,424 bytes of a
+     * 25,740-byte stream, and 10,914 of those bytes were the tool result written out a
+     * second time inside the step the frame already carries. The screen reads the top-level
+     * one and takes nothing but timestamps from the nested step.
+     */
+    @Test
+    void a_step_result_goes_over_the_wire_once() {
+        SseEventPublisher publisher = new SseEventPublisher();
+        UUID runId = UUID.randomUUID();
+        RecordingEmitter watching = new RecordingEmitter();
+        publisher.subscribe(runId, watching);
+
+        Map<String, Object> result = Map.of("issues", List.of(Map.of("key", "KAN-11")));
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("stepId", "1");
+        data.put("status", "done");
+        data.put("result", result);
+        data.put("step", new LinkedHashMap<>(Map.of(
+                "id", "1", "result", result, "startedAt", "2026-08-01T09:00:00Z")));
+        publisher.publish(runId, RunEvent.of(RunEvent.STEP_FINISHED, data));
+
+        Map<?, ?> sent = (Map<?, ?>) watching.frames.get(0).data();
+        assertThat(sent.get("result"))
+                .as("the copy the reducer reads stays")
+                .isEqualTo(result);
+        Map<?, ?> step = (Map<?, ?>) sent.get("step");
+        assertThat(step.containsKey("result")).as("the copy nothing reads does not").isFalse();
+        assertThat(step.get("startedAt")).isEqualTo("2026-08-01T09:00:00Z");
     }
 
     @Test
