@@ -67,6 +67,7 @@ const LABELS: Record<string, string> = {
   spreadsheetid: 'Tablo',
   sheetname: 'Sayfa',
   values: 'Satır',
+  range: 'Aralık',
 
   // GitHub
   repo: 'Depo',

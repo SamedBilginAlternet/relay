@@ -55,6 +55,7 @@ const LABELS: Record<string, string> = {
 
   // Sheets
   'sheets.appendRow': 'Tabloya satır ekle',
+  'sheets.readRange': 'Tablodan satırları oku',
 };
 
 /** Every button name the interface owns — the list the test checks. */

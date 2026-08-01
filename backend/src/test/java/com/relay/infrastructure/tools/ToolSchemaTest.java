@@ -38,6 +38,7 @@ class ToolSchemaTest {
                 new CalendarUpcomingTool("replay", FIXTURES, null, "Europe/Istanbul"),
                 new CalendarCreateEventTool("replay", FIXTURES, null, "Europe/Istanbul"),
                 new SheetsTool.AppendRow("replay", FIXTURES, null),
+                new SheetsTool.ReadRange("replay", FIXTURES, null),
                 new NotionTool.CreatePage("replay", FIXTURES));
     }
 
@@ -75,6 +76,10 @@ class ToolSchemaTest {
         Tool row = new SheetsTool.AppendRow("replay", FIXTURES, null);
         assertThat(row.risk()).isEqualTo(RiskLevel.WRITE);
         assertThat(row.risk().defaultMode().wire()).isEqualTo("ask");
+        // Reading a range is a READ like every other read: no gate, no rule to write.
+        Tool range = new SheetsTool.ReadRange("replay", FIXTURES, null);
+        assertThat(range.risk()).isEqualTo(RiskLevel.READ);
+        assertThat(range.risk().defaultMode().wire()).isEqualTo("auto");
     }
 
     @Test

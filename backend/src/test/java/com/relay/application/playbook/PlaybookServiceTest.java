@@ -51,7 +51,8 @@ class PlaybookServiceTest {
                 new com.relay.infrastructure.tools.CalendarCreateEventTool(
                         "replay", FIXTURES, null, "Europe/Istanbul"),
                 new SlackTool.PostMessage("replay", FIXTURES),
-                new com.relay.infrastructure.tools.SheetsTool.AppendRow("replay", FIXTURES, null)));
+                new com.relay.infrastructure.tools.SheetsTool.AppendRow("replay", FIXTURES, null),
+                new com.relay.infrastructure.tools.SheetsTool.ReadRange("replay", FIXTURES, null)));
         TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
         TestDoubles.InMemoryConnectionRepository connections = new TestDoubles.InMemoryConnectionRepository();
         for (String provider : connectedProviders) {
@@ -177,6 +178,21 @@ class PlaybookServiceTest {
 
         assertThat(run.steps()).extracting(step -> step.toolName())
                 .containsExactly("jira.searchIssues", "slack.postMessage", "sheets.appendRow");
+        assertThat(run.status().wire()).isEqualTo("awaiting_approval");
+    }
+
+    /**
+     * The read→write chain the sheet gains with {@code sheets.readRange}: the rows the
+     * blocker scan has been appending finally get read back, and only the Slack write stops
+     * on a human. The read is REQUIRED — without the sheet there is nothing to digest — so
+     * a workspace that never connected Google does not see this playbook as runnable.
+     */
+    @Test
+    void the_sheet_digest_reads_the_rows_and_stops_only_on_the_slack_write() {
+        Run run = rig("google", "slack").playbooks().start("tablo-ozeti", 1.0);
+
+        assertThat(run.steps()).extracting(step -> step.toolName())
+                .containsExactly("sheets.readRange", "slack.postMessage");
         assertThat(run.status().wire()).isEqualTo("awaiting_approval");
     }
 }

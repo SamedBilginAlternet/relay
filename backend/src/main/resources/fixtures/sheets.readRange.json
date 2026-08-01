@@ -1,0 +1,13 @@
+{
+  "spreadsheetId": "{{spreadsheetId}}",
+  "range": "{{range}}",
+  "rows": [
+    ["Tarih", "Kayıt sayısı", "En uzun bekleyen", "Not"],
+    ["2026-07-18", "4", "KAN-7 (6 gün)", "Gateway ekibi bekleniyor"],
+    ["2026-07-25", "3", "KAN-11 (4 gün)", "Staging 502"],
+    ["2026-08-01", "3", "KAN-11 (11 gün)", "Aynı kayıt üçüncü hafta"]
+  ],
+  "rowCount": 4,
+  "truncated": false,
+  "url": "https://docs.google.com/spreadsheets/d/{{spreadsheetId}}/edit"
+}

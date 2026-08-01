@@ -74,6 +74,7 @@ onay kapısı, aynı şeffaflık. Yani Bugün ekranı yeni bir motor değil, mot
 | `calendar.listToday` | READ | Bugünün etkinlikleri |
 | `calendar.createEvent` | WRITE | Takip toplantısı — onay ister, davetler onaydan sonra gider. **Brifingde yok**: yazma aracı brifinge girmez |
 | `sheets.appendRow` | WRITE | Takip tablosuna tek satır — yalnız ekler, üstüne yazmaz. **Brifingde yok** |
+| `sheets.readRange` | READ | Aralık okur, en fazla 50 satır. Planlayıcıya açık ama **brifingde yok**: brifing READ'i her tazelemede iki model turu, planlayıcı READ'i yalnız kullanan koşuda ~60–130 token |
 | `github.listMyPullRequests` | READ | `review-requested` + `author` |
 | `github.listMyIssues` | READ | `assignee:@me` |
 | `github.addComment` | WRITE | Onay ister |

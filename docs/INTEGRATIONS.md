@@ -147,7 +147,8 @@ Notlar:
    - `https://www.googleapis.com/auth/calendar.readonly` *(sensitive)*
    - `https://www.googleapis.com/auth/gmail.compose` *(restricted)* — `gmail.createDraft` için.
    - `https://www.googleapis.com/auth/calendar.events` *(sensitive)* — `calendar.createEvent` için.
-   - `https://www.googleapis.com/auth/spreadsheets` *(sensitive)* — `sheets.appendRow` için.
+   - `https://www.googleapis.com/auth/spreadsheets` *(sensitive)* — `sheets.appendRow` ve
+     `sheets.readRange` için (tek scope ikisini de karşılar).
 
    > **Bu izin gönderebilir.** Google'ın izin ekranında görünen metni "Manage drafts and
    > send emails" ve `messages.send`'i de kapsıyor. Gmail'de **yalnız taslak** diye bir
@@ -240,6 +241,30 @@ Bilmen gereken iki davranış:
 - **Hücre metindir** (`valueInputOption=RAW`). `USER_ENTERED` olsaydı modelin yazdığı
   `=IMPORTXML(...)` gibi bir hücre paylaşılan dosyada canlı formüle dönerdi. Bedeli: `1.500`
   sayı değil metin olarak durur. Ucuz olan bu.
+
+### 5.3 `sheets.readRange` — takip tablosunu geri okumak
+
+**Kurulumda yeni hiçbir şey yok.** `sheets.appendRow` için yapılan her şey bunu da karşılıyor:
+aynı scope (`https://www.googleapis.com/auth/spreadsheets` okuma + yazmanın ikisidir), aynı
+Google Sheets API, aynı bağlantı, aynı `defaultSpreadsheetId`/`defaultSheetName` ayarları.
+appendRow için yeniden bağlandıysan `readRange` o anda çalışır; bağlanmadıysan iki araç da
+aynı Türkçe cümleyle durur.
+
+Bilmen gereken üç davranış:
+
+- **Yalnız okur.** Tek ucu `GET …/values/{aralık}`; hücre yazabilecek hiçbir uca çıkamaz ve
+  bir test bunu kilitler. (appendRow'un "okuyamaz" garantisi de aynen duruyor — okuma işi
+  planda ayrı bir adım olarak görünür, satır ekleme aracının içine gizlenmez.)
+- **En fazla 50 satır** döner ve fazlası kesildiyse sonuç bunu `truncated: true` ile söyler.
+  Maaş listesi gibi dev bir sayfanın tamamı akış geçmişine dökülmez.
+- **Sekme adı verilmemiş aralık** (`A1:F50` gibi) bağlantıdaki `defaultSheetName`'e gider;
+  o da boşsa Google ilk sekmeyi okur.
+
+**Neden brifingde değil:** brifinge giren bir READ, kimse sormadan her tazelemede iki model
+turu demektir (§ARCHITECTURE "READ pahalı, WRITE ucuz"). Planlayıcıya açık bir READ ise yalnız
+plana girdiği koşuda ~60–130 token tutar. `sheets.readRange` bu yüzden yalnız planlayıcıya
+açık: "tablodaki açık kalemleri oku, özetini ekibe gönder" çalışır, sabah brifingi kuruşuna
+dokunmaz.
 
 > İzin ekranında "Google bu uygulamayı doğrulamadı" uyarısı normaldir — test kullanıcısı olduğun
 > için *Advanced → Go to Relay (unsafe)* ile devam edilir.

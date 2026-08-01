@@ -60,6 +60,28 @@ public final class Playbooks {
                     Move.optional("Ekibe özet gönder", "slack.postMessage", Map.of()),
                     Move.optional("Takip tablosuna satır ekle", "sheets.appendRow", Map.of())));
 
+    /**
+     * The chain {@code sheets.appendRow} could not close on its own: the blocker scan has
+     * been writing a row a week into the tracking sheet, and nothing could read them back.
+     * "Is this the fourth week running" lives in those rows, and until {@code
+     * sheets.readRange} the only way to answer it was to open the sheet by hand — which is
+     * the exact work Relay claims to remove.
+     *
+     * <p>The seeded range is deliberately tab-less: {@code ReadRange.withDefaults} prefixes
+     * the connection's {@code defaultSheetName}, so the same playbook reads {@code Takip} on
+     * the workspace that configured it and the first tab on the one that did not.
+     */
+    public static final Playbook SHEET_DIGEST = new Playbook(
+            "tablo-ozeti",
+            "Tablo özeti",
+            "Takip tablosunun son satırlarını oku; tekrarlayan ve en uzun süredir bekleyen "
+                    + "kalemleri kayıt anahtarlarıyla çıkar ve ekibe kısa bir özet gönder.",
+            "Tablo okunur, Slack özeti onayına gelir",
+            List.of(
+                    Move.required("Takip tablosunu oku", "sheets.readRange",
+                            Map.of("range", "A1:F50")),
+                    Move.optional("Ekibe özet gönder", "slack.postMessage", Map.of())));
+
     public static final Playbook PR_REVIEW = new Playbook(
             "pr-durumu",
             "Bekleyen incelemeler",
@@ -107,7 +129,7 @@ public final class Playbooks {
      * tells a first-time reader this is a tool for a sprint board.
      */
     public static final List<Playbook> ALL =
-            List.of(MAIL_TO_TICKET, MORNING, MEETING_PREP, BLOCKERS, PR_REVIEW);
+            List.of(MAIL_TO_TICKET, MORNING, MEETING_PREP, BLOCKERS, SHEET_DIGEST, PR_REVIEW);
 
     private Playbooks() {
     }
