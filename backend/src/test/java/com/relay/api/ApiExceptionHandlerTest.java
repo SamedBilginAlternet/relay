@@ -3,12 +3,17 @@ package com.relay.api;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.relay.application.orchestrator.RunService;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.http.MockHttpInputMessage;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * The error envelope is a product surface: the status says whose fault it is, and the
@@ -54,6 +59,36 @@ class ApiExceptionHandlerTest {
         // The two familiar keys stay put: every caller already reads them.
         assertThat(body(response).keySet()).containsExactly("error", "message", "fields");
         assertThat(body(response).get("fields")).isEqualTo(Map.of("text", "En az 1 karakter olmalı."));
+    }
+
+    /**
+     * DELETE /api/connections/jira, PATCH /api/runs and OPTIONS on any endpoint all
+     * answered 500 "Beklenmeyen bir hata oluştu. Sunucu günlüklerine bakın." — Relay
+     * calling itself broken, and pointing a user with no shell at a log file.
+     */
+    @Test
+    void an_unsupported_method_is_the_callers_mistake_not_a_server_fault() {
+        ResponseEntity<Map<String, Object>> response = handler.methodNotAllowed(
+                new HttpRequestMethodNotSupportedException("DELETE", List.of("GET", "PUT")));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+        assertThat(body(response).get("error")).isEqualTo("method_not_allowed");
+        // A 405 that does not say what is allowed leaves the caller guessing.
+        assertThat(response.getHeaders().getAllow()).containsExactlyInAnyOrder(HttpMethod.GET, HttpMethod.PUT);
+    }
+
+    /** Nobody reading a Relay error has a server log to look at. */
+    @Test
+    void no_error_sends_the_reader_somewhere_they_cannot_go() {
+        List<ResponseEntity<Map<String, Object>>> answers = List.of(
+                handler.unexpected(new RuntimeException("boom")),
+                handler.methodNotAllowed(new HttpRequestMethodNotSupportedException("PATCH")),
+                handler.badParameter(new MethodArgumentTypeMismatchException(
+                        "not-a-uuid", UUID.class, "id", null, null)));
+
+        for (ResponseEntity<Map<String, Object>> answer : answers) {
+            assertThat(body(answer).get("message")).asString().doesNotContain("günlük");
+        }
     }
 
     @Test

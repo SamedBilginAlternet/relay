@@ -5,8 +5,11 @@ import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -79,16 +82,44 @@ public class ApiExceptionHandler {
     }
 
     /**
+     * A method this endpoint does not serve.
+     *
+     * <p>Without this it fell through to the catch-all below and answered 500 "Beklenmeyen
+     * bir hata oluştu" — Relay reporting itself broken for a request it understood well
+     * enough to know it was wrong. {@code DELETE /api/connections/jira} and
+     * {@code PATCH /api/runs} both did it.
+     *
+     * <p>The {@code Allow} header comes back with the answer, because a 405 that does not
+     * say what is allowed leaves the caller guessing.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> methodNotAllowed(HttpRequestMethodNotSupportedException e) {
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
+        Set<HttpMethod> allowed = e.getSupportedHttpMethods();
+        if (allowed != null && !allowed.isEmpty()) {
+            response.allow(allowed.toArray(new HttpMethod[0]));
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "method_not_allowed");
+        body.put("message", "Bu uç bu metodu desteklemiyor.");
+        return response.body(body);
+    }
+
+    /**
      * Anything unhandled is a bug on our side, so the caller gets a stable sentence and
      * the detail goes to the log. Exception messages carry whatever the failing layer put
      * in them — a provider body, a query, occasionally a credential — and none of that
      * belongs in an HTTP response.
+     *
+     * <p>It used to end with "Sunucu günlüklerine bakın". The person reading it is a user
+     * of a hosted product; they have no log to look at, so the sentence only told them the
+     * fault was somewhere they could not go.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> unexpected(Exception e) {
         LOG.log(Level.ERROR, "unhandled API error", e);
         return body(HttpStatus.INTERNAL_SERVER_ERROR, "internal_error",
-                "Beklenmeyen bir hata oluştu. Sunucu günlüklerine bakın.");
+                "Beklenmeyen bir hata oluştu. Sorun sürerse tekrar deneyin.");
     }
 
     private ResponseEntity<Map<String, Object>> body(HttpStatus status, String code, String message) {
