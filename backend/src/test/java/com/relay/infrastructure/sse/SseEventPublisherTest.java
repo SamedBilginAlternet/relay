@@ -149,6 +149,57 @@ class SseEventPublisherTest {
     }
 
     @Test
+    void sse_events_carry_monotonic_ids() {
+        SseEventPublisher publisher = new SseEventPublisher();
+        UUID runId = UUID.randomUUID();
+        RecordingEmitter watching = new RecordingEmitter();
+        publisher.subscribe(runId, watching);
+
+        publisher.publish(runId, RunEvent.of(RunEvent.RUN_PLANNED, Map.of("steps", List.of())));
+        publisher.publish(runId, RunEvent.of(RunEvent.STEP_STARTED, Map.of("stepId", "1")));
+        publisher.publish(runId, RunEvent.of(RunEvent.STEP_FINISHED, Map.of("stepId", "1")));
+
+        assertThat(watching.ids())
+                .as("an event with no id is an event EventSource cannot resume from")
+                .containsExactly(1L, 2L, 3L);
+    }
+
+    @Test
+    void a_client_that_says_where_it_stopped_is_given_only_what_came_after() {
+        SseEventPublisher publisher = new SseEventPublisher();
+        UUID runId = UUID.randomUUID();
+        publisher.publish(runId, RunEvent.of(RunEvent.RUN_PLANNED, Map.of("steps", List.of())));
+        publisher.publish(runId, RunEvent.of(RunEvent.STEP_STARTED, Map.of("stepId", "1")));
+        publisher.publish(runId, RunEvent.of(RunEvent.STEP_FINISHED, Map.of("stepId", "1")));
+
+        RecordingEmitter resumed = new RecordingEmitter();
+        publisher.subscribe(runId, resumed, 2L);
+
+        assertThat(resumed.names())
+                .as("Last-Event-ID means carry on, not start again")
+                .containsExactly(RunEvent.STEP_FINISHED);
+        assertThat(resumed.ids()).containsExactly(3L);
+    }
+
+    /**
+     * The numbering lives in memory, so a restarted API cannot place an id from the run
+     * before it. Saying "from the start" out loud beats a silently empty stream.
+     */
+    @Test
+    void an_id_the_run_cannot_place_is_answered_from_the_beginning() {
+        SseEventPublisher publisher = new SseEventPublisher();
+        UUID runId = UUID.randomUUID();
+        publisher.publish(runId, RunEvent.of(RunEvent.RUN_PLANNED, Map.of("steps", List.of())));
+        publisher.publish(runId, RunEvent.of(RunEvent.STEP_STARTED, Map.of("stepId", "1")));
+
+        RecordingEmitter confused = new RecordingEmitter();
+        publisher.subscribe(runId, confused, 4096L);
+
+        assertThat(confused.frames.get(0).text()).contains(":replay-from-start");
+        assertThat(confused.names()).containsExactly(RunEvent.RUN_PLANNED, RunEvent.STEP_STARTED);
+    }
+
+    @Test
     void a_heartbeat_keeps_an_idle_stream_open() {
         SseEventPublisher publisher = new SseEventPublisher();
         UUID runId = UUID.randomUUID();
@@ -205,6 +256,15 @@ class SseEventPublisherTest {
                             .map(line -> line.substring("event:".length()))
                             .collect(Collectors.joining()))
                     .filter(name -> !name.isBlank())
+                    .toList();
+        }
+
+        /** The {@code id:} of every frame that carries one. */
+        List<Long> ids() {
+            return frames.stream()
+                    .flatMap(frame -> frame.text().lines())
+                    .filter(line -> line.startsWith("id:"))
+                    .map(line -> Long.valueOf(line.substring("id:".length())))
                     .toList();
         }
     }

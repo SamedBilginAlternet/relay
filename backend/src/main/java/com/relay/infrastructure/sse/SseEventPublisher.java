@@ -17,6 +17,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
@@ -64,7 +67,12 @@ public class SseEventPublisher implements EventPublisher {
 
     /** Subscribes a client and replays what it missed. */
     public SseEmitter subscribe(UUID runId) {
-        return subscribe(runId, new SseEmitter(TIMEOUT_MS));
+        return subscribe(runId, new SseEmitter(TIMEOUT_MS), resumePoint());
+    }
+
+    /** A subscription that has nothing to carry on from. */
+    SseEmitter subscribe(UUID runId, SseEmitter emitter) {
+        return subscribe(runId, emitter, null);
     }
 
     /**
@@ -74,14 +82,21 @@ public class SseEventPublisher implements EventPublisher {
      * promises — the replay, the hang-up, dropping a broken client — is only observable
      * through the emitter, and a {@code new SseEmitter()} created three lines deep inside
      * the method is not observable at all.
+     *
+     * @param resumeFrom the last frame id the client says it already has, or {@code null}
      */
-    SseEmitter subscribe(UUID runId, SseEmitter emitter) {
+    SseEmitter subscribe(UUID runId, SseEmitter emitter, Long resumeFrom) {
         Channel channel = channels.computeIfAbsent(runId, key -> new Channel());
         Watcher watcher = new Watcher(emitter);
         List<Frame> replay;
         boolean over;
+        boolean restarted;
         synchronized (channel) {
-            replay = List.copyOf(channel.history);
+            List<Frame> kept = List.copyOf(channel.history);
+            boolean resumable = resumeFrom != null && !kept.isEmpty()
+                    && resumeFrom >= kept.get(0).id() - 1 && resumeFrom <= channel.lastId;
+            replay = resumable ? kept.stream().filter(frame -> frame.id() > resumeFrom).toList() : kept;
+            restarted = resumeFrom != null && !resumable;
             // The cursor and the registration are set in the same breath as the snapshot is
             // taken. A frame published between "what have I missed" and "count me in" used to
             // fall into the gap between them: it was not in the replay and not yet on the
@@ -94,6 +109,13 @@ public class SseEventPublisher implements EventPublisher {
         emitter.onTimeout(() -> remove(runId, watcher));
         emitter.onError(e -> remove(runId, watcher));
 
+        // The client asked to carry on from an id this run cannot place — it was trimmed out
+        // of the backlog, or the API restarted and the numbering began again. Say so and send
+        // the story from the top; the reducer is idempotent, so a second telling costs
+        // nothing but bytes, and a silent hole would cost the screen.
+        if (restarted) {
+            note(runId, watcher, "replay-from-start");
+        }
         for (Frame frame : replay) {
             deliver(runId, watcher, frame);
         }
@@ -162,7 +184,14 @@ public class SseEventPublisher implements EventPublisher {
     /** @return {@code false} when the client is gone and has been dropped. */
     private boolean write(UUID runId, Watcher watcher, Frame frame) {
         try {
-            watcher.emitter.send(SseEmitter.event().name(frame.event().type()).data(frame.event().data()));
+            // The id is what makes EventSource's own reconnect work: the browser sends the
+            // last one back as Last-Event-ID and expects to be given the rest. Without it
+            // that protocol is dead and a dropped line is either a full re-telling or a hole,
+            // with nothing on the wire to tell the two apart.
+            watcher.emitter.send(SseEmitter.event()
+                    .id(Long.toString(frame.id()))
+                    .name(frame.event().type())
+                    .data(frame.event().data()));
             return true;
         } catch (IOException | IllegalStateException e) {
             remove(runId, watcher);
@@ -171,6 +200,39 @@ public class SseEventPublisher implements EventPublisher {
             LOG.log(Level.WARNING, "sse send failed for run " + runId, e);
             remove(runId, watcher);
             return false;
+        }
+    }
+
+    /** A comment line: visible to anyone reading the stream, invisible to EventSource. */
+    private void note(UUID runId, Watcher watcher, String text) {
+        synchronized (watcher) {
+            try {
+                watcher.emitter.send(SseEmitter.event().comment(text));
+            } catch (Exception e) {
+                remove(runId, watcher);
+            }
+        }
+    }
+
+    /**
+     * The frame id the reconnecting client says it already has.
+     *
+     * <p>Read off the request being served rather than taken as a controller argument:
+     * {@code Last-Event-ID} is part of the SSE protocol, not part of the runs API, and the
+     * rule for answering it belongs next to the buffer that answers it.
+     *
+     * @return the id, or {@code null} when there is no header, no request, or nonsense in it
+     */
+    private static Long resumePoint() {
+        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+        if (!(attributes instanceof ServletRequestAttributes servlet)) {
+            return null;
+        }
+        String header = servlet.getRequest().getHeader("Last-Event-ID");
+        try {
+            return header == null || header.isBlank() ? null : Long.valueOf(header.trim());
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 
