@@ -389,9 +389,20 @@ Jüri buradan sorar; hazırlıklı olmak lazım.
   yanlış kopyaya düşer ve kilitler işe yaramaz. Yatay ölçekleme için Redis/pub-sub gerekir.
 - **Kuyruk yok.** Akışlar 4 iş parçacıklı sabit havuzda koşar. Beşinci eşzamanlı akış
   sıradakinin bitmesini bekler, kullanıcıya bunu söyleyen bir şey yok.
-- **Yeniden başlatma akışı kurtarmaz.** `awaiting_approval`'da bekleyen bir akış API yeniden
-  başlayınca kendiliğinden sürülmez; bir `approve`/`reject` çağrısı gerekir. Yarıda kalmış
-  `running` akış orada kalır.
+- **Yeniden başlatma akışı kurtarmaz — ve `running` kalanı yanlış raporlar.**
+  `awaiting_approval`'da bekleyen akış sorun değil: duruş veritabanında durur, `approve`
+  geldiğinde kaldığı yerden devam eder (`RestartRecoveryTest`). Yarıda kalmış `running` akış
+  ise ne sürülüyor ne de bulunabiliyor: `backend/src/main` içinde tek bir açılış kancası yok
+  (`@PostConstruct`/`ApplicationRunner`/`@Scheduled` yok) ve `RunRepository` sonlanmamış
+  akışları soramıyor — `findAll(page, size)` sayfalı ve durum filtresiz. Sonuç: Geçmiş ekranı
+  o akışı sonsuza kadar "çalışıyor" gösterir, iz kaydında yeniden başlatmayı söyleyen bir
+  satır yoktur, tek çıkış `POST /api/runs/{id}/cancel`'dır ve kullanıcıya bunu yapması
+  gerektiğini söyleyen bir arayüz yoktur. Açılışta `running` akışları otomatik `drive` etmek
+  **bilinçli olarak elendi**: yarıda kalmış bir araç çağrısının sağlayıcıda gerçekleşip
+  gerçekleşmediği bilinmiyor, yeniden sürmek aynı yazmayı ikinci kez yapabilir —
+  `Coordinator.cancel` uçuştaki çağrıyı aynı gerekçeyle kesmiyor. Doğru olan en küçük adım
+  kurtarma değil **dürüst rapor**: açılışta bu akışları gerekçesiyle `failed` yazmak (issue
+  #45).
 - **Doğrulayıcı LLM'dir.** Parse edilemeyen yargı **geçti** sayılır — akışın kilitlenmemesi
   için bilinçli, ama denetimin garantisi değil, en iyi çabası olduğu anlamına gelir.
 - **Koruma kapıları desen eşlemesidir.** `Filler.MARKERS` ve `Placeholder.MARKERS` sabit
