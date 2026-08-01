@@ -4,6 +4,7 @@ import com.relay.application.cost.CostMeter;
 import com.relay.domain.AgentMessage;
 import com.relay.domain.Run;
 import com.relay.domain.Step;
+import com.relay.domain.StepStatus;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -85,6 +86,13 @@ public final class Views {
         map.put("budgetUsd", CostMeter.usd(run.budgetUsd()));
         map.put("budgetOverridden", run.budgetOverridden());
         map.put("stepCount", run.steps().size());
+        // How far along, not just how long. The list view carried the total and nothing
+        // else, so a rail of live runs could print "4 adım" and never "1/4 adım" — the one
+        // figure that says whether a flow is nearly done or has not started. Counted here
+        // rather than derived on the client: a client that guesses progress from statuses
+        // it can see is a second definition of "done".
+        map.put("doneStepCount",
+                run.steps().stream().filter(step -> step.status() == StepStatus.DONE).count());
         map.put("createdAt", iso(run.createdAt()));
         map.put("finishedAt", iso(run.finishedAt()));
         return map;
