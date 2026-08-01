@@ -1,11 +1,22 @@
 <title>Relay — Yatırımcı Sunumu</title>
 <style>
   :root {
-    --ink: #15121C;
-    --paper: #FAF9FC;
+    /* Warm, neutral grounds — not the near-black+violet "AI SaaS dark mode" cliché.
+       The violet stays, but as a thread connecting real tool colors, not a wash. */
+    --ink: #16140F;
+    --paper: #F6F3EC;
     --accent: #6D28D9;
-    --accent-soft: #C4B5FD;
+    --accent-soft: #C9B6F5;
     --ok: #2F9E6E;
+    --forbid: #B5493D;
+
+    /* Real tool brand colors — used only as small badge fills, never full-slide washes.
+       This is what breaks the monochrome-plus-one-accent pattern. */
+    --jira: #0052CC;
+    --slack: #611F69;
+    --github: #24292F;
+    --gmail: #C5221F;
+    --cal: #1967D2;
 
     --font-display: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     --font-body: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
@@ -13,34 +24,17 @@
 
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
 
-    /*
-      Chrome tokens for the progress chain + counter. The deck is full-bleed
-      (.deck covers the entire viewport) so there is no surrounding page for a
-      viewer-theme preference to show through — the chrome sits directly on top
-      of whichever slide is active, and that slide's own ink/paper ground is a
-      fixed authorial choice, not something the viewer's OS preference should
-      flip. So contrast here tracks the ACTIVE SLIDE's ground (toggled by JS as
-      a data-ground attribute below), not prefers-color-scheme.
-    */
-    --chrome-bg: var(--paper);
     --chrome-fg: var(--ink);
-    --chrome-muted: rgba(21, 18, 28, 0.5);
-    --chrome-node: rgba(21, 18, 28, 0.28);
-    --chrome-line: rgba(21, 18, 28, 0.16);
+    --chrome-muted: rgba(22, 20, 15, 0.5);
+    --chrome-node: rgba(22, 20, 15, 0.3);
+    --chrome-line: rgba(22, 20, 15, 0.18);
   }
 
   body[data-ground="ink"] {
     --chrome-fg: var(--paper);
-    --chrome-muted: rgba(250, 249, 252, 0.55);
-    --chrome-node: rgba(250, 249, 252, 0.3);
-    --chrome-line: rgba(250, 249, 252, 0.18);
-  }
-
-  body[data-ground="paper"] {
-    --chrome-fg: var(--ink);
-    --chrome-muted: rgba(21, 18, 28, 0.5);
-    --chrome-node: rgba(21, 18, 28, 0.28);
-    --chrome-line: rgba(21, 18, 28, 0.16);
+    --chrome-muted: rgba(246, 243, 236, 0.55);
+    --chrome-node: rgba(246, 243, 236, 0.32);
+    --chrome-line: rgba(246, 243, 236, 0.2);
   }
 
   *, *::before, *::after { box-sizing: border-box; }
@@ -48,24 +42,17 @@
   html, body {
     margin: 0;
     padding: 0;
-    background: var(--chrome-bg);
-    color: var(--chrome-fg);
+    background: var(--ink);
+    color: var(--paper);
     overflow: hidden;
     overscroll-behavior: none;
     height: 100%;
     -webkit-font-smoothing: antialiased;
   }
 
-  body {
-    font-family: var(--font-body);
-  }
+  body { font-family: var(--font-body); }
 
-  .deck {
-    position: fixed;
-    inset: 0;
-    width: 100vw;
-    height: 100dvh;
-  }
+  .deck { position: fixed; inset: 0; width: 100vw; height: 100dvh; }
 
   .slide {
     position: absolute;
@@ -75,8 +62,8 @@
     display: flex;
     align-items: center;
     opacity: 0;
-    transform: translateY(20px);
-    transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+    transform: translateY(22px) scale(0.99);
+    transition: opacity 0.65s var(--ease), transform 0.65s var(--ease);
     pointer-events: none;
     z-index: 1;
     overflow-y: auto;
@@ -85,7 +72,7 @@
 
   .slide.is-active {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
     pointer-events: auto;
     z-index: 2;
   }
@@ -95,437 +82,280 @@
 
   .content {
     width: 100%;
-    max-width: 980px;
-    padding: clamp(28px, 7vw, 96px);
+    max-width: 1040px;
+    padding: clamp(28px, 6vw, 88px);
     display: flex;
     flex-direction: column;
-    gap: clamp(14px, 2.4vw, 22px);
+    gap: clamp(16px, 2.2vw, 26px);
   }
 
   .slide--center .content { margin: 0 auto; align-items: center; text-align: center; }
   .slide--left .content { margin-right: auto; align-items: flex-start; text-align: left; }
-  .slide--right .content { margin-left: auto; align-items: flex-start; text-align: left; }
 
   .content > * {
     opacity: 0;
-    transform: translateY(12px);
-    transition: opacity 0.55s var(--ease), transform 0.55s var(--ease);
+    transform: translateY(14px);
+    transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
   }
-  .slide.is-active .content > *:nth-child(1) { transition-delay: 0.05s; }
-  .slide.is-active .content > *:nth-child(2) { transition-delay: 0.16s; }
-  .slide.is-active .content > *:nth-child(3) { transition-delay: 0.27s; }
-  .slide.is-active .content > *:nth-child(4) { transition-delay: 0.38s; }
-  .slide.is-active .content > *:nth-child(5) { transition-delay: 0.49s; }
+  .slide.is-active .content > *:nth-child(1) { transition-delay: 0.04s; }
+  .slide.is-active .content > *:nth-child(2) { transition-delay: 0.14s; }
+  .slide.is-active .content > *:nth-child(3) { transition-delay: 0.24s; }
+  .slide.is-active .content > *:nth-child(4) { transition-delay: 0.34s; }
+  .slide.is-active .content > *:nth-child(5) { transition-delay: 0.44s; }
   .slide.is-active .content > * { opacity: 1; transform: translateY(0); }
 
   .eyebrow {
     font-family: var(--font-mono);
     font-size: 0.8rem;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--accent);
     font-weight: 600;
   }
-
   .slide--ink .eyebrow { color: var(--accent-soft); }
 
   .headline {
     font-family: var(--font-display);
     font-weight: 800;
     letter-spacing: -0.03em;
-    line-height: 1.05;
-    font-size: clamp(2.3rem, 4.6vw + 1rem, 6rem);
+    line-height: 1.04;
+    font-size: clamp(2.1rem, 4vw + 1rem, 5.4rem);
     text-wrap: balance;
-    max-width: 16ch;
+    max-width: 17ch;
     margin: 0;
   }
-
-  .slide--center .headline { max-width: 18ch; }
+  .slide--center .headline { max-width: 19ch; }
+  .headline--sm { font-size: clamp(1.7rem, 2.6vw + 1rem, 3.2rem); max-width: 20ch; }
 
   .support {
     font-family: var(--font-body);
     font-weight: 450;
-    font-size: clamp(1.05rem, 1.1vw + 0.85rem, 1.4rem);
+    font-size: clamp(1.02rem, 1vw + 0.85rem, 1.32rem);
     line-height: 1.5;
-    max-width: 58ch;
+    max-width: 56ch;
     opacity: 0.82;
     margin: 0;
   }
 
   .caption {
     font-family: var(--font-mono);
-    font-size: clamp(0.72rem, 0.6vw + 0.6rem, 0.9rem);
+    font-size: clamp(0.72rem, 0.55vw + 0.6rem, 0.86rem);
     line-height: 1.6;
     opacity: 0.6;
-    max-width: 56ch;
+    max-width: 54ch;
     font-variant-numeric: tabular-nums;
   }
 
-  /* ---------- chips ---------- */
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+  /* ============ tool badges — the thing that breaks the monochrome look ============ */
+  .badge {
+    width: 34px; height: 34px;
+    border-radius: 9px;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    flex: 0 0 auto;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.12);
   }
-  .slide--center .chips { justify-content: center; }
+  .badge svg { width: 18px; height: 18px; }
+  .badge--jira { background: var(--jira); }
+  .badge--slack { background: var(--slack); }
+  .badge--github { background: var(--github); }
+  .badge--gmail { background: var(--gmail); }
+  .badge--cal { background: var(--cal); }
+  .badge--lg { width: 46px; height: 46px; border-radius: 12px; }
+  .badge--lg svg { width: 24px; height: 24px; }
 
+  .toolrow { display: flex; align-items: center; gap: 14px; }
+  .toolrow .name { font-family: var(--font-mono); font-size: 0.92rem; opacity: 0.85; }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-7px); }
+  }
+  .float-1 { animation: float 4.2s var(--ease) infinite; }
+  .float-2 { animation: float 4.6s var(--ease) infinite 0.5s; }
+  .float-3 { animation: float 3.8s var(--ease) infinite 1s; }
+  .float-4 { animation: float 4.4s var(--ease) infinite 0.3s; }
+  .float-5 { animation: float 4.0s var(--ease) infinite 0.8s; }
+
+  /* ============ chips ============ */
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; }
+  .slide--center .chips { justify-content: center; }
   .chip {
     font-family: var(--font-mono);
     font-size: clamp(0.75rem, 0.5vw + 0.68rem, 0.92rem);
-    padding: 8px 14px;
+    padding: 9px 15px;
     border-radius: 3px;
     border: 1px solid currentColor;
     opacity: 0.55;
     white-space: nowrap;
   }
-
   .chip--ok { border-color: var(--ok); color: var(--ok); opacity: 1; font-weight: 600; }
   .chip--gate { border-color: var(--accent); color: var(--accent); opacity: 1; font-weight: 600; }
   .slide--ink .chip--gate { color: var(--accent-soft); border-color: var(--accent-soft); }
-  .chip--forbidden {
-    opacity: 0.55;
-    text-decoration: line-through;
-    border-style: dashed;
-  }
-  .chip__glyph { display: inline-block; transform: rotate(45deg); width: 7px; height: 7px; margin-right: 7px; background: currentColor; vertical-align: 1px; }
+  .chip--forbidden { opacity: 0.55; text-decoration: line-through; border-style: dashed; border-color: var(--forbid); color: var(--forbid); }
+  .chip__glyph { display: inline-block; transform: rotate(45deg); width: 7px; height: 7px; margin-right: 8px; background: currentColor; vertical-align: 1px; animation: pulse 2.2s var(--ease) infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; transform: rotate(45deg) scale(1); } 50% { opacity: 0.5; transform: rotate(45deg) scale(1.35); } }
 
-  /* ---------- scattered chips (slide 2) ---------- */
-  .scatter { display: flex; flex-wrap: wrap; gap: 18px 22px; margin-top: 4px; }
-  .scatter .chip { opacity: 0.85; }
-  .scatter .chip:nth-child(1) { transform: rotate(-2deg) translateY(2px); }
-  .scatter .chip:nth-child(2) { transform: rotate(1.5deg) translateY(-4px); }
-  .scatter .chip:nth-child(3) { transform: rotate(-1deg) translateY(6px); }
-  .scatter .chip:nth-child(4) { transform: rotate(2deg) translateY(-2px); }
+  /* ============ flow — the baton line with a travelling glow ============ */
+  .flow { position: relative; width: 100%; max-width: 720px; padding: 30px 4px 4px; }
+  .flow-line { position: absolute; left: 17px; right: 17px; top: 30px; height: 2px; background: var(--accent); opacity: 0.35; }
+  .flow-nodes { position: relative; display: flex; justify-content: space-between; }
+  .flow-node { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .flow-node label { font-family: var(--font-mono); font-size: 0.72rem; opacity: 0.65; }
+  .flow-node.is-gate .badge { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .slide--ink .flow-node.is-gate .badge { outline-color: var(--accent-soft); }
 
-  /* ---------- connected chain (slide 4) ---------- */
-  .baton {
-    position: relative;
-    width: 100%;
-    max-width: 640px;
-    padding: 34px 6px 8px;
-  }
-  .baton-line {
+  .glow {
     position: absolute;
-    left: 6px;
-    right: 6px;
-    top: 34px;
-    height: 1px;
-    background: var(--accent);
-    opacity: 0.5;
-  }
-  .baton-dot {
-    position: absolute;
-    top: 34px;
-    width: 8px;
-    height: 8px;
+    top: 30px; left: 17px;
+    width: 10px; height: 10px;
+    margin-top: -5px;
     border-radius: 50%;
-    background: var(--accent);
-    transform: translate(-50%, -50%);
-    animation: travel 3.4s var(--ease) infinite;
+    background: var(--accent-soft);
+    box-shadow: 0 0 14px 3px var(--accent);
+    offset-path: path("M0,0 L 100,0");
+    offset-distance: 0%;
+    animation: travel-flow 5.5s var(--ease) infinite;
   }
-  @keyframes travel {
-    0% { left: 0%; opacity: 0; }
-    10% { opacity: 1; }
-    90% { opacity: 1; }
-    100% { left: 100%; opacity: 0; }
-  }
-  .baton-nodes { position: relative; display: flex; justify-content: space-between; }
-  .baton-node { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-  .baton-node span.dot {
-    width: 11px; height: 11px; border-radius: 50%;
-    background: var(--accent);
-  }
-  .baton-node label {
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    opacity: 0.75;
+  /* Path length is normalized to the flow's own width via viewBox-free trick: we
+     instead animate offset-distance as a percentage, which offset-path treats as
+     % of total path length — fine for a straight line regardless of pixel width. */
+  @keyframes travel-flow {
+    0%   { offset-distance: 0%;  opacity: 0; }
+    6%   { opacity: 1; }
+    38%  { offset-distance: 62%; opacity: 1; }   /* arrives at the gate node   */
+    55%  { offset-distance: 62%; opacity: 1; }   /* HOLDS — the baton is caught */
+    62%  { opacity: 1; }
+    98%  { offset-distance: 100%; opacity: 1; }
+    100% { offset-distance: 100%; opacity: 0; }
   }
 
-  /* ---------- intro chain (slide 1) ---------- */
-  .intro-chain {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-top: 6px;
-  }
-  .intro-chain .node {
-    width: 12px; height: 12px; border-radius: 50%;
-    background: rgba(250, 249, 252, 0.18);
-    opacity: 0;
-    transform: scale(0.4);
-    transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
-  }
-  .intro-chain .node.is-gate {
-    border-radius: 2px;
-    transform: scale(0.4) rotate(45deg);
-    background: transparent;
-    border: 1.5px solid var(--accent-soft);
-  }
-  .intro-chain .seg {
-    width: 22px; height: 1px;
-    background: var(--accent);
-    opacity: 0;
-    transition: opacity 0.5s var(--ease);
-  }
-  .slide.is-active .intro-chain .node { opacity: 1; transform: scale(1); }
-  .slide.is-active .intro-chain .node.is-gate { transform: scale(1) rotate(45deg); }
-  .slide.is-active .intro-chain .seg { opacity: 0.5; }
-  .slide.is-active .intro-chain .node:nth-child(1) { transition-delay: 0.55s; }
-  .slide.is-active .intro-chain .seg:nth-child(2) { transition-delay: 0.62s; }
-  .slide.is-active .intro-chain .node:nth-child(3) { transition-delay: 0.68s; background: var(--accent); }
-  .slide.is-active .intro-chain .seg:nth-child(4) { transition-delay: 0.75s; }
-  .slide.is-active .intro-chain .node:nth-child(5) { transition-delay: 0.82s; }
-  .slide.is-active .intro-chain .seg:nth-child(6) { transition-delay: 0.89s; }
-  .slide.is-active .intro-chain .node:nth-child(7) { transition-delay: 0.96s; }
+  /* ============ scattered badges (problem slide) ============ */
+  .scatter { display: flex; flex-wrap: wrap; gap: 22px 26px; margin-top: 4px; }
+  .scatter .toolrow:nth-child(1) { transform: rotate(-2deg); }
+  .scatter .toolrow:nth-child(2) { transform: rotate(1.5deg) translateY(10px); }
+  .scatter .toolrow:nth-child(3) { transform: rotate(-1.2deg) translateY(-6px); }
+  .scatter .toolrow:nth-child(4) { transform: rotate(2deg) translateY(4px); }
 
-  /* ---------- two-up (slide 3) ---------- */
-  .twoup {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px 40px;
-    width: 100%;
-    max-width: 720px;
-    text-align: left;
+  /* ============ two-up (trap slide) ============ */
+  .twoup { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 40px; width: 100%; max-width: 760px; text-align: left; }
+  .twoup .item { border-top: 2px solid var(--accent); padding-top: 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .twoup .glyph {
+    flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+    border: 1.5px solid currentColor; opacity: 0.65;
+    display: grid; place-items: center;
   }
-  .twoup .item {
-    border-top: 2px solid var(--accent);
-    padding-top: 14px;
-  }
+  .twoup .glyph svg { width: 15px; height: 15px; }
   .twoup .item strong {
-    display: block;
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: clamp(1.05rem, 1vw + 0.9rem, 1.3rem);
-    margin-bottom: 6px;
-    letter-spacing: -0.01em;
+    display: block; font-family: var(--font-display); font-weight: 700;
+    font-size: clamp(1.05rem, 1vw + 0.9rem, 1.3rem); margin-bottom: 6px; letter-spacing: -0.01em;
   }
-  .twoup .item span {
-    font-size: 0.98rem;
-    opacity: 0.75;
-  }
+  .twoup .item span { font-size: 0.98rem; opacity: 0.75; }
 
-  /* ---------- timeline (slide 7) ---------- */
-  .timeline {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    width: 100%;
-    max-width: 480px;
-  }
-  .timeline .row {
-    display: grid;
-    grid-template-columns: 64px 1fr;
-    gap: 16px;
-    align-items: baseline;
-    border-left: 2px solid var(--accent);
-    padding-left: 16px;
-  }
-  .timeline .row time {
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    color: var(--accent);
-    font-variant-numeric: tabular-nums;
-  }
-  .timeline .row p {
-    margin: 0;
-    font-size: 1rem;
-  }
+  /* ============ timeline ============ */
+  .timeline { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 560px; }
+  .timeline .row { display: grid; grid-template-columns: 64px 30px 1fr; gap: 14px; align-items: center; }
+  .timeline .row time { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-soft); font-variant-numeric: tabular-nums; }
+  .timeline .row p { margin: 0; font-size: 1.02rem; }
+  .timeline .mark { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--accent-soft); display: grid; place-items: center; }
+  .timeline .mark svg { width: 13px; height: 13px; }
+  .timeline .row.is-gate .mark { background: var(--accent); border-color: var(--accent); }
 
-  /* ---------- 2x2 grid (slide 8) ---------- */
-  .grid2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 22px 40px;
-    width: 100%;
-    max-width: 640px;
-  }
-  .grid2 .cell strong {
-    display: block;
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 1.05rem;
-    margin-bottom: 4px;
-  }
-  .grid2 .cell span {
-    font-size: 0.92rem;
-    opacity: 0.72;
-  }
+  /* ============ 2x2 grid with icons ============ */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 26px 44px; width: 100%; max-width: 680px; }
+  .grid2 .cell { display: flex; gap: 14px; align-items: flex-start; }
+  .grid2 .mark { width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: #fff; display: grid; place-items: center; flex: 0 0 auto; }
+  .grid2 .mark svg { width: 17px; height: 17px; }
+  .grid2 .cell strong { display: block; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; margin-bottom: 4px; }
+  .grid2 .cell span { font-size: 0.92rem; opacity: 0.72; }
 
-  /* ---------- rows (slide 9) ---------- */
-  .rows {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    width: 100%;
-    max-width: 620px;
-  }
-  .rows .row {
-    display: flex;
-    gap: 14px;
-    align-items: baseline;
-    padding: 10px 0;
-    border-bottom: 1px solid currentColor;
-    border-color: rgba(21, 18, 28, 0.12);
-  }
-  .rows .row strong {
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    min-width: 12ch;
-    font-weight: 600;
-  }
-  .rows .row.is-relay strong,
-  .rows .row.is-relay span { color: var(--accent); }
-  .rows .row span { opacity: 0.78; font-size: 0.98rem; }
+  /* ============ comparison matrix ============ */
+  .matrix-wrap { width: 100%; max-width: 760px; overflow-x: auto; }
+  .matrix { width: 100%; border-collapse: collapse; font-size: clamp(0.82rem, 0.6vw + 0.7rem, 0.98rem); }
+  .matrix th, .matrix td { padding: 12px 14px; text-align: left; border-bottom: 1px solid rgba(250,249,252,0.14); }
+  .slide--paper .matrix th, .slide--paper .matrix td { border-bottom-color: rgba(22,20,15,0.14); }
+  .matrix th { font-family: var(--font-mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.02em; opacity: 0.7; }
+  .matrix td:first-child, .matrix th:first-child { font-family: var(--font-body); font-weight: 500; opacity: 0.9; }
+  .matrix td:not(:first-child), .matrix th:not(:first-child) { text-align: center; font-family: var(--font-mono); }
+  .matrix .col-relay { background: rgba(109, 40, 217, 0.14); border-radius: 6px; }
+  .slide--ink .matrix th.col-relay, .slide--ink .matrix td.col-relay { color: var(--accent-soft); font-weight: 700; }
+  .slide--paper .matrix th.col-relay, .slide--paper .matrix td.col-relay { color: var(--accent); font-weight: 700; }
+  .mx-yes { color: var(--ok); }
+  .mx-no { opacity: 0.4; }
+  .mx-partial { opacity: 0.65; }
 
-  .mark {
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    opacity: 0.55;
-  }
+  /* ============ stat with animated count ============ */
+  .stat { display: flex; align-items: baseline; gap: 10px; }
+  .stat .num { font-family: var(--font-display); font-weight: 800; font-size: clamp(3rem, 6vw, 5.5rem); letter-spacing: -0.03em; color: var(--accent-soft); font-variant-numeric: tabular-nums; }
+  .stat .unit { font-family: var(--font-mono); font-size: 1rem; opacity: 0.6; }
 
-  /* ---------- chrome: counter + chain ---------- */
+  .mark-line { font-family: var(--font-mono); font-size: 0.85rem; opacity: 0.55; }
+
+  /* ============ chrome: counter + chain ============ */
   .counter {
-    position: fixed;
-    top: 22px;
-    right: 26px;
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    color: var(--chrome-fg);
-    opacity: 0.55;
-    font-variant-numeric: tabular-nums;
-    z-index: 20;
-    pointer-events: none;
-    mix-blend-mode: difference;
+    position: fixed; top: 22px; right: 26px;
+    font-family: var(--font-mono); font-size: 0.78rem;
+    color: var(--chrome-fg); opacity: 0.55;
+    font-variant-numeric: tabular-nums; z-index: 20; pointer-events: none;
   }
-
   .chain-wrap {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 20px;
-    overflow-x: auto;
-    z-index: 20;
-    background: transparent;
+    position: fixed; left: 0; right: 0; bottom: 0; height: 52px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 20px; overflow-x: auto; z-index: 20; background: transparent;
   }
-
-  .chain {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    max-width: 560px;
-    width: 100%;
-  }
-
+  .chain { display: flex; align-items: center; gap: 0; max-width: 620px; width: 100%; }
   .node-btn {
-    -webkit-appearance: none;
-    appearance: none;
-    background: var(--chrome-node);
-    border: none;
-    border-radius: 50%;
-    width: 7px;
-    height: 7px;
-    padding: 0;
-    flex: 0 0 auto;
-    cursor: pointer;
+    -webkit-appearance: none; appearance: none;
+    background: var(--chrome-node); border: none; border-radius: 50%;
+    width: 7px; height: 7px; padding: 0; flex: 0 0 auto; cursor: pointer;
     transition: transform 0.3s var(--ease), background 0.3s var(--ease);
   }
   .node-btn:hover { background: var(--chrome-fg); opacity: 0.7; }
   .node-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .node-btn.is-current { background: var(--accent); transform: scale(1.9); }
-  .node-btn.is-gate {
-    border-radius: 2px;
-    transform: rotate(45deg);
-    background: transparent;
-    border: 1.4px solid var(--chrome-muted);
-    width: 8px;
-    height: 8px;
-  }
-  .node-btn.is-gate.is-current {
-    background: var(--accent);
-    border-color: var(--accent);
-    transform: rotate(45deg) scale(1.5);
-  }
-
-  .seg {
-    flex: 1 1 auto;
-    height: 1px;
-    background: var(--chrome-line);
-    min-width: 10px;
-  }
-  .seg.is-gap {
-    background: transparent;
-    border-top: 1px dashed var(--chrome-muted);
-  }
+  .node-btn.is-gate { border-radius: 2px; transform: rotate(45deg); background: transparent; border: 1.4px solid var(--chrome-muted); width: 8px; height: 8px; }
+  .node-btn.is-gate.is-current { background: var(--accent); border-color: var(--accent); transform: rotate(45deg) scale(1.5); }
+  .seg { flex: 1 1 auto; height: 1px; background: var(--chrome-line); min-width: 10px; }
+  .seg.is-gap { background: transparent; border-top: 1px dashed var(--chrome-muted); }
 
   .zone {
-    appearance: none;
-    -webkit-appearance: none;
-    position: fixed;
-    top: 0;
-    bottom: 52px;
-    width: 33.333%;
-    margin: 0;
-    padding: 0;
-    border: none;
-    outline-offset: -4px;
-    z-index: 15;
-    cursor: pointer;
-    background: transparent;
-    font: inherit;
+    appearance: none; -webkit-appearance: none;
+    position: fixed; top: 0; bottom: 52px; width: 33.333%;
+    margin: 0; padding: 0; border: none; outline-offset: -4px; z-index: 15;
+    cursor: pointer; background: transparent; font: inherit;
   }
   .zone--left { left: 0; }
   .zone--right { right: 0; }
   .zone::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    width: 26px;
-    height: 26px;
-    opacity: 0;
-    transition: opacity 0.25s ease;
-    border-color: var(--chrome-fg);
+    content: ""; position: absolute; top: 50%; width: 26px; height: 26px;
+    opacity: 0; transition: opacity 0.25s ease; border-color: var(--chrome-fg);
     transform: translateY(-50%);
   }
   .zone--left::after { left: 18px; border-left: 2px solid; border-bottom: 2px solid; transform: translateY(-50%) rotate(45deg); }
   .zone--right::after { right: 18px; border-right: 2px solid; border-top: 2px solid; transform: translateY(-50%) rotate(45deg); }
-  .zone:hover::after { opacity: 0.28; }
+  .zone:hover::after { opacity: 0.3; }
 
   @media (max-width: 640px) {
     .twoup { grid-template-columns: 1fr; }
     .grid2 { grid-template-columns: 1fr; }
     .content { max-width: 100%; }
     .headline { max-width: 100%; }
-    .baton-node label { font-size: 0.68rem; }
+    .flow-node label { font-size: 0.62rem; }
+    .timeline .row { grid-template-columns: 52px 24px 1fr; }
+    .matrix { font-size: 0.76rem; }
+    .matrix th, .matrix td { padding: 9px 8px; }
   }
-
   @media (max-width: 420px) {
     .counter { font-size: 0.68rem; top: 14px; right: 14px; }
     .chain-wrap { height: 44px; padding: 0 12px; }
     .node-btn { width: 6px; height: 6px; }
-    .rows .row strong { min-width: 10ch; font-size: 0.75rem; }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .slide {
-      transition: opacity 0.12s linear !important;
-      transform: none !important;
-    }
-    .content > * {
-      transition: opacity 0.12s linear !important;
-      transform: none !important;
-    }
-    .intro-chain .node, .intro-chain .seg {
-      transition: opacity 0.12s linear !important;
-      transform: none !important;
-    }
-    .intro-chain .node.is-gate { transform: rotate(45deg) !important; }
-    .baton-dot { animation: none !important; opacity: 0 !important; }
-    .node-btn { transition: none !important; }
+    .slide, .content > *, .node-btn { transition: opacity 0.12s linear !important; transform: none !important; }
+    .float-1, .float-2, .float-3, .float-4, .float-5, .glow, .chip__glyph { animation: none !important; }
+    .glow { offset-distance: 62%; opacity: 1; }
   }
 </style>
 
@@ -536,14 +366,16 @@
       <p class="eyebrow">Relay</p>
       <h1 class="headline">Gün içinde çıkan işi, araçların içinde yürüten bir ajan ekibi.</h1>
       <p class="support">Ve hiçbir yazma adımını sana sormadan yapmaz.</p>
-      <div class="intro-chain" aria-hidden="true">
-        <span class="node"></span>
-        <span class="seg"></span>
-        <span class="node"></span>
-        <span class="seg"></span>
-        <span class="node is-gate"></span>
-        <span class="seg"></span>
-        <span class="node"></span>
+      <div class="flow" aria-hidden="true">
+        <div class="flow-line"></div>
+        <div class="glow"></div>
+        <div class="flow-nodes">
+          <div class="flow-node float-1"><span class="badge badge--jira" data-icon="jira"></span><label>Jira</label></div>
+          <div class="flow-node float-2"><span class="badge badge--slack" data-icon="slack"></span><label>Slack</label></div>
+          <div class="flow-node is-gate float-3"><span class="badge" style="background:var(--accent)" data-icon="gate"></span><label>onay</label></div>
+          <div class="flow-node float-4"><span class="badge badge--github" data-icon="github"></span><label>GitHub</label></div>
+          <div class="flow-node float-5"><span class="badge badge--cal" data-icon="cal"></span><label>Takvim</label></div>
+        </div>
       </div>
     </div>
   </section>
@@ -553,10 +385,10 @@
       <h1 class="headline">Dört araç. On beş tık. Yirmi dakika.</h1>
       <p class="support">Her gün. Aynı koşuşturma.</p>
       <div class="scatter" aria-hidden="true">
-        <span class="chip">Jira</span>
-        <span class="chip">Slack</span>
-        <span class="chip">GitHub</span>
-        <span class="chip">Takvim</span>
+        <div class="toolrow float-1"><span class="badge badge--jira" data-icon="jira"></span><span class="name">Jira</span></div>
+        <div class="toolrow float-2"><span class="badge badge--slack" data-icon="slack"></span><span class="name">Slack</span></div>
+        <div class="toolrow float-3"><span class="badge badge--github" data-icon="github"></span><span class="name">GitHub</span></div>
+        <div class="toolrow float-4"><span class="badge badge--cal" data-icon="cal"></span><span class="name">Takvim</span></div>
       </div>
       <p class="caption">Sprint'teki blocker'ları çıkar → Jira'da güncelle → Slack'e özet at → takvime iliştir.</p>
     </div>
@@ -567,12 +399,12 @@
       <h1 class="headline">Bugünün iki yolu, ikisi de yarım.</h1>
       <div class="twoup">
         <div class="item">
-          <strong>Sohbet asistanı</strong>
-          <span>Üretir. Yapmaz.</span>
+          <span class="glyph" data-icon="chat"></span>
+          <span><strong>Sohbet asistanı</strong><span>Üretir. Yapmaz.</span></span>
         </div>
         <div class="item">
-          <strong>Otomasyon aracı</strong>
-          <span>Yapar. Ama önceden kurman gerekir.</span>
+          <span class="glyph" data-icon="gear"></span>
+          <span><strong>Otomasyon aracı</strong><span>Yapar. Ama önceden kurman gerekir.</span></span>
         </div>
       </div>
     </div>
@@ -580,16 +412,17 @@
 
   <section class="slide slide--paper slide--left" data-gate="false">
     <div class="content">
-      <h1 class="headline">Relay hedefi anlar, çalışma anında planlar, araçların içinde gerçekten yürütür.</h1>
+      <h1 class="headline headline--sm">Relay hedefi anlar, çalışma anında planlar, araçların içinde gerçekten yürütür.</h1>
       <p class="support">Otomasyon kurmuyorsun. İşini anlatıyorsun.</p>
-      <div class="baton" aria-hidden="true">
-        <div class="baton-line"></div>
-        <div class="baton-dot"></div>
-        <div class="baton-nodes">
-          <div class="baton-node"><span class="dot"></span><label>Jira</label></div>
-          <div class="baton-node"><span class="dot"></span><label>Slack</label></div>
-          <div class="baton-node"><span class="dot"></span><label>GitHub</label></div>
-          <div class="baton-node"><span class="dot"></span><label>Takvim</label></div>
+      <div class="flow" aria-hidden="true">
+        <div class="flow-line"></div>
+        <div class="glow"></div>
+        <div class="flow-nodes">
+          <div class="flow-node float-1"><span class="badge badge--jira" data-icon="jira"></span><label>Jira</label></div>
+          <div class="flow-node float-2"><span class="badge badge--slack" data-icon="slack"></span><label>Slack</label></div>
+          <div class="flow-node is-gate float-3"><span class="badge" style="background:var(--accent)" data-icon="gate"></span><label>onay</label></div>
+          <div class="flow-node float-4"><span class="badge badge--github" data-icon="github"></span><label>GitHub</label></div>
+          <div class="flow-node float-5"><span class="badge badge--cal" data-icon="cal"></span><label>Takvim</label></div>
         </div>
       </div>
     </div>
@@ -610,12 +443,13 @@
   <section class="slide slide--paper slide--left" data-gate="false">
     <div class="content">
       <h1 class="headline">18 gerçek araç. Gerçek kimlik bilgileriyle.</h1>
-      <div class="chips">
-        <span class="chip">Jira</span>
-        <span class="chip">Slack</span>
-        <span class="chip">GitHub</span>
-        <span class="chip">Gmail</span>
-        <span class="chip">Takvim</span>
+      <div class="stat"><span class="num" data-count="18">0</span><span class="unit">kayıtlı araç</span></div>
+      <div class="scatter" aria-hidden="true">
+        <div class="toolrow"><span class="badge badge--jira" data-icon="jira"></span><span class="name">Jira</span></div>
+        <div class="toolrow"><span class="badge badge--slack" data-icon="slack"></span><span class="name">Slack</span></div>
+        <div class="toolrow"><span class="badge badge--github" data-icon="github"></span><span class="name">GitHub</span></div>
+        <div class="toolrow"><span class="badge badge--gmail" data-icon="gmail"></span><span class="name">Gmail</span></div>
+        <div class="toolrow"><span class="badge badge--cal" data-icon="cal"></span><span class="name">Takvim</span></div>
       </div>
       <p class="support">Kayıtlı olmayan bir aracı model asla çağıramaz.</p>
     </div>
@@ -625,10 +459,10 @@
     <div class="content">
       <h1 class="headline">Deniz'in günü.</h1>
       <div class="timeline">
-        <div class="row"><time>09:10</time><p>Gün özeti hazır.</p></div>
-        <div class="row"><time>09:13</time><p>Onay kapısında bekler, düzeltir, onaylar.</p></div>
-        <div class="row"><time>11:40</time><p>Takılan işleri sorar.</p></div>
-        <div class="row"><time>17:50</time><p>Günün özetini ekibe yollar.</p></div>
+        <div class="row"><time>09:10</time><span class="mark" data-icon="doc"></span><p>Gün özeti hazır.</p></div>
+        <div class="row is-gate"><time>09:13</time><span class="mark" data-icon="gate"></span><p>Onay kapısında bekler, düzeltir, onaylar.</p></div>
+        <div class="row"><time>11:40</time><span class="mark" data-icon="warn"></span><p>Takılan işleri sorar.</p></div>
+        <div class="row"><time>17:50</time><span class="mark" data-icon="slack"></span><p>Günün özetini ekibe yollar.</p></div>
       </div>
       <p class="support">Hiçbir adımda kod yazılmıyor. Hepsi koordinasyon.</p>
     </div>
@@ -638,22 +472,31 @@
     <div class="content">
       <h1 class="headline">Kurumsal güvenin dört parçası.</h1>
       <div class="grid2">
-        <div class="cell"><strong>Onay kapısı</strong><span>Yazmadan önce sorar</span></div>
-        <div class="cell"><strong>Politika motoru</strong><span>Araç başına oku/yaz/yasak</span></div>
-        <div class="cell"><strong>İz kaydı</strong><span>Kim, ne, neden, ne zaman</span></div>
-        <div class="cell"><strong>Maliyet ölçümü</strong><span>Bütçe aşınca durur, sorar</span></div>
+        <div class="cell"><span class="mark" data-icon="gate"></span><span><strong>Onay kapısı</strong><span>Yazmadan önce sorar</span></span></div>
+        <div class="cell"><span class="mark" data-icon="shield"></span><span><strong>Politika motoru</strong><span>Araç başına oku/yaz/yasak</span></span></div>
+        <div class="cell"><span class="mark" data-icon="list"></span><span><strong>İz kaydı</strong><span>Kim, ne, neden, ne zaman</span></span></div>
+        <div class="cell"><span class="mark" data-icon="meter"></span><span><strong>Maliyet ölçümü</strong><span>Bütçe aşınca durur, sorar</span></span></div>
       </div>
     </div>
   </section>
 
   <section class="slide slide--ink slide--left" data-gate="false">
     <div class="content">
-      <h1 class="headline">Ne zaman kurulduğuyla değil, nerede durduğuyla ayrılıyoruz.</h1>
-      <div class="rows">
-        <div class="row"><strong>Otomasyon araçları</strong><span>Tasarım zamanında kurulur.</span></div>
-        <div class="row"><strong>Sohbet asistanları</strong><span>Konuşur, kaydı tutmaz.</span></div>
-        <div class="row is-relay"><strong>Relay</strong><span>Çalışma zamanında planlar, her yazmada durur.</span></div>
+      <h1 class="headline headline--sm">Ne zaman kurulduğuyla değil, nerede durduğuyla ayrılıyoruz.</h1>
+      <div class="matrix-wrap">
+        <table class="matrix">
+          <thead>
+            <tr><th></th><th>Otomasyon</th><th>Sohbet asistanı</th><th class="col-relay">Relay</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Ne zaman planlar</td><td>Tasarım zamanı</td><td>—</td><td class="col-relay">Çalışma zamanı</td></tr>
+            <tr><td>Araçlara gerçekten yazar</td><td class="mx-yes">✓</td><td class="mx-no">✗</td><td class="col-relay mx-yes">✓</td></tr>
+            <tr><td>Her yazmada durur, sorar</td><td class="mx-partial">○</td><td class="mx-no">✗</td><td class="col-relay mx-yes">✓</td></tr>
+            <tr><td>Kim onayladı — iz kaydı</td><td class="mx-partial">○</td><td class="mx-no">✗</td><td class="col-relay mx-yes">✓</td></tr>
+          </tbody>
+        </table>
       </div>
+      <p class="caption">○ mümkün, ama varsayılan değil — bizde kapı bir ayar değil, ürünün varsayılanı.</p>
     </div>
   </section>
 
@@ -669,65 +512,97 @@
     <div class="content">
       <h1 class="headline">Yönetişimin çekirdeği hazır.</h1>
       <p class="support">Sırada: gönderme yetkisi, çok kiracılılık, zamanlanmış akışlar.</p>
-      <p class="mark">relay.samedbilgin.com</p>
+      <p class="mark-line">relay.samedbilgin.com</p>
     </div>
   </section>
 
 </div>
 
 <div class="counter" id="counter" aria-hidden="true">01 / 11</div>
-
-<div class="chain-wrap">
-  <nav class="chain" id="chain" aria-label="Sunum ilerlemesi"></nav>
-</div>
-
+<div class="chain-wrap"><nav class="chain" id="chain" aria-label="Sunum ilerlemesi"></nav></div>
 <button type="button" class="zone zone--left" id="zoneLeft" aria-label="Önceki slayt"></button>
 <button type="button" class="zone zone--right" id="zoneRight" aria-label="Sonraki slayt"></button>
 
 <script>
 (function () {
-  var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var ICONS = {
+    jira: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M10 3 L16 9 L10 15 L4 9 Z"/></svg>',
+    slack: '<svg viewBox="0 0 20 20" fill="currentColor"><circle cx="7" cy="7" r="2.6"/><circle cx="13" cy="7" r="2.6"/><circle cx="7" cy="13" r="2.6"/><circle cx="13" cy="13" r="2.6"/></svg>',
+    github: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="6" r="2.4"/><circle cx="14" cy="14" r="2.4"/><path d="M7 8.4 V11 a3 3 0 0 0 3 3 h1.6"/></svg>',
+    gmail: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="5" width="14" height="10" rx="1.4"/><path d="M3.5 5.8 L10 11 L16.5 5.8"/></svg>',
+    cal: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="4.5" width="14" height="12" rx="1.4"/><path d="M3 8.2 H17 M6.5 3 V6 M13.5 3 V6"/></svg>',
+    gate: '<svg viewBox="0 0 20 20" fill="currentColor"><rect x="6" y="6" width="8" height="8" rx="1.4" transform="rotate(45 10 10)"/></svg>',
+    chat: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4 5 H16 V13 H8 L5 16 V13 H4 Z"/></svg>',
+    gear: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="3.1"/><path d="M10 3 V5 M10 15 V17 M3 10 H5 M15 10 H17 M5.3 5.3 L6.7 6.7 M13.3 13.3 L14.7 14.7 M14.7 5.3 L13.3 6.7 M6.7 13.3 L5.3 14.7"/></svg>',
+    doc: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M6 3 H12 L15 6 V17 H6 Z"/><path d="M8.2 10 H12.2 M8.2 13 H12.2"/></svg>',
+    warn: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M10 4 L17 16 H3 Z"/><path d="M10 9 V12"/><circle cx="10" cy="14.2" r="0.4" fill="currentColor"/></svg>',
+    shield: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M10 3 L16 5.5 V10 C16 14 13.3 16.3 10 17.5 C6.7 16.3 4 14 4 10 V5.5 Z"/></svg>',
+    list: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M7 6 H16 M7 10 H16 M7 14 H16 M4 6 H4.1 M4 10 H4.1 M4 14 H4.1"/></svg>',
+    meter: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 14 A6 6 0 0 1 16 14"/><path d="M10 14 L13 10.5"/></svg>'
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('[data-icon]'), function (el) {
+    var key = el.getAttribute('data-icon');
+    if (ICONS[key]) el.innerHTML = ICONS[key];
+  });
+
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function animateCount(el) {
+    var target = parseInt(el.getAttribute('data-count'), 10) || 0;
+    if (reduce) { el.textContent = target; return; }
+    var start = null, dur = 900;
+    function step(ts) {
+      if (!start) start = ts;
+      var p = Math.min(1, (ts - start) / dur);
+      var eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(eased * target);
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
   var total = slides.length;
   var current = 0;
-  var counterEl = document.getElementById("counter");
-  var chainEl = document.getElementById("chain");
+  var counterEl = document.getElementById('counter');
+  var chainEl = document.getElementById('chain');
   var nodes = [];
+  var countedSlides = {};
 
-  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
   function buildChain() {
     slides.forEach(function (slide, i) {
-      var isGate = slide.getAttribute("data-gate") === "true";
+      var isGate = slide.getAttribute('data-gate') === 'true';
       if (i > 0) {
-        var seg = document.createElement("span");
-        seg.className = "seg" + (isGate || (slides[i - 1].getAttribute("data-gate") === "true") ? " is-gap" : "");
+        var seg = document.createElement('span');
+        seg.className = 'seg' + (isGate || (slides[i - 1].getAttribute('data-gate') === 'true') ? ' is-gap' : '');
         chainEl.appendChild(seg);
       }
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "node-btn" + (isGate ? " is-gate" : "");
-      btn.setAttribute("aria-label", "Slayt " + (i + 1) + " / " + total);
-      btn.addEventListener("click", function () { goto(i); });
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'node-btn' + (isGate ? ' is-gate' : '');
+      btn.setAttribute('aria-label', 'Slayt ' + (i + 1) + ' / ' + total);
+      btn.addEventListener('click', function () { goto(i); });
       chainEl.appendChild(btn);
       nodes.push(btn);
     });
   }
 
   function render() {
-    slides.forEach(function (s, i) {
-      s.classList.toggle("is-active", i === current);
-    });
+    slides.forEach(function (s, i) { s.classList.toggle('is-active', i === current); });
     nodes.forEach(function (n, i) {
-      n.classList.toggle("is-current", i === current);
-      if (i === current) { n.setAttribute("aria-current", "step"); }
-      else { n.removeAttribute("aria-current"); }
+      n.classList.toggle('is-current', i === current);
+      if (i === current) n.setAttribute('aria-current', 'step'); else n.removeAttribute('aria-current');
     });
-    counterEl.textContent = pad(current + 1) + " / " + pad(total);
-    // The chain/counter sit on top of the active slide, so their contrast has
-    // to track that slide's own ink/paper ground — see the body[data-ground]
-    // tokens above. Not the viewer's OS theme: nothing of a "surrounding page"
-    // is ever visible behind a full-bleed deck.
-    document.body.dataset.ground = slides[current].classList.contains("slide--ink") ? "ink" : "paper";
+    counterEl.textContent = pad(current + 1) + ' / ' + pad(total);
+    document.body.dataset.ground = slides[current].classList.contains('slide--ink') ? 'ink' : 'paper';
+
+    if (!countedSlides[current]) {
+      countedSlides[current] = true;
+      var counters = slides[current].querySelectorAll('[data-count]');
+      Array.prototype.forEach.call(counters, animateCount);
+    }
   }
 
   function goto(i) {
@@ -736,38 +611,22 @@
     current = next;
     render();
   }
-
   function next() { goto(current + 1); }
   function prev() { goto(current - 1); }
 
-  document.addEventListener("keydown", function (e) {
+  document.addEventListener('keydown', function (e) {
     switch (e.key) {
-      case "ArrowRight":
-      case "ArrowDown":
-      case " ":
-      case "PageDown":
-        e.preventDefault();
-        next();
-        break;
-      case "ArrowLeft":
-      case "ArrowUp":
-      case "PageUp":
-        e.preventDefault();
-        prev();
-        break;
-      case "Home":
-        e.preventDefault();
-        goto(0);
-        break;
-      case "End":
-        e.preventDefault();
-        goto(total - 1);
-        break;
+      case 'ArrowRight': case 'ArrowDown': case ' ': case 'PageDown':
+        e.preventDefault(); next(); break;
+      case 'ArrowLeft': case 'ArrowUp': case 'PageUp':
+        e.preventDefault(); prev(); break;
+      case 'Home': e.preventDefault(); goto(0); break;
+      case 'End': e.preventDefault(); goto(total - 1); break;
     }
   });
 
-  document.getElementById("zoneLeft").addEventListener("click", prev);
-  document.getElementById("zoneRight").addEventListener("click", next);
+  document.getElementById('zoneLeft').addEventListener('click', prev);
+  document.getElementById('zoneRight').addEventListener('click', next);
 
   buildChain();
   render();
