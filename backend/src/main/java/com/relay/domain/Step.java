@@ -41,6 +41,16 @@ public class Step {
      * back from the database.
      */
     private boolean paramsLocked;
+    /**
+     * Why this step is waiting on a human — {@code null} unless it is.
+     *
+     * <p>Persisted for the same reason {@link #paramsLocked} is: the approval is a second
+     * request and the run is read back from the database in between, so the coordinator's
+     * knowledge of "this was the money gate, not the write gate" has to survive the round
+     * trip. Without it, approving anything at all while the run happened to be over budget
+     * lifted the ceiling.
+     */
+    private PauseReason pausedBy;
     private Instant startedAt;
     private Instant finishedAt;
     private long tokens;
@@ -73,14 +83,29 @@ public class Step {
         this.error = null;
     }
 
-    public void markAwaitingApproval() {
+    public void markAwaitingApproval(PauseReason reason) {
         this.status = StepStatus.AWAITING_APPROVAL;
+        this.pausedBy = reason;
     }
 
     public void approve() {
         this.decision = Decision.APPROVED;
         this.rejectReason = null;
         this.status = StepStatus.PENDING;
+        this.pausedBy = null;
+    }
+
+    /**
+     * The human lifted the run's budget ceiling — and lifted nothing else.
+     *
+     * <p>Deliberately not {@link #approve()}: the step goes back in the queue exactly as it
+     * was, undecided. A write that was only ever stopped by the money gate still has to be
+     * read and approved on its own, otherwise "devam et" on a cost dialog would buy a Slack
+     * message nobody looked at.
+     */
+    public void resumeAfterBudget() {
+        this.status = StepStatus.PENDING;
+        this.pausedBy = null;
     }
 
     public void reject(String reason) {
@@ -183,6 +208,15 @@ public class Step {
 
     public void paramsLocked(boolean paramsLocked) {
         this.paramsLocked = paramsLocked;
+    }
+
+    /** Why the step is parked, or {@code null} when it is not. */
+    public PauseReason pausedBy() {
+        return pausedBy;
+    }
+
+    public void pausedBy(PauseReason pausedBy) {
+        this.pausedBy = pausedBy;
     }
 
     public StepStatus status() {

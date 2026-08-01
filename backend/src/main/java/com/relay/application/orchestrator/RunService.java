@@ -6,6 +6,7 @@ import com.relay.application.port.Tool;
 import com.relay.application.port.ToolRegistry;
 import com.relay.domain.AgentRole;
 import com.relay.domain.Decision;
+import com.relay.domain.PauseReason;
 import com.relay.domain.Run;
 import com.relay.domain.RunStatus;
 import com.relay.domain.Step;
@@ -302,14 +303,22 @@ public class RunService {
         if (editedParams != null && !editedParams.isEmpty()) {
             applyEdit(run, step, editedParams, actor);
         }
-        step.approve();
-        if (run.overBudget()) {
-            // The pause was a budget pause: approving it raises the ceiling for this run.
+        // What the button does depends on which question the step asked. It used to depend on
+        // whether the run happened to be over budget, which is not the same thing: a run that
+        // drifted over the ceiling while a write sat at the gate turned that write's approval
+        // into "spend without a limit from here on", and nothing on screen said so.
+        boolean money = step.pausedBy() == PauseReason.BUDGET;
+        if (money) {
             run.budgetOverridden(true);
+            step.resumeAfterBudget();
+        } else {
+            step.approve();
         }
         run.status(RunStatus.RUNNING);
         journal.say(run, step.id(), AgentRole.USER, step.role() == null ? AgentRole.COORDINATOR : step.role(),
-                "Onaylandı" + by(actor) + " — devam et.");
+                money
+                        ? "Bütçe tavanı bu akış için kaldırıldı" + by(actor) + " — devam et."
+                        : "Onaylandı" + by(actor) + " — devam et.");
         runs.save(run);
         executor.execute(() -> coordinator.drive(runId));
         return run;

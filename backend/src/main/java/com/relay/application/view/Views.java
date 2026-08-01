@@ -36,6 +36,9 @@ public final class Views {
         map.put("tokens", step.tokens());
         map.put("costUsd", step.costUsd());
         map.put("attempts", step.attempts());
+        // Which question the gate is asking. Both pauses arrive as awaiting_approval, and a
+        // screen that cannot tell them apart calls a spending limit a writing permission.
+        map.put("pausedBy", step.pausedBy() == null ? null : step.pausedBy().wire());
         map.put("startedAt", iso(step.startedAt()));
         map.put("finishedAt", iso(step.finishedAt()));
         return map;

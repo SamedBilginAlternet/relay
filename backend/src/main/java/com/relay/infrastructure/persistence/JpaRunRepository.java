@@ -3,6 +3,7 @@ package com.relay.infrastructure.persistence;
 import com.relay.application.port.RunRepository;
 import com.relay.domain.AgentMessage;
 import com.relay.domain.Decision;
+import com.relay.domain.PauseReason;
 import com.relay.domain.Run;
 import com.relay.domain.RunStatus;
 import com.relay.domain.Step;
@@ -77,6 +78,7 @@ public class JpaRunRepository implements RunRepository {
             stepEntity.setCostUsd(step.costUsd());
             stepEntity.setAttempts(step.attempts());
             stepEntity.setParamsLocked(step.paramsLocked());
+            stepEntity.setPausedBy(step.pausedBy() == null ? null : step.pausedBy().wire());
         }
         entity.getSteps().removeIf(s -> !keptSteps.contains(s.getId()));
 
@@ -160,6 +162,8 @@ public class JpaRunRepository implements RunRepository {
             step.costUsd(s.getCostUsd());
             step.attempts(s.getAttempts());
             step.paramsLocked(s.isParamsLocked());
+            step.pausedBy(s.getPausedBy() == null
+                    ? null : PauseReason.valueOf(s.getPausedBy().toUpperCase(Locale.ROOT)));
             steps.add(step);
         }
         run.replaceSteps(steps);

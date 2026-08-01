@@ -14,6 +14,13 @@ export type StepStatus =
 
 export type StepDecision = 'auto' | 'approved' | 'rejected' | null;
 
+/**
+ * Which question a parked step is asking. Both pauses arrive as `awaiting_approval`, and a
+ * screen that cannot tell them apart calls a spending limit a writing permission — which is
+ * what it did, while the button behind it lifted the limit.
+ */
+export type PauseReason = 'policy' | 'budget' | null;
+
 export type Step = {
   id: string;
   ordinal: number;
@@ -23,6 +30,7 @@ export type Step = {
   params: Record<string, unknown>;
   status: StepStatus;
   decision: StepDecision;
+  pausedBy: PauseReason;
   rejectReason: string | null;
   result: unknown | null;
   error: string | null;
@@ -95,6 +103,7 @@ export type StepAwaitingEvent = {
   toolName?: string | null;
   params?: Record<string, unknown> | null;
   reason?: string | null;
+  pausedBy?: PauseReason;
 };
 export type StepFinishedEvent = {
   type: 'step.finished';

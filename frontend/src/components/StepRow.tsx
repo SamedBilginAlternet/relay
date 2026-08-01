@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ChevronDown, ShieldQuestion, TriangleAlert } from 'lucide-react';
+import { ChevronDown, ShieldQuestion, TriangleAlert, Wallet } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { stepDuration, formatTokens, formatUsd } from '../lib/format';
 import { DECISION_LABEL, stepStatusMeta } from '../lib/status';
@@ -66,6 +66,12 @@ export function StepRow({
   const duration = stepDuration(step.startedAt, step.finishedAt);
   const awaiting = step.status === 'awaiting_approval';
   const showGate = awaiting && !readOnly;
+  /**
+   * The money gate, not the write gate. The two used to look the same on screen, so a run
+   * that stopped because it had spent its budget told the user it needed permission to
+   * write — and the button they pressed lifted the budget instead.
+   */
+  const budgetGate = step.pausedBy === 'budget';
   const fields = editableParams(step.params);
   const paramsKey = JSON.stringify(step.params);
 
@@ -163,11 +169,13 @@ export function StepRow({
       {showGate && (
         <div className="gate">
           <span className="gate__note">
-            <ShieldQuestion size={14} aria-hidden />
-            Yazma adımı — çalışması için onayın gerekiyor.
+            {budgetGate ? <Wallet size={14} aria-hidden /> : <ShieldQuestion size={14} aria-hidden />}
+            {budgetGate
+              ? 'Bütçe doldu — bu adım değil, harcama sınırı bekletiyor. Devam edersen tavan bu akış için kalkar.'
+              : 'Yazma adımı — çalışması için onayın gerekiyor.'}
           </span>
 
-          {!rejecting && fields.length > 0 && (
+          {!rejecting && !budgetGate && fields.length > 0 && (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {fields.map(([key, value]) => {
                 const text = valueOf(key, value);
@@ -235,9 +243,9 @@ export function StepRow({
                 type="button"
                 className="btn btn--sm"
                 disabled={busy}
-                onClick={() => onApprove?.(step.id, changedParams())}
+                onClick={() => onApprove?.(step.id, budgetGate ? undefined : changedParams())}
               >
-                {dirty ? 'Düzelt ve onayla' : 'Onayla'}
+                {budgetGate ? 'Bütçeyi bu akış için kaldır' : dirty ? 'Düzelt ve onayla' : 'Onayla'}
               </button>
               <button
                 type="button"

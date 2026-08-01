@@ -23,6 +23,8 @@ export function applyEvent(run: Run, event: RunEvent, now: string = new Date().t
           status: 'running',
           startedAt: s.startedAt ?? now,
           error: null,
+          // Whatever it was waiting for, it is not waiting any more.
+          pausedBy: null,
         })),
       };
 
@@ -39,6 +41,10 @@ export function applyEvent(run: Run, event: RunEvent, now: string = new Date().t
           title: event.title ?? s.title,
           toolName: event.toolName ?? s.toolName,
           params: event.params ?? s.params,
+          // Which of the two gates this is. Without it the screen offered the same
+          // sentence either way, so a run stopped by its budget read as a write it had
+          // to permit.
+          pausedBy: event.pausedBy ?? s.pausedBy ?? null,
         })),
       };
 

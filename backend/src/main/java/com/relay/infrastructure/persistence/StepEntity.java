@@ -76,6 +76,10 @@ public class StepEntity {
     @Column(name = "params_locked", nullable = false)
     private boolean paramsLocked;
 
+    /** "policy" / "budget" while the step waits on a human — see {@code Step.pausedBy}. */
+    @Column(name = "paused_by", length = 16)
+    private String pausedBy;
+
     public UUID getId() {
         return id;
     }
@@ -218,5 +222,13 @@ public class StepEntity {
 
     public void setParamsLocked(boolean paramsLocked) {
         this.paramsLocked = paramsLocked;
+    }
+
+    public String getPausedBy() {
+        return pausedBy;
+    }
+
+    public void setPausedBy(String pausedBy) {
+        this.pausedBy = pausedBy;
     }
 }

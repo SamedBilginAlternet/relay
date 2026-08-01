@@ -10,6 +10,7 @@ import com.relay.application.port.RunRepository;
 import com.relay.application.view.Views;
 import com.relay.domain.AgentRole;
 import com.relay.domain.Decision;
+import com.relay.domain.PauseReason;
 import com.relay.domain.Run;
 import com.relay.domain.RunStatus;
 import com.relay.domain.Step;
@@ -194,6 +195,16 @@ public class Coordinator {
                 continue;
             }
 
+            // Money first, permission second. The other way round, a run that had already
+            // blown its budget parked on the write gate and told the user it was asking for
+            // a writing permission — so they read the wrong reason and, before the pause
+            // reason was written down, granted more than they read.
+            if (costMeter.budgetExceeded(run)) {
+                park(run, step, String.format("bütçe aşıldı: %.4f USD / %.4f USD limit — devam için onay gerekiyor",
+                        run.costUsd(), run.budgetUsd()), PauseReason.BUDGET);
+                return;
+            }
+
             if (policy.ask() && step.decision() != Decision.APPROVED) {
                 // Fill the parameters in before asking. They used to be derived after the
                 // approval, so the gate showed the planner's empty draft — live, a Slack
@@ -201,13 +212,7 @@ public class Coordinator {
                 // Approving what you cannot read is not approval.
                 ToolAgent.ParamRefresh refresh = toolAgent.refreshParams(run, step);
                 costMeter.record(run, step, refresh.tokens(), refresh.costUsd());
-                park(run, step, "onay gerekiyor — " + policy.reason(), AgentRole.COORDINATOR);
-                return;
-            }
-
-            if (costMeter.budgetExceeded(run)) {
-                park(run, step, String.format("bütçe aşıldı: %.4f USD / %.4f USD limit — devam için onay gerekiyor",
-                        run.costUsd(), run.budgetUsd()), AgentRole.COST);
+                park(run, step, "onay gerekiyor — " + policy.reason(), PauseReason.POLICY);
                 return;
             }
 
@@ -366,9 +371,18 @@ public class Coordinator {
                 .anyMatch(other -> other.toolName() != null && other.toolName().startsWith(provider + "."));
     }
 
-    private void park(Run run, Step step, String reason, String from) {
-        step.markAwaitingApproval();
+    /**
+     * Stops in front of a human and says which question is being asked.
+     *
+     * <p>{@code cause} is written onto the step rather than only into the sentence, because
+     * the answer arrives in a different request: {@code RunService.approve} has to be able to
+     * tell "the user lifted the budget" from "the user signed off this write", and a Turkish
+     * sentence is not something to branch on.
+     */
+    private void park(Run run, Step step, String reason, PauseReason cause) {
+        step.markAwaitingApproval(cause);
         run.status(RunStatus.AWAITING_APPROVAL);
+        String from = cause == PauseReason.BUDGET ? AgentRole.COST : AgentRole.COORDINATOR;
         journal.say(run, step.id(), from, AgentRole.USER, "Adım " + step.ordinal() + " — " + reason);
         runs.save(run);
         Map<String, Object> data = new LinkedHashMap<>();
@@ -378,6 +392,7 @@ public class Coordinator {
         data.put("toolName", step.toolName());
         data.put("params", step.params());
         data.put("reason", reason);
+        data.put("pausedBy", cause.wire());
         events.publish(run.id(), RunEvent.of(RunEvent.STEP_AWAITING, data));
     }
 
