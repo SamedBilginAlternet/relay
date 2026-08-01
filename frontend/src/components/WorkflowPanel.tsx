@@ -193,7 +193,7 @@ export function WorkflowPanel(props: Props) {
             <EmptyState
               Icon={ListChecks}
               title="Henüz adım yok"
-              description="Plan hazırlanıyor. İlk adım geldiğinde burada belirir — hiçbir şey arka planda gizlenmez."
+              description="Plan hazırlanıyor."
             />
           </li>
         )}

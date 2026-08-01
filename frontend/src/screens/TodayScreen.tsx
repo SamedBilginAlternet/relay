@@ -471,13 +471,19 @@ export function TodayScreen({ onNavigate }: Props) {
               </p>
             ) : null}
 
+            {/*
+              The dot and the source, and nothing else. "Öneriye basmadan hiçbir şey
+              çalışmaz" used to hang off the end — a promise printed where a status
+              belongs. The promise is kept by the gate, and now stated where it is
+              about to matter: on the row's own draft, next to the values that would
+              be sent. A line that reassures on every screen stops being read on any.
+            */}
             <p className="brief-top__meta">
               <span
                 className={`src-dot src-dot--${RUN_SOURCE_KIND}${phase === 'error' ? ' src-dot--down' : ''}`}
                 aria-hidden
               />
               {phase === 'error' ? `${SOURCE_NOTE} — yanıt yok` : SOURCE_NOTE}
-              <span className="brief-top__note">Öneriye basmadan hiçbir şey çalışmaz.</span>
             </p>
           </div>
           <button

@@ -54,16 +54,16 @@ export function ChatStart({ onSubmit, busy = false, sourceKind }: Props) {
         <div className="page__head">
           <div className="page__head-text">
             <h1 className="t-title">Sohbet</h1>
-            <p className="t-caption">
-              İşini yaz — Relay onu numaralı bir akışa çevirir ve adımları iş akışı panelinde
-              işler. Her araç çağrısı parametreleriyle görünür, her yazma adımı onayını bekler.
-            </p>
-            {/* Which of the two products you are looking at is a fact, not a badge. */}
-            <p className="t-caption">
-              {sourceKind === 'mock'
-                ? 'Demo modu — senaryo canlı oynatılır, backend gerekmez.'
-                : 'Canlı mod — gerçek Jira ve Slack bağlantıları kullanılır.'}
-            </p>
+            {/*
+              The heading, the box, the examples. What used to sit here was a paragraph
+              explaining what the product would do and promising that every write waits
+              for approval — copy that is read once, on the screen where there is nothing
+              yet to approve. The composer's placeholder says what to type; the gate says
+              what it costs, at the moment it costs it.
+            */}
+            {sourceKind === 'mock' && (
+              <p className="t-caption">Demo modu — senaryo canlı oynatılır, backend gerekmez.</p>
+            )}
           </div>
         </div>
 

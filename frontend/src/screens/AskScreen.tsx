@@ -212,10 +212,7 @@ export function AskScreen() {
         <div className="page__head">
           <div className="page__head-text">
             <h1 className="t-title">Postana sor</h1>
-            <p className="t-caption">
-              Gelen kutunda arar ve yalnızca bulduğu maillere dayanarak yanıtlar. Okur, yazmaz:
-              buradan hiçbir mail gitmez, hiçbir akış başlamaz.
-            </p>
+            <p className="t-caption">Gelen kutunda arar, bulduğu maillere dayanarak yanıtlar.</p>
           </div>
         </div>
 
@@ -292,8 +289,7 @@ export function AskScreen() {
                 <li>
                   <ShieldCheck size={15} aria-hidden />
                   <span>
-                    Yalnızca okuma izni (<code className="t-mono">gmail.readonly</code>) — buradan
-                    mail gönderilmez, silinmez, hiçbir akış başlamaz.
+                    İzin: <code className="t-mono">gmail.readonly</code>
                   </span>
                 </li>
                 <li>
@@ -356,8 +352,8 @@ export function AskScreen() {
                     1
                   </span>
                   <span className="ask-how__body">
-                    <b>Sorgu yazılır.</b> Sorun bir Gmail arama sorgusuna çevrilir; sorgu ekranda
-                    aynen gösterilir, gizlenmez.
+                    <b>Sorgu yazılır.</b> Sorun bir Gmail arama sorgusuna çevrilir ve sorgu
+                    yanıtın üstünde yazılı durur.
                   </span>
                 </li>
                 <li>

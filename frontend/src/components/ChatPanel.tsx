@@ -166,9 +166,6 @@ export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = fal
       {!readOnly && onSubmit && (
         <div className="chat-foot">
           <Composer onSubmit={onSubmit} busy={phase === 'creating'} />
-          <p className="t-caption" style={{ marginTop: 8 }}>
-            Yeni bir iş yazdığında yeni bir akış başlar. Yazma adımları her zaman onayını bekler.
-          </p>
         </div>
       )}
     </section>
