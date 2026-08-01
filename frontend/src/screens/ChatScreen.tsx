@@ -26,8 +26,18 @@ export function ChatScreen() {
   const toggleStep = useRunStore((s) => s.toggleStep);
   const setRejecting = useRunStore((s) => s.setRejecting);
   const setSheetOpen = useRunStore((s) => s.setSheetOpen);
+  const watchRun = useRunStore((s) => s.watchRun);
+  const stopWatching = useRunStore((s) => s.stopWatching);
 
   const awaiting = run?.steps.filter((s) => s.status === 'awaiting_approval').length ?? 0;
+
+  // Leaving for the Bugün screen used to leave the connection behind, still open and still
+  // writing into the store from a screen nobody was looking at. The run itself stays — it is
+  // picked back up here when the user returns and it has not finished in the meantime.
+  useEffect(() => {
+    watchRun();
+    return stopWatching;
+  }, [watchRun, stopWatching]);
 
   // An approval gate must never hide behind a closed sheet on mobile.
   useEffect(() => {

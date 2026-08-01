@@ -40,7 +40,10 @@ type RunState = {
   toggleStep: (stepId: string) => void;
   setRejecting: (stepId: string | null) => void;
   setSheetOpen: (open: boolean) => void;
-  closeRun: () => void;
+  /** Picks the live connection back up — for a run that is still going. */
+  watchRun: () => void;
+  /** Lets go of the connection and leaves the run on screen. */
+  stopWatching: () => void;
 };
 
 let unsubscribe: Unsubscribe | null = null;
@@ -64,6 +67,14 @@ export const useRunStore = create<RunState>((set, get) => {
         const current = get().run;
         if (!current || current.id !== runId) return;
         set({ run: applyEvent(current, event) });
+        // The run said its last word. Staying connected is what turned a finished flow
+        // into a loop: the socket idled until the server's 30-minute timeout, the browser
+        // read that timeout as a dropped line, reconnected, and the whole run was replayed
+        // over a screen that had already finished it.
+        if (event.type === 'run.finished') {
+          stopStream();
+          set({ streamStatus: 'closed' });
+        }
       },
       onResync: (fresh) => {
         // SSE has no replay — this is the gap fill after a reconnect.
@@ -242,18 +253,15 @@ export const useRunStore = create<RunState>((set, get) => {
       set({ sheetOpen: open });
     },
 
-    closeRun() {
+    watchRun() {
+      const run = get().run;
+      if (!run || isTerminal(run.status)) return;
+      attachStream(run.id);
+    },
+
+    stopWatching() {
       stopStream();
-      set({
-        run: null,
-        phase: 'idle',
-        error: null,
-        streamStatus: 'idle',
-        expandedStepId: null,
-        rejectingStepId: null,
-        editError: null,
-        sheetOpen: false,
-      });
+      set({ streamStatus: 'closed' });
     },
   };
 });

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -34,6 +35,8 @@ public class SseEventPublisher implements EventPublisher {
 
     private final Map<UUID, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
     private final Map<UUID, Deque<RunEvent>> backlog = new ConcurrentHashMap<>();
+    /** Runs that have said their last word. A late subscriber is served and then hung up on. */
+    private final Set<UUID> over = ConcurrentHashMap.newKeySet();
     private final ScheduledExecutorService heartbeat = Executors.newSingleThreadScheduledExecutor(runnable -> {
         Thread thread = new Thread(runnable, "sse-heartbeat");
         thread.setDaemon(true);
@@ -78,7 +81,42 @@ public class SseEventPublisher implements EventPublisher {
             }
             snapshot.forEach(event -> send(runId, emitter, event));
         }
+        // Somebody opening a run that is already over still gets the whole story — that is
+        // the point of the backlog — but then the line ends, instead of hanging on a flow
+        // that will never say anything again.
+        if (over.contains(runId)) {
+            complete(runId, emitter);
+        }
         return emitter;
+    }
+
+    /**
+     * The run is finished: hang up on everyone watching it.
+     *
+     * <p>Only the ending is announced, not the backlog: replaying the story to a late
+     * arrival is a deliberate feature (docs/NASIL-CALISIYOR.md), and the run detail screen
+     * relies on it.
+     */
+    @Override
+    public void closed(UUID runId) {
+        over.add(runId);
+        List<SseEmitter> targets = emitters.remove(runId);
+        if (targets == null) {
+            return;
+        }
+        for (SseEmitter emitter : new ArrayList<>(targets)) {
+            complete(runId, emitter);
+        }
+    }
+
+    private void complete(UUID runId, SseEmitter emitter) {
+        try {
+            emitter.complete();
+        } catch (RuntimeException e) {
+            LOG.log(Level.WARNING, "sse close failed for run " + runId, e);
+        } finally {
+            remove(runId, emitter);
+        }
     }
 
     private void send(UUID runId, SseEmitter emitter, RunEvent event) {

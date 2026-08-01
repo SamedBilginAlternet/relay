@@ -476,6 +476,11 @@ public class Coordinator {
         data.put("tokens", run.costTokens());
         data.put("costUsd", run.costUsd());
         events.publish(run.id(), RunEvent.of(RunEvent.RUN_FINISHED, data));
+        // Say the ending out loud to the transport as well. run.finished was the last frame
+        // a client would ever get, but nothing hung up: the stream idled for half an hour,
+        // timed out, and the browser — which cannot tell a timeout from a dropped line —
+        // reconnected and replayed the whole run onto a screen that was already done.
+        events.closed(run.id());
     }
 
     /**

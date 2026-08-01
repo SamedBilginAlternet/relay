@@ -289,10 +289,17 @@ public final class TestDoubles {
      * from several threads: the concurrency tests do exactly that. */
     public static class RecordingEventPublisher implements EventPublisher {
         public final List<RunEvent> events = new java.util.concurrent.CopyOnWriteArrayList<>();
+        /** Runs the orchestrator declared over — the hang-up the SSE transport acts on. */
+        public final List<UUID> closed = new java.util.concurrent.CopyOnWriteArrayList<>();
 
         @Override
         public void publish(UUID runId, RunEvent event) {
             events.add(event);
+        }
+
+        @Override
+        public void closed(UUID runId) {
+            closed.add(runId);
         }
 
         public List<RunEvent> ofType(String type) {
