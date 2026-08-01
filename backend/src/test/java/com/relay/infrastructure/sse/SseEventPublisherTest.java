@@ -2,13 +2,17 @@ package com.relay.infrastructure.sse;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.relay.application.auth.AuthService;
 import com.relay.application.port.RunEvent;
 import com.relay.domain.PauseReason;
 import com.relay.domain.Run;
 import com.relay.domain.RunStatus;
 import com.relay.domain.Step;
+import com.relay.domain.UserSession;
+import com.relay.support.AuthDoubles;
 import com.relay.support.TestDoubles;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -271,6 +275,64 @@ class SseEventPublisherTest {
         assertThat(afterRestart.subscriberCount())
                 .as("the run is still waiting on a person, so the line stays open")
                 .isEqualTo(1);
+    }
+
+    /**
+     * A stream is authorised once, when it is opened, and then stays open for half an hour.
+     * Live, that meant signing out answered 401 on approve while the very same cookie's
+     * stream carried on pushing step parameters and tool results at the browser — on a
+     * shared machine, at the one moment somebody is counting on the screen going dead.
+     */
+    @Test
+    void a_revoked_session_stops_receiving_run_events() {
+        AuthDoubles.InMemorySessions sessions = new AuthDoubles.InMemorySessions();
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        String hash = AuthService.hashToken("a-signed-in-browser");
+        sessions.save(new UserSession(UUID.randomUUID(), UUID.randomUUID(), hash,
+                clock.now(), clock.now().plus(Duration.ofDays(30))));
+        SseEventPublisher publisher = new SseEventPublisher(null, sessions, clock);
+        UUID runId = UUID.randomUUID();
+
+        RecordingEmitter watching = new RecordingEmitter();
+        publisher.subscribe(runId, watching, null, hash);
+        publisher.publish(runId, RunEvent.of(RunEvent.STEP_STARTED, Map.of("stepId", "1")));
+
+        sessions.deleteByTokenHash(hash);
+        publisher.sessionEnded(hash);
+        publisher.publish(runId, RunEvent.of(RunEvent.STEP_AWAITING, Map.of("stepId", "2")));
+
+        assertThat(watching.names())
+                .as("nothing published after the sign-out reaches the connection it signed out")
+                .containsExactly(RunEvent.STEP_STARTED);
+        assertThat(publisher.subscriberCount()).isZero();
+    }
+
+    /**
+     * The immediate hang-up only reaches connections held by the process that was signed
+     * out of. The heartbeat is the guarantee that holds regardless — an expiry, a row
+     * deleted by hand, a second instance.
+     */
+    @Test
+    void a_heartbeat_hangs_up_on_a_session_that_has_since_expired() {
+        AuthDoubles.InMemorySessions sessions = new AuthDoubles.InMemorySessions();
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        String hash = AuthService.hashToken("a-signed-in-browser");
+        sessions.save(new UserSession(UUID.randomUUID(), UUID.randomUUID(), hash,
+                clock.now(), clock.now().plus(Duration.ofMinutes(5))));
+        SseEventPublisher publisher = new SseEventPublisher(null, sessions, clock);
+        UUID runId = UUID.randomUUID();
+        RecordingEmitter watching = new RecordingEmitter();
+        publisher.subscribe(runId, watching, null, hash);
+
+        clock.advance(Duration.ofMinutes(6));
+        publisher.ping();
+
+        assertThat(publisher.subscriberCount())
+                .as("an expired session is not a session, and the keepalive is where that is noticed")
+                .isZero();
+        assertThat(watching.frames)
+                .as("and it is not kept alive on the way out")
+                .isEmpty();
     }
 
     @Test

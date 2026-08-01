@@ -252,7 +252,24 @@ export class ApiRunSource implements RunSource {
         handlers.onStatus('reconnecting');
         const delay = RECONNECT_DELAYS[Math.min(attempt, RECONNECT_DELAYS.length - 1)] ?? 15000;
         attempt += 1;
-        timer = setTimeout(connect, delay);
+        const retry = () => {
+          if (!closed) timer = setTimeout(connect, delay);
+        };
+        // A stream the server hung up on because the session was signed out looks exactly
+        // like a dropped line from in here, and EventSource answers both the same way:
+        // reconnect, for ever. So ask once before retrying. A 401 ends the loop and leaves
+        // the app's own session guard to take the person to the sign-in screen, instead of
+        // a browser knocking every fifteen seconds on a door that is locked.
+        this.getRun(runId)
+          .then(() => retry())
+          .catch((error: unknown) => {
+            if (error instanceof ApiError && error.status === 401) {
+              closed = true;
+              handlers.onStatus('closed');
+              return;
+            }
+            retry();
+          });
       };
     };
 

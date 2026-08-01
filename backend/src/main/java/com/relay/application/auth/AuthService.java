@@ -2,6 +2,7 @@ package com.relay.application.auth;
 
 import com.relay.application.port.Clock;
 import com.relay.application.port.PasswordHasher;
+import com.relay.application.port.SessionListener;
 import com.relay.application.port.SessionRepository;
 import com.relay.application.port.UserRepository;
 import com.relay.domain.User;
@@ -14,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,13 +48,26 @@ public class AuthService {
     private final SessionRepository sessions;
     private final PasswordHasher hasher;
     private final Clock clock;
+    private final List<SessionListener> listeners;
     private final SecureRandom random = new SecureRandom();
 
     public AuthService(UserRepository users, SessionRepository sessions, PasswordHasher hasher, Clock clock) {
+        this(users, sessions, hasher, clock, List.of());
+    }
+
+    /**
+     * @param listeners whoever is holding something open on a session's behalf. Deleting
+     *                  the row makes the next request fail; it does nothing to a connection
+     *                  that is already open, and that connection is the one still pushing
+     *                  data at a signed-out browser.
+     */
+    public AuthService(UserRepository users, SessionRepository sessions, PasswordHasher hasher, Clock clock,
+                       List<SessionListener> listeners) {
         this.users = users;
         this.sessions = sessions;
         this.hasher = hasher;
         this.clock = clock;
+        this.listeners = List.copyOf(listeners);
     }
 
     // ---- accounts ---------------------------------------------------------
@@ -150,9 +165,15 @@ public class AuthService {
     }
 
     public void logout(String token) {
-        if (token != null && !token.isBlank()) {
-            sessions.deleteByTokenHash(hashToken(token));
+        if (token == null || token.isBlank()) {
+            return;
         }
+        String hash = hashToken(token);
+        sessions.deleteByTokenHash(hash);
+        // Signing out has to end what the session is already receiving, not only what it
+        // asks for next. Without this, approve answered 401 while the same cookie's stream
+        // carried on delivering the run.
+        listeners.forEach(listener -> listener.sessionEnded(hash));
     }
 
     public void purgeExpiredSessions() {
@@ -203,7 +224,9 @@ public class AuthService {
         return value == null || value.isBlank() ? null : value;
     }
 
-    static String hashToken(String token) {
+    /** The SHA-256 the session row is keyed by. Public so anything holding a
+     * connection open can name the session it belongs to without keeping the cookie. */
+    public static String hashToken(String token) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));

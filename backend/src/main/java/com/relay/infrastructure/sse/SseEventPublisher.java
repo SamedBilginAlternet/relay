@@ -1,9 +1,15 @@
 package com.relay.infrastructure.sse;
 
+import com.relay.application.auth.AuthService;
+import com.relay.application.port.Clock;
 import com.relay.application.port.EventPublisher;
 import com.relay.application.port.RunEvent;
 import com.relay.application.port.RunRepository;
+import com.relay.application.port.SessionListener;
+import com.relay.application.port.SessionRepository;
 import com.relay.domain.Run;
+import com.relay.infrastructure.auth.SessionCookies;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
@@ -37,7 +43,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * in step by hand.
  */
 @Component
-public class SseEventPublisher implements EventPublisher {
+public class SseEventPublisher implements EventPublisher, SessionListener {
 
     private static final Logger LOG = System.getLogger(SseEventPublisher.class.getName());
     private static final int BACKLOG = 400;
@@ -46,6 +52,9 @@ public class SseEventPublisher implements EventPublisher {
     private final Map<UUID, Channel> channels = new ConcurrentHashMap<>();
     /** Where a story that is no longer in memory is read back from. Null in unit tests. */
     private final RunRepository runs;
+    /** What every heartbeat re-asks: is the session behind this connection still a session? */
+    private final SessionRepository sessions;
+    private final Clock clock;
     private final ScheduledExecutorService heartbeat = Executors.newSingleThreadScheduledExecutor(runnable -> {
         Thread thread = new Thread(runnable, "sse-heartbeat");
         thread.setDaemon(true);
@@ -54,12 +63,18 @@ public class SseEventPublisher implements EventPublisher {
 
     /** A publisher with no memory beyond this process. Only the fan-out tests want this. */
     public SseEventPublisher() {
-        this(null);
+        this(null, null, null);
+    }
+
+    SseEventPublisher(RunRepository runs) {
+        this(runs, null, null);
     }
 
     @Autowired
-    public SseEventPublisher(RunRepository runs) {
+    public SseEventPublisher(RunRepository runs, SessionRepository sessions, Clock clock) {
         this.runs = runs;
+        this.sessions = sessions;
+        this.clock = clock;
         heartbeat.scheduleAtFixedRate(this::ping, 20, 20, TimeUnit.SECONDS);
     }
 
@@ -79,12 +94,17 @@ public class SseEventPublisher implements EventPublisher {
 
     /** Subscribes a client and replays what it missed. */
     public SseEmitter subscribe(UUID runId) {
-        return subscribe(runId, new SseEmitter(TIMEOUT_MS), resumePoint());
+        HttpServletRequest request = currentRequest();
+        return subscribe(runId, new SseEmitter(TIMEOUT_MS), resumePoint(request), sessionOf(request));
     }
 
     /** A subscription that has nothing to carry on from. */
     SseEmitter subscribe(UUID runId, SseEmitter emitter) {
-        return subscribe(runId, emitter, null);
+        return subscribe(runId, emitter, null, null);
+    }
+
+    SseEmitter subscribe(UUID runId, SseEmitter emitter, Long resumeFrom) {
+        return subscribe(runId, emitter, resumeFrom, null);
     }
 
     /**
@@ -95,10 +115,12 @@ public class SseEventPublisher implements EventPublisher {
      * through the emitter, and a {@code new SseEmitter()} created three lines deep inside
      * the method is not observable at all.
      *
-     * @param resumeFrom the last frame id the client says it already has, or {@code null}
+     * @param resumeFrom  the last frame id the client says it already has, or {@code null}
+     * @param sessionHash the session this connection belongs to, or {@code null} when sign-in
+     *                    is switched off — the connection is then nobody's to revoke
      */
-    SseEmitter subscribe(UUID runId, SseEmitter emitter, Long resumeFrom) {
-        Watcher watcher = new Watcher(emitter);
+    SseEmitter subscribe(UUID runId, SseEmitter emitter, Long resumeFrom, String sessionHash) {
+        Watcher watcher = new Watcher(emitter, sessionHash);
         // Claimed inside the map's own lock, before anything else can decide this run is
         // over and let its channel go: a watcher on the list is what keeps it alive.
         Channel channel = channels.compute(runId, (key, current) -> {
@@ -278,25 +300,41 @@ public class SseEventPublisher implements EventPublisher {
     }
 
     /**
-     * The frame id the reconnecting client says it already has.
+     * The request this stream is being opened for.
      *
-     * <p>Read off the request being served rather than taken as a controller argument:
-     * {@code Last-Event-ID} is part of the SSE protocol, not part of the runs API, and the
-     * rule for answering it belongs next to the buffer that answers it.
+     * <p>Both things read off it — the reconnect header and the session cookie — belong to
+     * the transport rather than to the runs API, and the rules for answering them live here,
+     * next to the buffer and the watcher list they act on.
+     */
+    private static HttpServletRequest currentRequest() {
+        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+        return attributes instanceof ServletRequestAttributes servlet ? servlet.getRequest() : null;
+    }
+
+    /**
+     * The frame id the reconnecting client says it already has.
      *
      * @return the id, or {@code null} when there is no header, no request, or nonsense in it
      */
-    private static Long resumePoint() {
-        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
-        if (!(attributes instanceof ServletRequestAttributes servlet)) {
+    private static Long resumePoint(HttpServletRequest request) {
+        if (request == null) {
             return null;
         }
-        String header = servlet.getRequest().getHeader("Last-Event-ID");
+        String header = request.getHeader("Last-Event-ID");
         try {
             return header == null || header.isBlank() ? null : Long.valueOf(header.trim());
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /** The session this connection is opened under — its hash, never the cookie itself. */
+    private static String sessionOf(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        String token = SessionCookies.token(request);
+        return token == null || token.isBlank() ? null : AuthService.hashToken(token);
     }
 
     private void complete(UUID runId, Watcher watcher) {
@@ -309,10 +347,42 @@ public class SseEventPublisher implements EventPublisher {
         }
     }
 
-    /** One heartbeat round. Package-private so a test need not wait twenty seconds for it. */
+    /**
+     * The session behind a connection is gone: hang up on it now, everywhere.
+     *
+     * <p>Immediate, rather than waiting for the next heartbeat, because the case this
+     * exists for is somebody signing out of a machine they do not trust and expecting the
+     * screen to go dead before they walk away from it.
+     */
+    @Override
+    public void sessionEnded(String tokenHash) {
+        if (tokenHash == null) {
+            return;
+        }
+        channels.forEach((runId, channel) -> {
+            for (Watcher watcher : channel.watchers) {
+                if (tokenHash.equals(watcher.sessionHash)) {
+                    complete(runId, watcher);
+                }
+            }
+        });
+    }
+
+    /**
+     * One heartbeat round. Package-private so a test need not wait twenty seconds for it.
+     *
+     * <p>It is also where the session is re-checked. {@link #sessionEnded} is the fast path
+     * and only works inside the process that was signed out of; this one query per open
+     * connection every twenty seconds is the guarantee that holds whatever happens — an
+     * expiry, a row deleted by hand, a second instance.
+     */
     void ping() {
         channels.forEach((runId, channel) -> {
             for (Watcher watcher : channel.watchers) {
+                if (revoked(watcher.sessionHash)) {
+                    complete(runId, watcher);
+                    continue;
+                }
                 synchronized (watcher) {
                     try {
                         watcher.emitter.send(SseEmitter.event().comment("keepalive"));
@@ -322,6 +392,16 @@ public class SseEventPublisher implements EventPublisher {
                 }
             }
         });
+    }
+
+    /** Unowned connections are never revoked: with sign-in off there is nothing to revoke. */
+    private boolean revoked(String sessionHash) {
+        if (sessionHash == null || sessions == null || clock == null) {
+            return false;
+        }
+        return sessions.findByTokenHash(sessionHash)
+                .filter(session -> !session.expired(clock.now()))
+                .isEmpty();
     }
 
     private void remove(UUID runId, Watcher watcher) {
@@ -384,13 +464,16 @@ public class SseEventPublisher implements EventPublisher {
     private static final class Watcher {
 
         private final SseEmitter emitter;
+        /** Whose connection this is. Null when sign-in is off and nobody owns it. */
+        private final String sessionHash;
         /** Frames that arrived before their turn. Guarded by this watcher's monitor. */
         private final Map<Long, Frame> pending = new HashMap<>();
         /** Guarded by this watcher's monitor. */
         private long next;
 
-        Watcher(SseEmitter emitter) {
+        Watcher(SseEmitter emitter, String sessionHash) {
             this.emitter = emitter;
+            this.sessionHash = sessionHash;
         }
 
         void expect(long firstId) {

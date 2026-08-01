@@ -3,11 +3,13 @@ package com.relay.infrastructure.config;
 import com.relay.application.auth.AuthService;
 import com.relay.application.port.Clock;
 import com.relay.application.port.PasswordHasher;
+import com.relay.application.port.SessionListener;
 import com.relay.application.port.SessionRepository;
 import com.relay.application.port.UserRepository;
 import com.relay.infrastructure.auth.AuthFilter;
 import com.relay.infrastructure.auth.BCryptPasswordHasher;
 import com.relay.infrastructure.auth.SessionCookies;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -28,10 +30,16 @@ public class AuthConfig {
         return new BCryptPasswordHasher();
     }
 
+    /**
+     * {@code sessionListeners} is whatever is holding a connection open on a session's
+     * behalf — the SSE transport, today. Deleting the row is what makes the next request
+     * fail; these are what make the connection that is already open stop.
+     */
     @Bean
     public AuthService authService(UserRepository users, SessionRepository sessions,
-                                   PasswordHasher passwordHasher, Clock clock) {
-        return new AuthService(users, sessions, passwordHasher, clock);
+                                   PasswordHasher passwordHasher, Clock clock,
+                                   List<SessionListener> sessionListeners) {
+        return new AuthService(users, sessions, passwordHasher, clock, sessionListeners);
     }
 
     /**
