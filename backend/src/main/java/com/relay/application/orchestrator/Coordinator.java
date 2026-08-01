@@ -341,7 +341,13 @@ public class Coordinator {
 
         step.markDone(outcome.result(), clock.now());
         journal.say(run, step.id(), AgentRole.VERIFIER, AgentRole.COORDINATOR,
-                "Adım " + step.ordinal() + " doğrulandı: " + verdict.reason());
+                verdict.judged()
+                        ? "Adım " + step.ordinal() + " doğrulandı: " + verdict.reason()
+                        // Let through, but not vouched for. The word "doğrulandı" is the
+                        // product's second claim; it does not get spent on a step nobody
+                        // checked.
+                        : "Adım " + step.ordinal() + " denetlenemedi: " + verdict.reason()
+                                + " — adım geçti, doğrulanmadı");
         publishStepFinished(run, step);
     }
 

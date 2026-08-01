@@ -31,15 +31,30 @@ public class Verifier {
      * back to the coordinator, which is the thing that writes cost down.
      */
     public record Verdict(boolean pass, String reason, long tokens, double costUsd,
-                          Double premiumCostUsd, String model) {
+                          Double premiumCostUsd, String model, boolean judged) {
 
         public Verdict(boolean pass, String reason, long tokens, double costUsd) {
-            this(pass, reason, tokens, costUsd, null, null);
+            this(pass, reason, tokens, costUsd, null, null, true);
         }
 
         static Verdict of(boolean pass, String reason, LlmResponse response) {
             return new Verdict(pass, reason, response.totalTokens(), response.costUsd(),
-                    response.premiumCostUsd(), response.model());
+                    response.premiumCostUsd(), response.model(), true);
+        }
+
+        /**
+         * The auditor said nothing that could be read as a judgement.
+         *
+         * <p>The step is let through — see the comment at the call site — but it is not
+         * verified, and the transcript is not allowed to say it was. Live on 2026-08-01,
+         * with every Groq key at its daily wall, the line read
+         * {@code Adım 1 doğrulandı: verifier could not parse a verdict, accepting}: an
+         * English apology, printed under a Turkish word meaning the opposite of what had
+         * happened.
+         */
+        static Verdict unjudged(LlmResponse response) {
+            return new Verdict(true, "denetçi bir yargı veremedi", response.totalTokens(),
+                    response.costUsd(), response.premiumCostUsd(), response.model(), false);
         }
     }
 
@@ -64,11 +79,19 @@ public class Verifier {
 
         LlmResponse response = llm.complete(request);
         JsonNode node = Json.extract(response.content());
-        // Nothing parseable came back. Passing here is deliberate: the auditor being unable
-        // to speak must not lock a run that has already done its work — see
-        // docs/NASIL-CALISIYOR.md §10, "Doğrulayıcı LLM'dir".
+        /*
+          Nothing parseable came back. Letting the step through is deliberate and unchanged:
+          the auditor being unable to speak must not lock a run that has already done its
+          work — docs/NASIL-CALISIYOR.md §10, "Doğrulayıcı LLM'dir".
+
+          What changed is what we then say about it. This used to be reported to the reader
+          as "Adım 1 doğrulandı", which is the auditor's silence written up as its approval.
+          On the fallback provider that silence is not rare — it is the normal case, because
+          a reasoning model will not hold the verdict schema — so the product was printing
+          "verified" over every step of every run it could not check.
+        */
         if (node == null) {
-            return Verdict.of(true, "verifier could not parse a verdict, accepting", response);
+            return Verdict.unjudged(response);
         }
         // JSON, but no verdict in it. That is not the same thing at all: the schema above
         // declares "pass" required, so a model that answers {"reason": "mesaj hiçbir bulgu
