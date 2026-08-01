@@ -1,9 +1,10 @@
 import { ChevronUp, ListChecks } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { BottomSheet } from '../components/BottomSheet';
 import { ChatPanel } from '../components/ChatPanel';
 import { WorkflowPanel } from '../components/WorkflowPanel';
 import { RUN_SOURCE_KIND } from '../data';
+import { withAgentLabels } from '../lib/agents';
 import { useHashRoute } from '../lib/router';
 import { useRunStore } from '../store/runStore';
 import { ChatStart } from './ChatStart';
@@ -73,6 +74,18 @@ export function ChatScreen() {
     if (awaiting > 0 && window.matchMedia('(max-width: 900px)').matches) setSheetOpen(true);
   }, [awaiting, setSheetOpen]);
 
+  /*
+    The conversation is the only place agents are named to a person, and the
+    names arrive in whichever language the source happens to speak: the mock
+    script writes `Koordinatör`, a live run writes the backend's `coordinator`.
+    Naming is the interface's job, so it is done here, at the edge — the store
+    and the audit trail keep the ids they were given (#97).
+  */
+  const conversation = useMemo(
+    () => (run ? { ...run, messages: run.messages.map(withAgentLabels) } : null),
+    [run],
+  );
+
   if (!run && phase === 'idle') {
     return (
       <ChatStart
@@ -124,7 +137,7 @@ export function ChatScreen() {
 
       <div className="workbench">
         <ChatPanel
-          run={run}
+          run={conversation}
           phase={phase}
           error={error}
           onSubmit={(goal) => void startRun(goal)}

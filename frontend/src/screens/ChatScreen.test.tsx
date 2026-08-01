@@ -1,20 +1,22 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type { Run } from '../types/api';
 
 /**
  * Why this file exists.
  *
- * Sohbet opened on the marketing landing page — a 56px "İşini anlat." headline,
- * a paragraph of pitch and three badges nobody can click — shown to someone who
- * had already signed in and come to start work. The box the screen exists for
- * began at y=481 on a 900px-tall window, and the whole thing sat in an 860px
- * column while the six other screens on the same nav are 1040px, so walking the
- * nav slid the content sideways (#69).
+ * Two things were wrong with Sohbet at the same time, and both were the kind a
+ * unit test cannot see because they are about what ends up on the screen.
  *
- * These assertions are what stops the pitch from being rendered back into the
- * application: the title stays at the application scale, the container stays the
- * shared one, and the composer stays the first thing under the heading.
+ * <p>The screen opened on the marketing landing page — a 56px "İşini anlat."
+ * headline, a paragraph of pitch and three badges nobody can click — shown to
+ * someone who had already signed in and come to start work, in an 860px column
+ * while the six other screens on the same nav sit at 1040px (#69).
+ *
+ * <p>And the conversation named its agents in whichever language the source
+ * spoke: Turkish under the mock, `coordinator → jira-agent` under a live run —
+ * so the demo looked finished and the product did not (#97).
  */
 
 vi.mock('../data', () => ({
@@ -26,6 +28,21 @@ const { ChatScreen } = await import('./ChatScreen');
 const { useRunStore } = await import('../store/runStore');
 
 const IDLE = useRunStore.getState();
+
+function run(messages: Run['messages']): Run {
+  return {
+    id: 'r-1',
+    goal: 'Bugünkü maillerime bak',
+    status: 'running',
+    costTokens: 0,
+    costUsd: 0,
+    budgetUsd: null,
+    steps: [],
+    messages,
+    createdAt: '2026-08-01T09:00:00Z',
+    finishedAt: null,
+  };
+}
 
 beforeEach(() => {
   window.location.hash = '#/sohbet';
@@ -61,4 +78,38 @@ it('a_signed_in_user_lands_on_the_ask_box_not_on_the_pitch', () => {
   // And the box that the screen exists for is present, above the examples.
   expect(screen.getByLabelText('Yapılmasını istediğin iş')).not.toBeNull();
   expect(screen.getByText('Hazır örnekler')).not.toBeNull();
+});
+
+it('a_live_run_shows_agent_names_not_backend_role_ids', () => {
+  useRunStore.setState({
+    ...IDLE,
+    phase: 'ready',
+    run: run([
+      {
+        id: 'm-1',
+        stepId: null,
+        fromAgent: 'coordinator',
+        toAgent: 'jira-agent',
+        content: 'Kaydı aç.',
+        createdAt: '2026-08-01T09:00:01Z',
+      },
+      {
+        id: 'm-2',
+        stepId: null,
+        fromAgent: 'verifier',
+        toAgent: 'coordinator',
+        content: 'Alanlar isteneni karşılıyor.',
+        createdAt: '2026-08-01T09:00:02Z',
+      },
+    ]),
+  });
+
+  const { container } = render(<ChatScreen />);
+
+  expect(screen.getAllByText('Koordinatör').length).toBe(2);
+  expect(screen.getByText('Jira Uzmanı')).not.toBeNull();
+  expect(screen.getByText('Doğrulayıcı')).not.toBeNull();
+  for (const id of ['coordinator', 'jira-agent', 'verifier']) {
+    expect(container.textContent).not.toContain(id);
+  }
 });
