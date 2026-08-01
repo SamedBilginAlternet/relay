@@ -717,3 +717,131 @@
 .load-error__retry {
   flex: 0 0 auto;
 }
+
+/* ------------------------------------------------------------------ */
+/* Bağlantılar — four services on one screen (issue #134)              */
+/*                                                                     */
+/* The screen used to be four full-width cards with their forms held    */
+/* open: about 2100px of page, of which the part that answers "what am  */
+/* I connected to" was four status pills five hundred pixels apart.     */
+/*                                                                     */
+/* A tile answers that and nothing else. Two columns, so four of them   */
+/* are one glance rather than one scroll; the form is a second state,   */
+/* reached by choosing a service, and at four inputs it is still        */
+/* shorter than the viewport.                                          */
+/* ------------------------------------------------------------------ */
+
+.int-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-16);
+}
+
+.int {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--s-16);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  transition: border-color 160ms ease-out;
+}
+.int:hover {
+  border-color: var(--border);
+}
+
+.int__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-8);
+  margin-bottom: 2px;
+}
+/* The providers' marks at their own proportions — a badge behind them would
+   put a Relay colour under someone else's logo. */
+.int__marks {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+}
+.int__out {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: -4px -4px 0 0;
+  border-radius: var(--r-btn);
+  color: var(--fg-faint);
+  transition: color 140ms ease-out, background-color 140ms ease-out;
+}
+.int__out:hover,
+.int__out:focus-visible {
+  color: var(--fg);
+  background: var(--bg-subtle);
+}
+
+.int__name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0;
+  color: var(--fg);
+}
+/*
+  Two lines, clamped, and `flex: 1` — so a long blurb and a short one still put
+  their footers on the same baseline across the row. Without the grow the two
+  tiles in a row disagree about where "the bottom" is.
+*/
+.int__blurb {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.int__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-8);
+  margin-top: var(--s-12);
+  padding-top: var(--s-12);
+  border-top: 1px solid var(--line);
+}
+
+/* State, not decoration: the dot repeats what the word already says, for the
+   glance that does not read. Never the dot alone — `color-not-only`. */
+.int__state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--fg-faint);
+  white-space: nowrap;
+}
+.int__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.45;
+}
+.int__state--on {
+  color: var(--success);
+}
+.int__state--on .int__dot {
+  opacity: 1;
+}
+
+@media (max-width: 720px) {
+  .int-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
