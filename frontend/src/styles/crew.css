@@ -249,14 +249,15 @@
   margin: 0;
 }
 
-/* At 390 the tier has no room beside the name; it drops under it and the
-   row keeps its two columns rather than squeezing to four characters. */
+/* At 390 the tier has no room beside the name. It drops to its own line and
+   goes flush left with the counts under it — indenting it past the mark would
+   read as a caption belonging to the name rather than a fact about the member. */
 @media (max-width: 640px) {
   .crew-row {
     grid-template-columns: auto minmax(0, 1fr);
   }
   .crew-row__tier {
-    grid-column: 2;
+    grid-column: 1 / -1;
     grid-row: 2;
     justify-self: start;
   }
