@@ -199,3 +199,47 @@ it('a_day_with_nothing_counted_draws_no_breakdown_at_all', async () => {
   expect(container.querySelector('.tally__lines')).toBeNull();
   expect(container.querySelector('.tally__advice')).toBeNull();
 });
+
+/**
+ * The card's promise about a write. It shipped invisible once: the client
+ * normaliser rebuilds each suggested action field by field, so `risk` — which
+ * the server had been sending all along — never reached the component and the
+ * sentence simply never rendered (#107).
+ */
+it('a_write_says_it_will_stop_for_a_signature_before_it_is_pressed', async () => {
+  getBrief.mockResolvedValue(
+    briefWith({
+      priority: [
+        {
+          id: 'gmail:1',
+          source: 'gmail',
+          title: 'Ödeme adımında hata',
+          kind: 'bug_report',
+          urgency: 'high',
+          summary: 'Müşteri ödeme adımında hata alıyor.',
+          suggestedActions: [
+            {
+              tool: 'jira.createIssue',
+              label: 'Jira kaydı aç',
+              params: { projectKey: 'KAN', summary: 'Ödeme adımında hata' },
+              risk: 'write',
+            },
+          ],
+          url: 'https://mail.google.com/mail/u/0/#inbox/1',
+        },
+      ],
+    }),
+  );
+
+  const { container } = render(<TodayScreen onNavigate={() => {}} />);
+
+  await screen.findByText('Ödeme adımında hata');
+  container.querySelector<HTMLButtonElement>('.arow__open')?.click();
+
+  await screen.findByText(/sen onaylamadan gönderilmez/);
+  // The values that will be sent, under the same names the approval gate uses.
+  expect(screen.getByText('Proje')).toBeTruthy();
+  expect(screen.getByText('KAN')).toBeTruthy();
+  // And the way back to the original.
+  expect(screen.getByRole('link', { name: /E-posta’da aç/ })).toBeTruthy();
+});

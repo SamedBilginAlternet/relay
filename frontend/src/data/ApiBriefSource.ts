@@ -68,12 +68,23 @@ function normalizeSection(raw: unknown, label: string): BriefSection {
   };
 }
 
+/** The three the policy engine knows. Anything else is not a claim we can make. */
+const RISKS = ['read', 'write', 'destructive'] as const;
+
 function normalizeAction(raw: unknown, index: number): SuggestedAction {
   const r = asRecord(raw);
+  const risk = asString(r.risk);
   return {
     tool: asString(r.tool) || `tool-${index}`,
     label: asString(r.label) || asString(r.tool) || 'Eylem',
     params: asRecord(r.params),
+    // Carried, not dropped. This normaliser rebuilds each action field by field,
+    // so a field the server started sending is invisible until it is named here
+    // — which is how the card's "you will be asked before this is sent" line
+    // silently never appeared, on a payload that had said `write` all along.
+    risk: (RISKS as readonly string[]).includes(risk)
+      ? (risk as SuggestedAction['risk'])
+      : null,
   };
 }
 
