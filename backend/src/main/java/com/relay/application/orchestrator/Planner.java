@@ -67,10 +67,18 @@ public class Planner {
         return steps;
     }
 
+    /**
+     * The plan as a sentence for the timeline.
+     *
+     * <p>No tool ids here. They used to be pasted into the middle of the Turkish line —
+     * "1) KAN projesinde bir Jira kaydı aç [jira.createIssue]" — where they read as an
+     * untranslated log rather than as transparency. The step's own row already carries the
+     * tool as a mono badge, next to the risk and the status, which is where a reader who
+     * wants it looks.
+     */
     private String summary(List<Step> steps) {
         List<String> titles = new ArrayList<>();
-        steps.forEach(s -> titles.add(s.ordinal() + ") " + s.title()
-                + (s.toolName() == null ? "" : " [" + s.toolName() + "]")));
+        steps.forEach(s -> titles.add(s.ordinal() + ") " + s.title()));
         return String.join(" · ", titles);
     }
 
