@@ -134,7 +134,7 @@ value keeps the stored secret.
 | `GET` | `/api/tools` | Registry + JSON schemas |
 | `GET` | `/api/brief` | The Bugün screen, all sections in one call. Cached ~60s |
 | `POST` | `/api/brief/refresh` | Same body, cache bypassed |
-| `POST` | `/api/runs/from-suggestion` | `{cardId?, tool, params, label, budgetUsd?}` → `202 {runId, id, status}` |
+| `POST` | `/api/runs/from-suggestion` | `{cardId?, tool, params, label, context?, budgetUsd?}` → `202 {runId, id, status}` |
 | `GET` | `/api/oauth/google/status` | `{configured, connected, scopes, …}` |
 | `GET` | `/api/oauth/google/start` | `302` to Google consent; `503 google_not_configured` when the env vars are absent |
 | `GET` | `/api/oauth/google/callback` | Code → tokens, stored on the encrypted `google` connection |
@@ -176,6 +176,20 @@ its own 8s timeout; one dead integration greys out one card and the other three 
 Clicking a suggestion calls `POST /api/runs/from-suggestion`, which seeds a normal run with
 that single step. It goes through the same coordinator, the same policy engine and the same
 approval gate — a suggested WRITE still parks on the human. Suggestion ≠ action.
+
+The optional `context` is what the card was about:
+
+```jsonc
+"context": { "itemId": "jira:KAN-42", "source": "jira", "title": "Ödeme retry politikası",
+             "from": "Ayşe Demir", "summary": "İki gündür Blocked.", "url": "https://…" }
+```
+
+The run's goal is built from it — *"İlerlemeyi kayda yaz — Jira kaydı KAN-42 «Ödeme retry
+politikası» (Ayşe Demir). Özet: …"* — because everything downstream reads that one sentence:
+the specialist writes the parameters from it and the grounding check looks for the record key
+in it. Omit it and the goal is the label alone, exactly as before. Each field is clipped
+server-side: the goal is prompt text on every model call of the run, so it stays a headline,
+never the item's full text.
 
 ---
 

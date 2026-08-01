@@ -48,9 +48,16 @@ public class RunController {
     public record ApproveRequest(Map<String, Object> params) {
     }
 
-    /** {@code cardId} is the brief card the action came from — echoed back, never trusted. */
+    /**
+     * {@code cardId} is the brief card the action came from — echoed back, never trusted.
+     *
+     * <p>{@code context} is what that card was about: title, sender, one-line summary, link.
+     * Optional, and deliberately so — a client that omits it gets the run it got before,
+     * built from the label alone.
+     */
     public record FromSuggestionRequest(String cardId, @NotBlank String tool, Map<String, Object> params,
-                                        String label, Double budgetUsd) {
+                                        String label, RunService.SuggestionContext context,
+                                        Double budgetUsd) {
     }
 
     /**
@@ -60,7 +67,7 @@ public class RunController {
     @PostMapping("/from-suggestion")
     public ResponseEntity<Map<String, Object>> fromSuggestion(@RequestBody FromSuggestionRequest request) {
         Run run = runService.startFromSuggestion(request.tool(), request.params(), request.label(),
-                request.budgetUsd());
+                request.context(), request.budgetUsd());
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("runId", run.id().toString());
         body.put("id", run.id().toString());

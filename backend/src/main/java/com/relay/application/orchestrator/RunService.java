@@ -66,25 +66,64 @@ public class RunService {
     }
 
     /**
+     * What the card the user pressed was <em>about</em> — the few fields worth paying tokens
+     * for, and nothing else.
+     *
+     * <p>Every field is optional and every one of them is copied into the goal sentence, so
+     * this is a budget as much as a shape: the mail's whole body does not belong here (the
+     * flow reads it in a step of its own), a subject line, a sender and one sentence do.
+     *
+     * @param itemId the brief item id — {@code gmail:18f2…}, {@code jira:KAN-42},
+     *               {@code github-pr:acme/pay#12}. The handle in it is how a record gets
+     *               named in the goal, and how a mail reply finds the message to read.
+     */
+    public record SuggestionContext(String itemId, String source, String title, String from,
+                                    String summary, String url) {
+
+        boolean empty() {
+            return blank(itemId) && blank(source) && blank(title) && blank(from)
+                    && blank(summary) && blank(url);
+        }
+
+        private static boolean blank(String value) {
+            return value == null || value.isBlank();
+        }
+    }
+
+    /** A client that says nothing about the card gets exactly the behaviour it had before. */
+    public Run startFromSuggestion(String toolName, Map<String, Object> params, String label,
+                                   Double budgetUsd) {
+        return startFromSuggestion(toolName, params, label, null, budgetUsd);
+    }
+
+    /**
      * A card on the Bugün screen turned into a real run (BRIEF §3).
      *
      * <p>The step is seeded instead of planned — the planner has nothing to decide, the user
      * already chose. Everything after that is identical to a typed goal: the coordinator
      * walks it, the policy engine sees the same WRITE risk and the same approval gate opens.
      * There is no fast path around the gate.
+     *
+     * <p>What the flow knows about the item is the whole of {@code context}. Without it the
+     * goal was the button's own label, so a live run went out as "Cevap yaz" and the draft it
+     * produced was titled {@code Re: Cevap} — the specialist had the label and nothing else to
+     * write a subject from. The label alone also left every record key ungrounded: a
+     * {@code jira.addComment} on KAN-42 whose goal never says KAN-42 is, by Relay's own rule,
+     * a key that came from nowhere.
      */
     public Run startFromSuggestion(String toolName, Map<String, Object> params, String label,
-                                   Double budgetUsd) {
+                                   SuggestionContext context, Double budgetUsd) {
         if (toolName == null || toolName.isBlank()) {
             throw new IllegalArgumentException("tool is required");
         }
         if (tools != null && tools.find(toolName).isEmpty()) {
             throw new IllegalArgumentException("unknown tool: " + toolName);
         }
-        String goal = label == null || label.isBlank() ? "Bugün önerisi: " + toolName : label.trim();
+        String title = SuggestionGoal.stepTitle(label, toolName);
+        String goal = SuggestionGoal.of(label, toolName, context);
 
         Run run = Run.create(goal, clock.now(), budgetUsd != null ? budgetUsd : defaultBudgetUsd);
-        run.addStep(Step.create(run.id(), 1, goal, AgentRole.toolAgent(toolName), toolName,
+        run.addStep(Step.create(run.id(), 1, title, AgentRole.toolAgent(toolName), toolName,
                 params == null ? Map.of() : params));
         runs.save(run);
         journal.say(run, null, AgentRole.USER, AgentRole.COORDINATOR,
