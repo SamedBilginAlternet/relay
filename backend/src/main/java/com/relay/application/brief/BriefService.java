@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -70,6 +71,18 @@ public class BriefService {
 
     private final AtomicReference<Cached> cache = new AtomicReference<>();
 
+    /**
+     * The generation that is already running, if there is one.
+     *
+     * <p>Pressing Yenile twice built the brief twice. Each build calls all five READ tools
+     * and spends two model turns, so the second press cost another 5 208 tokens for a
+     * result that was thrown away the moment the first one finished writing the cache —
+     * the two answers were stamped one millisecond apart. Tokens are the scarcest thing
+     * this product has (§10), which makes doing the work twice worse than doing it slowly.
+     */
+    private final AtomicReference<CompletableFuture<Map<String, Object>>> inFlight =
+            new AtomicReference<>();
+
     public BriefService(ToolRegistry tools, ConnectionRepository connections, InsightService insights,
                         DigestService digests, LlmClient llm, Clock clock, Executor executor,
                         Duration toolTimeout, Duration cacheTtl, String timezone,
@@ -110,9 +123,48 @@ public class BriefService {
             body.put("cachedAt", cached.at().toString());
             return body;
         }
-        Map<String, Object> body = build();
-        cache.set(new Cached(body, clock.now()));
-        return body;
+        return await(generation());
+    }
+
+    /**
+     * One build at a time: whoever asks while a brief is being made waits for that one
+     * instead of starting another.
+     *
+     * <p>The button spends four or five seconds waiting, so a second press is ordinary user
+     * behaviour rather than abuse — and it doubled the bill. Both callers get the same map,
+     * so both answers carry the same {@code generatedAt}, which is what makes it visible
+     * from outside that only one generation happened.
+     */
+    private CompletableFuture<Map<String, Object>> generation() {
+        CompletableFuture<Map<String, Object>> mine = new CompletableFuture<>();
+        CompletableFuture<Map<String, Object>> running = inFlight.compareAndExchange(null, mine);
+        if (running != null) {
+            return running;
+        }
+        try {
+            Map<String, Object> body = build();
+            cache.set(new Cached(body, clock.now()));
+            mine.complete(body);
+        } catch (RuntimeException | Error e) {
+            // Everyone waiting on this build fails with it, rather than hanging until the
+            // request times out.
+            mine.completeExceptionally(e);
+        } finally {
+            inFlight.compareAndSet(mine, null);
+        }
+        return mine;
+    }
+
+    /** A failed build reaches the caller as the exception it was, not wrapped in a join. */
+    private static Map<String, Object> await(CompletableFuture<Map<String, Object>> generation) {
+        try {
+            return generation.join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof RuntimeException cause) {
+                throw cause;
+            }
+            throw e;
+        }
     }
 
     /** Drops the cache — used by {@code POST /api/brief/refresh} and by tests. */

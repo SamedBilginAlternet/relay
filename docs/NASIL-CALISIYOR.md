@@ -425,3 +425,5 @@ Jüri buradan sorar; hazırlıklı olmak lazım.
 - **Bugün önbelleği global ve 180 saniyelik** (`BRIEF_CACHE_SECONDS`, varsayılan 180 sn — üç
   dakika). Her önbellek ıskası bir sınıflandırma çağrısı demek, süre bu yüzden uzun. Bağlantı
   değiştirdikten sonra ekran üç dakika eski kalabilir; `POST /api/brief/refresh` bunu atlar.
+  Aynı anda gelen ikinci `refresh` **yeni üretim başlatmaz**, sürene katılır (tek uçuş): iki
+  yanıt aynı `generatedAt`'i taşır ve tur bir kez ödenir.
