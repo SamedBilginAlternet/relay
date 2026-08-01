@@ -345,6 +345,90 @@ class InsightServiceTest {
         assertThat(Filler.looksLikeFiller(String.valueOf(draft.params().get("body")))).isFalse();
     }
 
+    /**
+     * The approval gate is only worth anything if what it shows is real. Live (run
+     * {@code 3ed985ff}) the first draft on the gate read
+     * {@code {"summary":"Yeni iş talebi","issueType":"Task","projectKey":"RELAY"}}: a
+     * placeholder title, no description, and Relay's own name where the Jira connection says
+     * {@code KAN}. The user approved it, Jira answered "Erişilebilen projeler: KAN", and the
+     * step came back a round later with the values that had been on the card all along.
+     */
+    @Test
+    void an_invented_project_key_never_reaches_the_gate() {
+        String answer = """
+                {"insights":[
+                  {"id":"gmail:1","kind":"bug_report","urgency":"high",
+                   "summary":"Ödeme servisi staging'de patlıyor, kayıt açılmalı.",
+                   "suggestedActions":[
+                     {"tool":"jira.createIssue","label":"Jira kaydı aç",
+                      "params":{"projectKey":"RELAY","issueType":"Task","summary":"Yeni iş talebi"}}
+                   ]}
+                ]}""";
+        InsightService service = new InsightService(new TestDoubles.StaticLlmClient(answer), tools);
+
+        InsightService.Action create = service.analyze(List.of(MAIL), "KAN")
+                .insights().get(0).actions().get(0);
+
+        assertThat(create.tool()).isEqualTo("jira.createIssue");
+        assertThat(create.params())
+                .as("the project key comes from the connection, not from the model")
+                .containsEntry("projectKey", "KAN");
+        assertThat(String.valueOf(create.params().get("projectKey"))).isNotEqualTo("RELAY");
+        // What the model got right is left alone.
+        assertThat(create.params()).containsEntry("issueType", "Task");
+    }
+
+    /**
+     * "Yeni iş talebi" is a title that could sit on any ticket in the world, which is another
+     * way of saying it belongs on none. The mail that produced the suggestion had a subject;
+     * that subject is what the human has to see before approving anything.
+     */
+    @Test
+    void a_placeholder_summary_never_reaches_the_gate() {
+        String answer = """
+                {"insights":[
+                  {"id":"gmail:1","kind":"bug_report","urgency":"high",
+                   "summary":"Ödeme servisi staging'de patlıyor, kayıt açılmalı.",
+                   "suggestedActions":[
+                     {"tool":"jira.createIssue","label":"Jira kaydı aç",
+                      "params":{"projectKey":"KAN","summary":"Yeni iş talebi"}}
+                   ]}
+                ]}""";
+        InsightService service = new InsightService(new TestDoubles.StaticLlmClient(answer), tools);
+
+        InsightService.Action create = service.analyze(List.of(MAIL), "KAN")
+                .insights().get(0).actions().get(0);
+
+        assertThat(create.params()).containsEntry("summary", "Ödeme servisi staging'de patlıyor");
+        // A record with no body helps nobody, so the card fills one in.
+        assertThat(String.valueOf(create.params().get("description")))
+                .contains("Ödeme servisi staging'de patlıyor")
+                .contains("https://mail.example/1");
+    }
+
+    /** A title that does come from the mail is the model's to write — it is not overwritten. */
+    @Test
+    void a_summary_taken_from_the_mail_survives_untouched() {
+        String answer = """
+                {"insights":[
+                  {"id":"gmail:1","kind":"bug_report","urgency":"high",
+                   "summary":"Ödeme servisi staging'de patlıyor, kayıt açılmalı.",
+                   "suggestedActions":[
+                     {"tool":"jira.createIssue","label":"Jira kaydı aç",
+                      "params":{"projectKey":"KAN","summary":"Ödeme servisi staging ortamında patlıyor",
+                                "description":"Ayşe Yıldız bildirdi."}}
+                   ]}
+                ]}""";
+        InsightService service = new InsightService(new TestDoubles.StaticLlmClient(answer), tools);
+
+        InsightService.Action create = service.analyze(List.of(MAIL), "KAN")
+                .insights().get(0).actions().get(0);
+
+        assertThat(create.params())
+                .containsEntry("summary", "Ödeme servisi staging ortamında patlıyor")
+                .containsEntry("description", "Ayşe Yıldız bildirdi.");
+    }
+
     @Test
     void emptyBriefCostsNoTokens() {
         TestDoubles.StaticLlmClient llm = new TestDoubles.StaticLlmClient("{\"insights\":[]}");

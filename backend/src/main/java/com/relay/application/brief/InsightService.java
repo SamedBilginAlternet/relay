@@ -30,7 +30,9 @@ import java.util.regex.Pattern;
  * <p>All items go into <em>one</em> schema-constrained call — a brief with 12 items costs
  * one round trip, not twelve. The answer is treated as untrusted: every
  * {@code suggestedActions[].tool} is checked against the {@link ToolRegistry} and dropped
- * when it names a tool that does not exist, because models invent plausible tool names.
+ * when it names a tool that does not exist, because models invent plausible tool names. The
+ * parameters get the same treatment: the fields a human reads at the approval gate are seeded
+ * from the card and the connection, never from a guess — see {@code ground}.
  *
  * <p>A suggestion is the next step, not a pleasantry: what it proposes is decided by the
  * item's state, so an issue nobody started and an issue already in flight get different
@@ -122,7 +124,7 @@ public class InsightService {
             LlmResponse response = llm.complete(request(subject, projectKey));
             tokens = response.totalTokens();
             cost = response.costUsd();
-            byItem.putAll(parse(response.content(), subject));
+            byItem.putAll(parse(response.content(), subject, projectKey));
             if (!byItem.isEmpty()) {
                 source = llm.degraded() ? "llm:degraded" : "llm";
             }
@@ -310,7 +312,7 @@ public class InsightService {
         return out;
     }
 
-    private Map<String, Insight> parse(String content, List<BriefItem> items) {
+    private Map<String, Insight> parse(String content, List<BriefItem> items, String projectKey) {
         Map<String, Insight> out = new LinkedHashMap<>();
         JsonNode root = Json.extract(content);
         if (root == null) {
@@ -320,12 +322,13 @@ public class InsightService {
         if (!array.isArray()) {
             return out;
         }
-        Set<String> knownIds = new LinkedHashSet<>();
-        items.forEach(item -> knownIds.add(item.id()));
+        Map<String, BriefItem> byId = new LinkedHashMap<>();
+        items.forEach(item -> byId.put(item.id(), item));
 
         for (JsonNode node : array) {
             String id = node.path("id").asText(node.path("itemId").asText(""));
-            if (!knownIds.contains(id)) {
+            BriefItem item = byId.get(id);
+            if (item == null) {
                 continue; // an id we never sent — drop it rather than guess
             }
             out.put(id, new Insight(
@@ -333,7 +336,7 @@ public class InsightService {
                     oneOf(node.path("kind").asText(""), KINDS, "fyi"),
                     oneOf(node.path("urgency").asText(""), URGENCIES, "normal"),
                     node.path("summary").asText("").isBlank() ? "Özet üretilemedi." : node.path("summary").asText(),
-                    actions(node.path("suggestedActions"))));
+                    actions(node.path("suggestedActions"), item, projectKey)));
         }
         return out;
     }
@@ -342,7 +345,7 @@ public class InsightService {
      * The trust boundary. A suggestion naming a tool that is not in the registry is
      * dropped — it is not turned into a run, not shown, not logged as usable.
      */
-    private List<Action> actions(JsonNode node) {
+    private List<Action> actions(JsonNode node, BriefItem item, String projectKey) {
         List<Action> out = new ArrayList<>();
         if (node == null || !node.isArray()) {
             return out;
@@ -359,12 +362,86 @@ public class InsightService {
             if (label.isBlank()) {
                 label = tool;
             }
-            out.add(new Action(tool, label, Json.toMap(candidate.get("params"))));
+            out.add(ground(new Action(tool, label, Json.toMap(candidate.get("params"))),
+                    item, projectKey));
             if (out.size() >= MAX_ACTIONS) {
                 break;
             }
         }
         return out;
+    }
+
+    /**
+     * The parameters the human will read at the approval gate come from the card, not from
+     * the model's imagination.
+     *
+     * <p>Live (run {@code 3ed985ff}), the first draft on the gate was
+     * {@code {"summary":"Yeni iş talebi","issueType":"Task","projectKey":"RELAY"}} — a
+     * placeholder title, no description, and a project key that was Relay's own name rather
+     * than the {@code KAN} written on the Jira connection. The user approved it, Jira refused
+     * it ("Erişilebilen projeler: KAN"), and the same step came back a round later with the
+     * right values. Every one of those values was on the card the suggestion was made from,
+     * before the model was asked anything.
+     *
+     * <p>So two fields are taken back from the model:
+     *
+     * <ul>
+     *   <li><b>projectKey</b> — from the connection, via {@code BriefService.projectKeyFrom}.
+     *       There is exactly one source of truth for which project this person can write to,
+     *       and a guess that happens to name a real project does not answer 400: it files a
+     *       real issue in the wrong project.</li>
+     *   <li><b>summary / description</b> — from the item's own words when the model's title
+     *       shares nothing with them. A ticket titled "Yeni iş talebi" tells its reader
+     *       nothing that the mail's subject does not tell them better.</li>
+     * </ul>
+     */
+    private Action ground(Action action, BriefItem item, String projectKey) {
+        Map<String, Object> params = new LinkedHashMap<>(action.params());
+        boolean createsIssue = "jira.createIssue".equals(action.tool());
+        if ((createsIssue || params.containsKey("projectKey")) && projectKey != null
+                && !projectKey.isBlank()) {
+            params.put("projectKey", projectKey);
+        }
+        if (createsIssue) {
+            if (!saysWhatTheCardSays(params.get("summary"), item)) {
+                params.put("summary", item.title());
+            }
+            if (blank(params.get("description"))) {
+                params.put("description", issueBody(item));
+            }
+        }
+        return new Action(action.tool(), action.label(), params);
+    }
+
+    /**
+     * Does the proposed title come from this item at all?
+     *
+     * <p>One word of four letters or more, shared with the card's own text, is enough — the
+     * model is allowed to rephrase, it is not allowed to invent. "Yeni iş talebi" against a
+     * mail titled "Ödeme adımında hata alıyoruz" shares nothing, and that is exactly the
+     * shape of a placeholder.
+     */
+    private static boolean saysWhatTheCardSays(Object candidate, BriefItem item) {
+        if (blank(candidate)) {
+            return false;
+        }
+        String card = fold(item.text() + " " + item.prefix() + " " + item.from());
+        for (String word : String.valueOf(candidate).split("[^\\p{L}\\p{N}]+")) {
+            if (word.length() >= 4 && card.contains(fold(word))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A record with a body: what it is about, and where it came from. */
+    private static String issueBody(BriefItem item) {
+        return item.title() + "\n\nKaynak: " + item.source()
+                + (item.url() == null || item.url().isBlank() ? "" : " — " + item.url());
+    }
+
+    private static boolean blank(Object value) {
+        return value == null || String.valueOf(value).isBlank();
     }
 
     private static String oneOf(String value, List<String> allowed, String fallback) {
@@ -656,8 +733,7 @@ public class InsightService {
         params.put("projectKey", projectKey);
         params.put("issueType", "Bug");
         params.put("summary", item.title());
-        params.put("description", item.title() + "\n\nKaynak: " + item.source()
-                + (item.url() == null || item.url().isBlank() ? "" : " — " + item.url()));
+        params.put("description", issueBody(item));
         actions.add(new Action("jira.createIssue", label, params));
     }
 
