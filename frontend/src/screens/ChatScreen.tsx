@@ -1,7 +1,8 @@
 import { ChevronUp, ListChecks } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { BottomSheet } from '../components/BottomSheet';
 import { ChatPanel } from '../components/ChatPanel';
+import { TaskRail, useLiveRuns } from '../components/TaskRail';
 import { WorkflowPanel } from '../components/WorkflowPanel';
 import { RUN_SOURCE_KIND } from '../data';
 import { useHashRoute } from '../lib/router';
@@ -96,14 +97,35 @@ export function ChatScreen() {
     if (awaiting > 0 && window.matchMedia('(max-width: 900px)').matches) setSheetOpen(true);
   }, [awaiting, setSheetOpen]);
 
+  /*
+    The other flows. This screen showed one run and behaved as if it were the only one;
+    on the live box that meant 1 of 28 runs stopped on a decision was on screen and the
+    other 27 had no route in the product except Geçmiş (#125).
+
+    Only the address is set here. The effect above owns the loading — it is the one place
+    that decides what `#/sohbet/<id>` means, and a second caller would race it.
+  */
+  const liveRuns = useLiveRuns(run);
+  const openFromRail = useCallback(
+    (runId: string) => navigate(`#/sohbet/${runId}`),
+    [navigate],
+  );
+  // Never rendered empty: no live run means no column, and the composer keeps the width.
+  const rail =
+    liveRuns.length > 0 ? (
+      <TaskRail runs={liveRuns} currentRunId={run?.id ?? null} onOpen={openFromRail} />
+    ) : null;
 
   if (!run && phase === 'idle') {
     return (
-      <ChatStart
-        onSubmit={(goal) => void startRun(goal)}
-        busy={phase !== 'idle'}
-        sourceKind={RUN_SOURCE_KIND}
-      />
+      <div className="rail-start">
+        {rail}
+        <ChatStart
+          onSubmit={(goal) => void startRun(goal)}
+          busy={phase !== 'idle'}
+          sourceKind={RUN_SOURCE_KIND}
+        />
+      </div>
     );
   }
 
@@ -146,7 +168,8 @@ export function ChatScreen() {
         <ChevronUp size={16} aria-hidden style={{ marginLeft: 'auto' }} />
       </button>
 
-      <div className="workbench">
+      <div className={`workbench${rail ? ' workbench--railed' : ''}`}>
+        {rail}
         <ChatPanel
           run={run}
           phase={phase}

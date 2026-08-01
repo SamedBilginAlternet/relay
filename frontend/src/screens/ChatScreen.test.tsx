@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { Run } from '../types/api';
+import type { Run, RunSummary } from '../types/api';
 
 /**
  * Why this file exists.
@@ -24,9 +24,10 @@ import type { Run } from '../types/api';
  */
 
 const getRun = vi.fn<(runId: string) => Promise<Run>>();
+const listRuns = vi.fn<(o?: { status?: string; size?: number }) => Promise<RunSummary[]>>();
 
 vi.mock('../data', () => ({
-  getRunSource: () => ({ streamRun: () => () => {}, getRun }),
+  getRunSource: () => ({ streamRun: () => () => {}, getRun, listRuns }),
   RUN_SOURCE_KIND: 'api',
 }));
 
@@ -55,8 +56,24 @@ function runWithId(id: string): Run {
   return { ...run([]), id, goal: `${id} hedefi` };
 }
 
+function parked(id: string, goal: string): RunSummary {
+  return {
+    id,
+    goal,
+    status: 'awaiting_approval',
+    costTokens: 0,
+    costUsd: 0,
+    budgetUsd: null,
+    createdAt: '2026-08-01T08:00:00Z',
+    finishedAt: null,
+    stepCount: 4,
+  };
+}
+
 beforeEach(() => {
   getRun.mockReset();
+  listRuns.mockReset();
+  listRuns.mockResolvedValue([]);
   getRun.mockImplementation(async (runId: string) => runWithId(runId));
   window.location.hash = '#/sohbet';
   // jsdom has no scroller; the conversation pins itself to the bottom on mount.
@@ -164,4 +181,57 @@ it('a_run_the_store_just_created_still_writes_itself_into_the_address', async ()
   view.rerender(<ChatScreen />);
 
   await waitFor(() => expect(window.location.hash).toBe('#/sohbet/r-c'));
+});
+
+it('a_flow_running_beside_the_open_one_is_on_screen_and_one_click_away', async () => {
+  window.location.hash = '#/sohbet/r-a';
+  useRunStore.setState({ ...IDLE, phase: 'ready', run: runWithId('r-a') });
+  listRuns.mockImplementation(async (options) =>
+    options?.status === 'awaiting_approval'
+      ? [parked('r-b', 'Kararını bekleyen öteki iş')]
+      : [],
+  );
+
+  const { container } = render(<ChatScreen />);
+
+  const row = await screen.findByTitle('Kararını bekleyen öteki iş');
+  // The rail costs a column, so the workbench has to know it is there.
+  expect(container.querySelector('.workbench--railed')).not.toBeNull();
+  // The open run is the one marked, and it is not the row we are about to press.
+  expect(container.querySelectorAll('[aria-current="true"]')).toHaveLength(1);
+
+  await act(async () => {
+    fireEvent.click(row);
+    await Promise.resolve();
+  });
+
+  await waitFor(() => expect(window.location.hash).toBe('#/sohbet/r-b'));
+  await waitFor(() => expect(useRunStore.getState().run?.id).toBe('r-b'));
+});
+
+it('with_nothing_else_alive_the_conversation_keeps_the_whole_width', async () => {
+  window.location.hash = '#/sohbet/r-a';
+  useRunStore.setState({ ...IDLE, phase: 'ready', run: { ...runWithId('r-a'), status: 'done' } });
+  listRuns.mockResolvedValue([]);
+
+  const { container } = render(<ChatScreen />);
+
+  await waitFor(() => expect(listRuns).toHaveBeenCalled());
+  // An empty rail is furniture: no element, and no column reserved for one.
+  expect(container.querySelector('.rail')).toBeNull();
+  expect(container.querySelector('.workbench--railed')).toBeNull();
+  expect(container.querySelector('.workbench')).not.toBeNull();
+});
+
+it('parked_decisions_are_visible_before_a_flow_is_even_opened', async () => {
+  // The empty Sohbet screen is where someone arrives with 28 runs already stopped on
+  // them. It used to greet them with a blank box and no sign that any of it existed.
+  listRuns.mockImplementation(async (options) =>
+    options?.status === 'awaiting_approval' ? [parked('r-b', 'Onay bekleyen iş')] : [],
+  );
+
+  render(<ChatScreen />);
+
+  expect(await screen.findByTitle('Onay bekleyen iş')).not.toBeNull();
+  expect(screen.getByLabelText('Yapılmasını istediğin iş')).not.toBeNull();
 });
