@@ -9,7 +9,6 @@ import {
   ListChecks,
   Plug,
   RefreshCw,
-  Sparkles,
   TriangleAlert,
   Undo2,
 } from 'lucide-react';
@@ -21,18 +20,10 @@ import { getBriefSource, RUN_SOURCE_KIND } from '../data';
 import { getPlaybookSource } from '../data/PlaybookSource';
 import type { Playbook } from '../data/PlaybookSource';
 import { formatDayMonth } from '../lib/format';
-import { SOURCE_META } from '../lib/insight';
 import { enterProps, expandProps } from '../lib/motion';
 import { useRunStore } from '../store/runStore';
 import { EMPTY_SECTION } from '../types/brief';
-import type {
-  Brief,
-  BriefHighlight,
-  BriefHighlightSource,
-  BriefSectionKey,
-  InsightCard,
-  SuggestedAction,
-} from '../types/brief';
+import type { Brief, BriefSectionKey, InsightCard, SuggestedAction } from '../types/brief';
 
 type Props = { onNavigate: (hash: string) => void };
 
@@ -92,22 +83,6 @@ function minutesOfDay(meta?: string | null): number | null {
   return hour * 60 + minute;
 }
 
-/* Same icons the cards use, so one thing never wears two faces on one screen.
-   `calendar` is the one the insight cards have no equivalent for — a meeting is
-   never an insight — and it borrows the tile's icon rather than inventing one. */
-const HIGHLIGHT_META: Record<BriefHighlightSource, { Icon: typeof Inbox; label: string }> = {
-  ...SOURCE_META,
-  calendar: { Icon: CalendarDays, label: 'Takvim' },
-};
-
-/** Which section owns a named item, so clicking it can open the right list. */
-const HIGHLIGHT_SECTION: Record<BriefHighlightSource, BriefSectionKey> = {
-  gmail: 'inbox',
-  jira: 'work',
-  github: 'code',
-  calendar: 'calendar',
-};
-
 /** Where the header badge went (issue: "canlı api yazısını sil"): the data
  *  source is a property of *the brief*, not of the whole product chrome. */
 const SOURCE_NOTE =
@@ -124,7 +99,6 @@ export function TodayScreen({ onNavigate }: Props) {
      come from", which is a question about the plumbing — the screen's own
      question is "what do I do now", and that is the feed above. */
   const [sectionsOpen, setSectionsOpen] = useState(false);
-  const [focusItemId, setFocusItemId] = useState<string | null>(null);
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
   const [playbookPhase, setPlaybookPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [playbookError, setPlaybookError] = useState<string | null>(null);
@@ -317,28 +291,8 @@ export function TodayScreen({ onNavigate }: Props) {
     }
   };
 
-  /*
-    Where a named item takes you: its section panel, with the row marked.
-
-    The alternative was the priority list above, and it loses. The tally names
-    what ARRIVED; the priority list holds what the model chose to act on, and
-    the two are not the same set — a meeting is never in it, and neither is the
-    second mail on a busy morning. Sending half the chips to a row that is not
-    there is worse than sending all of them to the list that, by construction,
-    contains every one of them and links out to the real thing.
-  */
-  const openHighlight = (highlight: BriefHighlight) => {
-    // The lists live behind a disclosure now; naming a row has to open it too,
-    // or the click lands on something that is not on the screen.
-    setSectionsOpen(true);
-    setOpenKey(HIGHLIGHT_SECTION[highlight.source] ?? 'inbox');
-    setFocusItemId(highlight.itemId);
-  };
-
   const toggleSection = (key: BriefSectionKey) => {
     setOpenKey((cur) => (cur === key ? null : key));
-    // Opening a section by hand is a different intent — drop the old mark.
-    setFocusItemId(null);
   };
 
   const toggleSections = () => {
@@ -347,7 +301,6 @@ export function TodayScreen({ onNavigate }: Props) {
         // Closing the drawer closes what was open inside it; reopening to a
         // panel the user cannot remember choosing is its own small betrayal.
         setOpenKey(null);
-        setFocusItemId(null);
       }
       return !cur;
     });
@@ -380,65 +333,15 @@ export function TodayScreen({ onNavigate }: Props) {
             </h1>
 
             {/*
-              The counted day, directly under the date — the first sentence on
-              the screen, and the only one that is there whether or not a model
-              could write anything. It sits inside the header block on purpose:
-              a section of its own would have cost the 24px body gap on top of
-              its own height, and Bugün has to keep fitting one viewport.
-
-              No box, no tinted panel. On a quiet day the headline says so in
-              one line and there is nothing else to draw — framing zeros would
-              be exactly the fake density the count exists to avoid.
+              One sentence, directly under the date, and then the list. What
+              used to sit here — a counted breakdown line, four "öne çıkan"
+              chips and a written paragraph — named the same five records the
+              list below names, so the first action started after 53% of the
+              screen. Nothing was lost by deleting them: the chips linked to
+              rows that are already visible, the breakdown is on the "Tümünü
+              gör" line, and the reason a job is first rides on that job's row.
             */}
-            {brief?.today ? (
-              <div className="tally">
-                <p className="tally__headline">{brief.today.headline}</p>
-                {brief.today.lines.length > 0 && (
-                  <p className="tally__lines">
-                    {brief.today.lines.map((line) => (
-                      <span className="tally__line" key={line}>
-                        {line}
-                      </span>
-                    ))}
-                  </p>
-                )}
-
-                {/*
-                  The counts say how much; these say what. Empty whenever only
-                  mailings arrived — a list of nothing named is not worth a row,
-                  and the count above already told that story honestly.
-                */}
-                {brief.today.highlights.length > 0 && (
-                  <ul className="tally__named">
-                    {brief.today.highlights.map((highlight) => {
-                      const meta = HIGHLIGHT_META[highlight.source] ?? HIGHLIGHT_META.gmail;
-                      return (
-                        <li key={`${highlight.source}:${highlight.itemId}`}>
-                          <button
-                            type="button"
-                            className="tally__item"
-                            onClick={() => openHighlight(highlight)}
-                          >
-                            <span className="tally__item-icon" aria-hidden>
-                              <meta.Icon size={13} />
-                            </span>
-                            <span className="tally__item-text">
-                              <span className="tally__item-label">{highlight.label}</span>
-                              {highlight.detail ? (
-                                <span className="tally__item-detail">{highlight.detail}</span>
-                              ) : null}
-                            </span>
-                            <span className="sr-only">
-                              {meta.label} — bölüm listesinde göster
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            ) : null}
+            {brief?.today ? <p className="tally__headline">{brief.today.headline}</p> : null}
 
             <p className="brief-top__meta">
               <span
@@ -494,25 +397,13 @@ export function TodayScreen({ onNavigate }: Props) {
         */}
         {!showBody ? null : (
           <div className="brief-body">
-            {/* ---------------- GÜNÜN ÖZETİ ---------------- */}
-            {/* Absent whenever the model could not write it — an honest gap beats a
-                sentence that sounds like a summary and says nothing. It rides UNDER
-                the counted headline above and never replaces it: the count says how
-                much is waiting, this says what it means. Two different claims, so
-                they get two different voices and never sit on top of each other. */}
-            {brief?.digest ? (
-              <motion.section className="digest" aria-labelledby="digest-h" {...enterProps(0, reduce)}>
-                <h2 className="sr-only" id="digest-h">
-                  Günün özeti
-                </h2>
-                <p className="digest__summary">{brief.digest.summary}</p>
-                {brief.digest.advice ? (
-                  <p className="digest__advice">
-                    <Sparkles size={13} aria-hidden /> {brief.digest.advice}
-                  </p>
-                ) : null}
-              </motion.section>
-            ) : null}
+            {/* The written summary used to sit here, between the headline and the
+                list, and it said the list out loud a second time: the paragraph
+                named the same records, the advice line under it repeated the
+                first row's reason word for word. The digest is still fetched and
+                still used — `digest.priorities[].why` is what each row says under
+                its title, which is the one place a reason can be read next to the
+                thing it is about. What is gone is the copy of it up here. */}
 
             {/* ---------------- YAPILACAK İŞLER ---------------- */}
             {/* The screen's spine (issue #30). One row per job — what it is, why
@@ -663,11 +554,7 @@ export function TodayScreen({ onNavigate }: Props) {
                               section={brief?.[openMeta.key] ?? EMPTY}
                               tileId={`tile-${openMeta.key}`}
                               panelId={`panel-${openMeta.key}`}
-                              focusItemId={focusItemId}
-                              onClose={() => {
-                                setOpenKey(null);
-                                setFocusItemId(null);
-                              }}
+                              onClose={() => setOpenKey(null)}
                               onGoToConnections={() => onNavigate('#/connections')}
                               onRetry={() => void load('refresh')}
                             />

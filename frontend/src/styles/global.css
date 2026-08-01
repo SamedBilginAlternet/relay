@@ -1628,115 +1628,21 @@ a.btn {
   font-weight: 500;
 }
 /*
-  The counted day (issue #24). Deliberately unboxed: a panel here would be
-  the fake density the count exists to avoid, and it would compete with the
-  one card below that can actually be acted on. Weight and position carry
-  it instead — first thing under the date, heavier than everything around.
+  The counted day (issue #24), now the whole of it. Deliberately unboxed: a
+  panel here would be the fake density the count exists to avoid.
+
+  It used to have three more parts — a breakdown line, a row of named chips and,
+  under them, a written paragraph with an advice line. All four said the same
+  five records, and the list below said them a fifth time, which is how the
+  first action ended up starting after 53% of the screen (issue #58). One
+  sentence is what is left, and it is the only one that was ever load-bearing.
 */
-.tally {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin: 6px 0 5px;
-}
 .tally__headline {
+  margin: 6px 0 5px;
   font-size: 17px;
   font-weight: 600;
   line-height: 1.35;
   color: var(--fg);
-}
-/* One wrapping line, not a chip row: chips would need boxes, and the phrases
-   are a sentence's worth of facts, not four separate controls. */
-.tally__lines {
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--fg-muted);
-}
-.tally__line + .tally__line::before {
-  content: '·';
-  margin: 0 8px;
-  color: var(--fg-faint);
-}
-
-/*
-  The day's items by name (issue #25). Same idiom as the playbook shelf at the
-  bottom of this screen — a pill with a title and a small second line — because
-  on Bugün that shape already means "a thing you can go to", and teaching a
-  second shape for the same promise would be the expensive way to say it.
-*/
-.tally__named {
-  list-style: none;
-  margin: 4px 0 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-8);
-}
-.tally__item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-8);
-  min-height: 44px; /* a real target, not an inline footnote */
-  max-width: 100%;
-  padding: 4px 14px 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-pill);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 160ms ease-out, border-color 160ms ease-out,
-    transform 120ms ease-out;
-}
-.tally__item:hover {
-  border-color: var(--accent-line);
-  background: var(--accent-soft);
-}
-.tally__item:active {
-  transform: scale(0.97);
-}
-.tally__item-icon {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--bg-subtle);
-  color: var(--fg-muted);
-}
-.tally__item:hover .tally__item-icon {
-  border-color: var(--accent-line);
-  background: #fff;
-  color: var(--accent);
-}
-.tally__item-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-/* A subject line can be a paragraph. One line, clipped — the full text is one
-   click away in the row this points at. */
-.tally__item-label {
-  max-width: 30ch;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.25;
-  color: var(--fg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tally__item-detail {
-  max-width: 30ch;
-  font-size: 11.5px;
-  line-height: 1.25;
-  color: var(--fg-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Where the old header badge lives now: the data source describes the
@@ -1780,35 +1686,6 @@ a.btn {
   display: flex;
   flex-direction: column;
   gap: var(--s-24);
-}
-
-/* The day in a sentence. It sits above everything because it is the answer to the
-   question the screen exists for; the cards below are the evidence. Quiet by design —
-   a tinted block here would compete with the one card that can actually be acted on. */
-.digest {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-left: var(--s-12);
-  border-left: 2px solid var(--accent-line);
-}
-.digest__summary {
-  font-size: 15px;
-  line-height: 1.55;
-  color: var(--fg);
-}
-.digest__advice {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--fg-muted);
-}
-.digest__advice svg {
-  flex: 0 0 auto;
-  margin-top: 3px;
-  color: var(--accent);
 }
 
 .brief-prio,
@@ -2509,16 +2386,6 @@ a.btn {
 }
 .brief-row:last-child {
   border-bottom: 0;
-}
-/* Where a named item from the day summary lands. Tint plus the accent edge —
-   the same mark a citation uses when it lands on its source, never colour on
-   its own — and it stays put instead of flashing, so it is still there for
-   anyone who looked away while the panel opened. */
-.brief-row--focus {
-  padding-left: var(--s-12);
-  border-radius: 6px;
-  background: var(--accent-soft);
-  box-shadow: inset 3px 0 0 0 var(--accent);
 }
 .brief-row__dot {
   flex: 0 0 auto;

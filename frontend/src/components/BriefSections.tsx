@@ -1,7 +1,6 @@
 import { motion, useReducedMotion } from 'motion/react';
 import { ChevronDown, ExternalLink, Play, Plug, TriangleAlert, Workflow, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useEffect, useRef } from 'react';
 import type { Playbook } from '../data/PlaybookSource';
 import { enterProps } from '../lib/motion';
 import type { BriefSection } from '../types/brief';
@@ -127,9 +126,6 @@ type PanelProps = {
   section: BriefSection;
   panelId: string;
   tileId: string;
-  /** Row to bring into view and mark — set when the panel was opened by name
-   *  from the day summary rather than by clicking the tile. */
-  focusItemId?: string | null;
   onClose: () => void;
   onGoToConnections: () => void;
   onRetry: () => void;
@@ -137,34 +133,18 @@ type PanelProps = {
 
 /** The full list for exactly one section — never two at once, so the screen
  *  keeps its height and the user keeps their place. */
+/* No row is singled out any more: the chip row that used to open a panel by
+   name is gone (issue #58), and with it the only caller that could ask for a
+   row to be scrolled to and marked. */
 export function SectionPanel({
   meta,
   section,
   panelId,
   tileId,
-  focusItemId,
   onClose,
   onGoToConnections,
   onRetry,
 }: PanelProps) {
-  const focusRef = useRef<HTMLLIElement>(null);
-  const reduce = useReducedMotion();
-
-  /* The panel is still expanding when this runs, so its rows have no final
-     position yet — wait out the expansion, then bring the named row in. The
-     mark itself is not a flash: it stays until the panel is closed, so it is
-     still there for someone who took a second to look away. */
-  useEffect(() => {
-    if (!focusItemId) return;
-    const id = window.setTimeout(() => {
-      focusRef.current?.scrollIntoView({
-        behavior: reduce ? 'auto' : 'smooth',
-        block: 'center',
-      });
-    }, 260);
-    return () => window.clearTimeout(id);
-  }, [focusItemId, reduce]);
-
   return (
     <div className="tpanel" id={panelId} role="region" aria-labelledby={tileId}>
       <div className="tpanel__head">
@@ -180,14 +160,8 @@ export function SectionPanel({
 
       {section.status === 'ok' && section.items.length > 0 && (
         <ul className="brief-list">
-          {section.items.map((item) => {
-            const focused = focusItemId != null && item.id === focusItemId;
-            return (
-            <li
-              key={item.id}
-              ref={focused ? focusRef : undefined}
-              className={`brief-row${focused ? ' brief-row--focus' : ''}`}
-            >
+          {section.items.map((item) => (
+            <li key={item.id} className="brief-row">
               <span className={`brief-row__dot brief-row__dot--${item.tone ?? 'default'}`} aria-hidden />
               <span className="brief-row__main">
                 <span className="brief-row__title">
@@ -204,8 +178,7 @@ export function SectionPanel({
               </span>
               {item.meta && <span className="brief-row__meta">{item.meta}</span>}
             </li>
-            );
-          })}
+          ))}
         </ul>
       )}
 
