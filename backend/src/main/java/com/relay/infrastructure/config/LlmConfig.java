@@ -9,6 +9,7 @@ import com.relay.infrastructure.llm.GroqLlmClient;
 import com.relay.infrastructure.llm.HttpTransport;
 import com.relay.infrastructure.llm.JdkHttpTransport;
 import com.relay.infrastructure.llm.RoutingLlmClient;
+import com.relay.infrastructure.llm.Sleeper;
 import com.relay.infrastructure.llm.StubLlmClient;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
@@ -190,7 +191,8 @@ public class LlmConfig {
                                @Value("${app.llm.third.price.input-usd-per-million:0}") double thirdInput,
                                @Value("${app.llm.third.price.output-usd-per-million:0}") double thirdOutput,
                                @Value("${app.groq.cooldown-seconds:60}") long cooldownSeconds,
-                               @Value("${app.llm.routing-budget-seconds:20}") long routingBudgetSeconds) {
+                               @Value("${app.llm.routing-budget-seconds:20}") long routingBudgetSeconds,
+                               @Value("${app.llm.retry-wait-seconds:3}") long retryWaitSeconds) {
         // `Arrays.asList`, not `List.of`: an unconfigured tier is null and the router is
         // what drops it. `List.of` throws on a null element, which would turn "no third
         // provider" into a failure to start.
@@ -200,6 +202,7 @@ public class LlmConfig {
                         cooldownSeconds),
                 behindClient(transport, clock, thirdKeys, thirdBaseUrl, thirdModel, thirdProvider,
                         thirdInput, thirdOutput, cooldownSeconds)),
-                stub, clock, Duration.ofSeconds(routingBudgetSeconds));
+                stub, clock, Duration.ofSeconds(routingBudgetSeconds),
+                Duration.ofSeconds(retryWaitSeconds), Sleeper.real());
     }
 }

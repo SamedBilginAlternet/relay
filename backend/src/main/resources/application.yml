@@ -116,6 +116,12 @@ app:
     # trying. This does not make a struggling provider answer faster — it makes "everything is
     # struggling right now" resolve in one bounded wait instead of the sum of all of them.
     routing-budget-seconds: ${LLM_ROUTING_BUDGET_SECONDS:20}
+    # After every tier fails once, wait this long and give the whole chain one more look
+    # before answering from the stub. A burst of calls from one multi-step run (plan, then a
+    # params call per step, then a verify) can park a small key pool on its own — that reads
+    # identically to "every provider is down" but often clears within a few seconds. Zero
+    # skips the second look entirely.
+    retry-wait-seconds: ${LLM_RETRY_WAIT_SECONDS:3}
     # Which jobs the small model is enough for. Comma separated; blank uses the default
     # below. Everything not named here — including a purpose this build has never heard of —
     # goes to the strong model, because unknown must mean expensive, never wrong.

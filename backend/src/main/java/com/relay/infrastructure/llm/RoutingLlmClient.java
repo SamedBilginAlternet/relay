@@ -57,11 +57,29 @@ public class RoutingLlmClient implements LlmClient {
      */
     private static final Duration DEFAULT_BUDGET = Duration.ofSeconds(20);
 
+    /**
+     * How long the router waits, once every tier has failed, before giving the whole chain
+     * one more look — {@link Duration#ZERO} by default, which skips the second look entirely
+     * and is what every pre-existing constructor still gets, so nothing already built on this
+     * class changed behaviour underneath it.
+     *
+     * <p>Live, Sohbet's multi-step runs make several LLM calls in quick succession — a plan,
+     * then a params call per step, then a verify — against a primary tier with as few as two
+     * keys. A burst that parks both for their cooldown reads identically to "every provider is
+     * down", but it often is not: another run's key frees up, or a 429 that asked for a few
+     * seconds rather than a minute clears, well inside what a person watching one step is
+     * already waiting through. Skipping straight to the stub in that window writes filler
+     * nobody asked for and fails a step that a few seconds would have answered.
+     */
+    private static final Duration DEFAULT_RETRY_WAIT = Duration.ZERO;
+
     /** In preference order, nulls dropped. Never empty of meaning: it may be empty of tiers. */
     private final List<GroqLlmClient> tiers;
     private final StubLlmClient fallback;
     private final Clock clock;
     private final Duration budget;
+    private final Duration retryWait;
+    private final Sleeper sleeper;
     /**
      * Set only by failures another key cannot fix (a rejected request, a dead key).
      * Rate limiting is <em>not</em> recorded here: the pool already parks the key and
@@ -83,8 +101,14 @@ public class RoutingLlmClient implements LlmClient {
         this(tiers, fallback, Clock.system(), DEFAULT_BUDGET);
     }
 
-    /** The full shape, plus the clock and the total-chain deadline they are measured against. */
+    /** The clock and the total-chain deadline they are measured against; no post-exhaustion retry. */
     public RoutingLlmClient(List<GroqLlmClient> tiers, StubLlmClient fallback, Clock clock, Duration budget) {
+        this(tiers, fallback, clock, budget, DEFAULT_RETRY_WAIT, Sleeper.real());
+    }
+
+    /** The full shape: also how long to wait for one more look once every tier has failed. */
+    public RoutingLlmClient(List<GroqLlmClient> tiers, StubLlmClient fallback, Clock clock, Duration budget,
+                            Duration retryWait, Sleeper sleeper) {
         List<GroqLlmClient> kept = new ArrayList<>();
         for (GroqLlmClient tier : tiers) {
             if (tier != null) {
@@ -95,6 +119,8 @@ public class RoutingLlmClient implements LlmClient {
         this.fallback = fallback;
         this.clock = clock == null ? Clock.system() : clock;
         this.budget = budget == null ? DEFAULT_BUDGET : budget;
+        this.retryWait = retryWait == null ? DEFAULT_RETRY_WAIT : retryWait;
+        this.sleeper = sleeper == null ? Sleeper.real() : sleeper;
     }
 
     private GroqLlmClient tier(int index) {
@@ -107,6 +133,24 @@ public class RoutingLlmClient implements LlmClient {
 
     @Override
     public LlmResponse complete(LlmRequest request) {
+        LlmResponse response = tryChain(request);
+        if (response != null) {
+            return response;
+        }
+        if (!retryWait.isZero()) {
+            LOG.log(Level.INFO, "every tier failed — waiting {0} for one more look before the stub",
+                    retryWait);
+            sleeper.sleep(retryWait);
+            response = tryChain(request);
+            if (response != null) {
+                return response;
+            }
+        }
+        return fallback.complete(request);
+    }
+
+    /** One pass over every tier, in order. {@code null} means all of them failed. */
+    private LlmResponse tryChain(LlmRequest request) {
         Instant deadline = clock.now().plus(budget);
         for (int i = 0; i < tiers.size(); i++) {
             GroqLlmClient tier = tiers.get(i);
@@ -151,7 +195,7 @@ public class RoutingLlmClient implements LlmClient {
                 LOG.log(Level.WARNING, "{0} unavailable ({1})", tier.provider(), e.getMessage());
             }
         }
-        return fallback.complete(request);
+        return null;
     }
 
     private static boolean usable(GroqLlmClient client) {

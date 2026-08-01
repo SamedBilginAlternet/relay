@@ -139,4 +139,110 @@ class RoutingBudgetTest {
         assertThat(thrown).isInstanceOf(LlmUnavailableException.class);
         assertThat(calls[0]).as("a deadline already in the past skips the network entirely").isZero();
     }
+
+    /** Records what it was asked to wait for, but never actually blocks the test. */
+    private static class RecordingSleeper implements Sleeper {
+        final java.util.List<Duration> waits = new java.util.ArrayList<>();
+
+        @Override
+        public void sleep(Duration duration) {
+            waits.add(duration);
+        }
+    }
+
+    @Test
+    void a_cooldown_that_lapses_during_the_retry_wait_answers_instead_of_falling_to_the_stub() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        // A 2s provider-asked cooldown — shorter than the 3s retry wait, so it has genuinely
+        // lapsed (by the same clock the pool checks) once the retry pass runs. This is what
+        // makes the retry real rather than cosmetic: the SAME Clock the pool uses to decide
+        // "is this key still parked" is what the sleeper advances, exactly as a real 3s
+        // Thread.sleep and Clock.system() would agree with each other in production.
+        int[] calls = {0};
+        HttpTransport transport = (url, key, body) -> {
+            calls[0]++;
+            if (calls[0] == 1) {
+                return new HttpTransport.Reply(429, "{}", Duration.ofSeconds(2));
+            }
+            return new HttpTransport.Reply(200, OK_BODY);
+        };
+        GroqLlmClient groqClient = groq(List.of("key-1"), transport, "https://groq.test/v1",
+                "llama-3.3-70b-versatile", "groq", clock);
+        Sleeper sleeper = duration -> clock.advance(duration);
+        RoutingLlmClient router = new RoutingLlmClient(List.of(groqClient), new StubLlmClient(null), clock,
+                Duration.ofSeconds(20), Duration.ofSeconds(3), sleeper);
+
+        var response = router.complete(request());
+
+        assertThat(response.fallback()).as("the retry pass catches the now-lapsed cooldown").isFalse();
+        assertThat(calls[0]).as("first pass, then one retry once the 2s cooldown has lapsed").isEqualTo(2);
+    }
+
+    @Test
+    void when_the_retry_also_fails_the_stub_still_answers() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        int[] calls = {0};
+        HttpTransport transport = (url, key, body) -> {
+            calls[0]++;
+            return new HttpTransport.Reply(429, "{}", Duration.ofSeconds(2));
+        };
+        GroqLlmClient groqClient = groq(List.of("key-1"), transport, "https://groq.test/v1",
+                "llama-3.3-70b-versatile", "groq", clock);
+        RecordingSleeper sleeper = new RecordingSleeper() {
+            @Override
+            public void sleep(Duration duration) {
+                super.sleep(duration);
+                clock.advance(duration);
+            }
+        };
+        RoutingLlmClient router = new RoutingLlmClient(List.of(groqClient), new StubLlmClient(null), clock,
+                Duration.ofSeconds(20), Duration.ofSeconds(3), sleeper);
+
+        var response = router.complete(request());
+
+        assertThat(response.fallback()).isTrue();
+        assertThat(sleeper.waits).containsExactly(Duration.ofSeconds(3));
+        assertThat(calls[0]).as("the lapsed cooldown lets the retry try again, and fail again").isEqualTo(2);
+    }
+
+    @Test
+    void a_zero_retry_wait_never_calls_the_sleeper_and_goes_straight_to_the_stub() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        int[] calls = {0};
+        HttpTransport transport = (url, key, body) -> {
+            calls[0]++;
+            return new HttpTransport.Reply(429, "{}");
+        };
+        GroqLlmClient groqClient = groq(List.of("key-1"), transport, "https://groq.test/v1",
+                "llama-3.3-70b-versatile", "groq", clock);
+        RecordingSleeper sleeper = new RecordingSleeper();
+        RoutingLlmClient router = new RoutingLlmClient(List.of(groqClient), new StubLlmClient(null), clock,
+                Duration.ofSeconds(20), Duration.ZERO, sleeper);
+
+        var response = router.complete(request());
+
+        assertThat(response.fallback()).isTrue();
+        assertThat(sleeper.waits).as("no retry configured, no wait taken").isEmpty();
+        assertThat(calls[0]).isEqualTo(1);
+    }
+
+    @Test
+    void the_pre_existing_constructors_default_to_no_retry_at_all() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        int[] calls = {0};
+        HttpTransport transport = (url, key, body) -> {
+            calls[0]++;
+            return new HttpTransport.Reply(429, "{}");
+        };
+        GroqLlmClient groqClient = groq(List.of("key-1"), transport, "https://groq.test/v1",
+                "llama-3.3-70b-versatile", "groq", clock);
+        // The 4-arg constructor every earlier test in this package already uses.
+        RoutingLlmClient router = new RoutingLlmClient(List.of(groqClient), new StubLlmClient(null), clock,
+                Duration.ofSeconds(20));
+
+        var response = router.complete(request());
+
+        assertThat(response.fallback()).isTrue();
+        assertThat(calls[0]).as("unchanged behaviour for every pre-existing call site").isEqualTo(1);
+    }
 }
