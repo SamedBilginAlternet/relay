@@ -76,4 +76,41 @@ class DayTallyTest {
         assertThat(tally.headline()).isEqualTo("Bugün seni bekleyen bir şey görünmüyor.");
         assertThat(tally.lines()).first().asString().contains("hepsi bülten");
     }
+
+    /** A count says there is something; a name says what — and mail is where that matters. */
+    @Test
+    void the_mail_that_a_person_sent_is_named_not_just_counted() {
+        BriefItem personal = new BriefItem("gmail:9", "gmail", "mail", "",
+                "Ödeme servisi staging'de patlıyor", "Ayşe Demir", "2sa önce", "Ayşe Demir",
+                "https://mail", "2026-08-01T06:00:00Z", BriefItem.DEFAULT, Map.of("bulk", false));
+
+        DayTally tally = DayTally.of(List.of(mail("1", true), personal, mail("2", true)),
+                List.of(), List.of(), List.of(), 0);
+
+        assertThat(tally.highlights()).singleElement().satisfies(highlight -> {
+            assertThat(highlight.source()).isEqualTo("gmail");
+            assertThat(highlight.label()).isEqualTo("Ödeme servisi staging'de patlıyor");
+            assertThat(highlight.detail()).isEqualTo("Ayşe Demir · 2sa önce");
+            assertThat(highlight.itemId()).isEqualTo("gmail:9");
+        });
+    }
+
+    @Test
+    void a_mailing_is_never_named() {
+        DayTally tally = DayTally.of(List.of(mail("1", true), mail("2", true)),
+                List.of(), List.of(), List.of(), 0);
+
+        assertThat(tally.highlights()).isEmpty();
+    }
+
+    @Test
+    void each_source_contributes_the_one_at_its_top() {
+        DayTally tally = DayTally.of(List.of(),
+                List.of(item("KAN-4", "jira", "issue", "25dk önce")),
+                List.of(item("acme/pay#12", "github", "pr", "1sa önce")),
+                List.of(item("Sprint planlama", "calendar", "event", "14:00")), 0);
+
+        assertThat(tally.highlights()).extracting(DayTally.Highlight::source)
+                .containsExactly("jira", "github", "calendar");
+    }
 }

@@ -17,12 +17,40 @@ import java.util.Map;
  * requests wait, when the first meeting starts. Numbers that cannot be wrong, and that are
  * there whether or not a model answered.
  */
-public record DayTally(String headline, List<String> lines, Map<String, Integer> counts) {
+public record DayTally(String headline, List<String> lines, List<Highlight> highlights,
+                      Map<String, Integer> counts) {
+
+    /**
+     * One named thing, not a number.
+     *
+     * <p>"1 mail bir kişiden geldi" tells the reader there is something without telling them
+     * what — they still have to go look. The subject and the sender are already on screen
+     * three rows down; putting them in the summary costs nothing and answers the question.
+     *
+     * @param itemId the brief item this points at, so the UI can scroll to it
+     * @param source gmail | jira | github | calendar
+     * @param label  what it is, in one phrase
+     * @param detail who it is from / what state it is in
+     */
+    public record Highlight(String itemId, String source, String label, String detail) {
+
+        public Map<String, Object> view() {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("itemId", itemId);
+            map.put("source", source);
+            map.put("label", label);
+            map.put("detail", detail);
+            return map;
+        }
+    }
 
     public Map<String, Object> view() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("headline", headline);
         map.put("lines", lines);
+        List<Map<String, Object>> named = new ArrayList<>();
+        highlights.forEach(highlight -> named.add(highlight.view()));
+        map.put("highlights", named);
         map.put("counts", counts);
         return map;
     }
@@ -73,7 +101,47 @@ public record DayTally(String headline, List<String> lines, Map<String, Integer>
         }
 
         return new DayTally(headline(personalMail, work.size(), code.size(), calendar.size(), urgent),
-                lines, counts);
+                lines, highlights(inbox, work, code, calendar), counts);
+    }
+
+    /**
+     * The few things worth naming: mail from a person first, because that is the one the
+     * reader cannot see from the counts and the one that usually carries a request.
+     * Mailings never appear here — they are not work.
+     */
+    private static List<Highlight> highlights(List<BriefItem> inbox, List<BriefItem> work,
+                                              List<BriefItem> code, List<BriefItem> calendar) {
+        List<Highlight> out = new ArrayList<>();
+        for (BriefItem mail : inbox) {
+            if (out.size() >= 2 || Boolean.TRUE.equals(mail.ref().get("bulk"))) {
+                continue;
+            }
+            out.add(new Highlight(mail.id(), "gmail", mail.rowTitle(),
+                    join(mail.from(), mail.meta())));
+        }
+        if (!work.isEmpty()) {
+            BriefItem issue = work.get(0);
+            out.add(new Highlight(issue.id(), "jira", issue.rowTitle(), issue.subtitle()));
+        }
+        if (!code.isEmpty()) {
+            BriefItem pull = code.get(0);
+            out.add(new Highlight(pull.id(), "github", pull.rowTitle(), pull.subtitle()));
+        }
+        if (!calendar.isEmpty()) {
+            BriefItem event = calendar.get(0);
+            out.add(new Highlight(event.id(), "calendar", event.rowTitle(), event.meta()));
+        }
+        return out;
+    }
+
+    /** "Ayşe Demir · 2sa önce", skipping whichever half is missing. */
+    private static String join(String left, String right) {
+        boolean hasLeft = left != null && !left.isBlank();
+        boolean hasRight = right != null && !right.isBlank();
+        if (hasLeft && hasRight) {
+            return left + " · " + right;
+        }
+        return hasLeft ? left : (hasRight ? right : "");
     }
 
     /** One sentence that survives an empty day without pretending it was busy. */
