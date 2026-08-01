@@ -26,7 +26,7 @@ gibi girdiği için sınırsız bir metin bütçeyi tek başına yakar), `Run` k
      │                                  ├─ ask  → dur, kullanıcıya sor
      │                                  └─ auto → devam
      ▼
-  ToolAgent  ── parametreleri kesinleştir → 6 koruma kapısı → aracı çağır
+  ToolAgent  ── parametreleri kesinleştir → koruma kapıları → aracı çağır
      │
      ▼
   Verifier   ── sonuç hedefi karşılıyor mu?  hayır → adımı geri gönder (en fazla 2)
@@ -39,10 +39,10 @@ Rol dağılımı:
 
 | Sınıf | İşi |
 |---|---|
-| `application/orchestrator/Planner.java` | Hedef → sıralı adımlar. Şema dışına çıkan yanıt tek bir "düşünme" adımına düşer, akış patlamaz. Uydurulmuş araç adı `toolName = null` yapılır. |
+| `application/orchestrator/Planner.java` | Hedef → sıralı adımlar. **Ayrıştırılamayan yanıt** (düz yazı, düşünce zinciri — hiç adım dizisi yok) `PlanUnreadableException` ile koşuyu Türkçe gerekçeyle `failed` kapatır; canlıda bu yanıtlar tek adımlık "Hedefi özetle"ye düşüp yeşil kapanıyordu ve hiçbir kaynağa dokunmamış koşu "Tamamlandı" diyordu. Ayrışan ama **boş** plan (`[]`) gerçek bir cevaptır ve tek düşünme adımına iner. Uydurulmuş araç adı `toolName = null` yapılır. |
 | `Coordinator.java` | Döngüyü yürütür. **Yeniden girilebilir**: insana ihtiyaç duyan ilk adımda durur, `approve`/`reject` geldiğinde tam oradan devam eder. Run başına `ReentrantLock` ile aynı akışın iki kez sürülmesi engellenir. |
 | `ToolAgent.java` | Uzman. Adımın aracının şemasına göre parametreleri kesinleştirir (önceki adımların sonuçlarını okuyarak), koruma kapılarından geçirir, çağırır. Araçsız adımı LLM ile yazar. |
-| `Verifier.java` | Denetçi. Sonucu hedefe karşı yargılar. `pass:false` ise adım ajanına geri gider (`Step.MAX_RETRIES`). Parse edilemeyen yargı **kabul** sayılır — doğrulayıcı akışı kilitlemez. |
+| `Verifier.java` | Denetçi. Sonucu hedefe karşı yargılar. `pass:false` ise adım ajanına geri gider (`Step.MAX_RETRIES`); yazma adımında bu geri dönüş **onayı da tüketir** (§2). Parse edilemeyen yargı adımı geçirir ama artık **"denetlenemedi … adım geçti, doğrulanmadı"** diye yazılır — "doğrulandı" kimsenin denetlemediği adıma harcanmaz (`Verdict.judged`). `pass` alanı eksik ama şikâyet taşıyan JSON ise adımı düşürür: alanı eksik olumsuz yargıdır. |
 | `Summarizer.java` | Kapanış cümlesi. Başarısız olabilir; akış zaten bitmiştir, özet yoksa sadece kapanış satırı değişir. |
 | `AgentJournal.java` | Ajanlar arası her cümle hem `Run`'a yazılır hem `agent.message` olayı olarak akar. Zaman çizelgesinde "kim kime ne dedi" bundan gelir. |
 
@@ -87,8 +87,24 @@ adım → PolicyEngine
 ```
 
 Kullanıcı `POST /api/runs/{id}/steps/{stepId}/approve` derse `RunService.approve` adımı
-onaylar ve koordinatörü yeniden sürer. Bütçe yüzünden durulmuşsa onay ayrıca
-`run.budgetOverridden(true)` yapar — o akış için tavanı kaldırır.
+onaylar ve koordinatörü yeniden sürer. Park nedeni adımda saklanır (`Step.pausedBy`:
+`policy | budget`) çünkü onay ayrı bir HTTP isteğidir; bütçe parkının onayı yalnız
+`run.budgetOverridden(true)` yapar — tavan o akış için kalkar, **karar boş kalır** ve
+yazma adımı yine kendi onay kapısına gelir. Bütçe kapısı politika kapısından *önce*
+denetlenir: ters sıra, kullanıcıya para mesajı okutup yazma izni imzalatıyordu.
+
+İki değişmez kural daha var, ikisi de canlı bir olaydan sonra kondu:
+
+- **Bir onay bir deneme alır.** Tek `jira.createIssue` onayı, denetçi reddedip adım
+  yeniden denenince üç Jira kaydı açtı (KAN-24/25/26). Artık yazma adımı hangi nedenle
+  geri dönerse dönsün (`retryWithProviderFeedback`, plan onarımı, denetçi reddi)
+  `decision` temizlenir, parametreler o anda yeniden türetilir ve adım kapıya geri gelir.
+- **Gönderilemez taslak kapıya gelmez.** Canlıda `projectKey`'siz ve `summary`'siz bir
+  `jira.createIssue` onaylatıldı, araç tam o alanlar için reddetti ve aynı taslak aynı
+  insana geri geldi (onay kartında `params={}`). Şemayı geçmeyen ya da okunmaz (yer
+  tutuculu/şablonlu) taslak artık `Coordinator.rewriteBeforeAsking` ile kapıya çıkmadan
+  onarılır; `Step.MAX_RETRIES` içinde düzelmezse adım eksik alanları sayarak başarısız
+  olur — insana ikinci kez, kimsenin gönderemeyeceği bir şey sorulmaz.
 
 Red farklı çalışır. `RunService.reject` adımı `decision=REJECTED`, `rejectReason=<gerekçe>`
 yapar ama **`PENDING` bırakır**. Sonlandırmayı koordinatör yapar: `Coordinator.rejectStep`
@@ -101,6 +117,17 @@ ajanına yazar ve `step.finished` olayı olarak yayınlar. Yani gerekçe kaybolm
 ## 3. Bugün ekranı
 
 `GET /api/brief` → `application/brief/BriefService.java`. Üç özellik bilinçli:
+
+**Bayat özet anında, yenisi arkada (stale-while-revalidate).** Ölçüm: önbellek sıcakken
+67 ms, soğuk üretim 3.6 s, tüm Groq anahtarları duvardayken ücretli katmana düşünce
+14.3 s — ve o saniyeler boyunca ekran, beklerken değişmeyen bir günün özetini bekliyordu.
+TTL'i geçmiş brief artık hemen döner (`stale: true` + `cachedAt` ile, kimseye sessizce
+dün servis edilmez), yenisi aynı tek-uçuş kapısından arkada kurulur. **Yenile** yine
+bekler: o buton "bunun güncel olduğuna inanmıyorum" demektir. Kalan tek bekleme yeniden
+başlatma sonrası ilk üretimdi — o da boot'a alındı: `BriefWarmup` ilk brief'i
+`ApplicationReadyEvent`'te kurar (canlı ölçüm: deploy sonrası ilk istek 28.6 s idi,
+ısıtmadan sonra 71 ms), başarısızlığı açılışı asla düşürmez, `BRIEF_WARM_ON_START=false`
+kapatır.
 
 ```
              ┌── gmail.listToday ──┐
@@ -209,15 +236,23 @@ doldurmayı reddettiği bir alandır. Okuma araçlarında da geçerli: içinde `
 de aynı derecede bozuk, ama sağlayıcının hatası bunu söylemez. İşaretçiler dar tutuldu —
 açılı parantez listede yok, çünkü Slack'in kendi sözdizimi `<@U123>` kullanıyor.
 
-**4 · Uydurulan adresin varsayılana çevrilmesi.** `ToolAgent.groundAddresses` + `Tool.withDefaults`.
+**4 · Uydurulan kabın varsayılana çevrilmesi — ve eksik zorunlu kabın doldurulması.**
+`ToolAgent.groundContainers` + `ToolAgent.withConfiguredContainers` + `Tool.withDefaults`.
 Bir akış sırayla `#genel`, `C046F7R6UE9`, `#general` kanallarına yazmayı denedi — üç makul
 uydurma, üç `channel_not_found` — bağlantıda `defaultChannel = #all-samed` yazılı dururken.
-Kayıt anahtarının aksine adresin güvenli bir cevabı var. `channel`/`channelId` alanı hedefte
-veya sonuçlarda geçmiyorsa boşaltılır ve `SlackTool.PostMessage.withDefaults` bağlantıdaki
-varsayılanı koyar. Çözüm **onaydan önce** yapılır: onaylanan parametre ile gönderilen
-parametre aynı olmalı, onaydan sonra sessizce düzeltilen bir kanal başka bir mesaj olurdu.
-Ayrıca `ToolAgent.settings` bağlantıdaki *ayar* alanlarını (`defaultChannel`, `projectKey`,
-`baseUrl`, `login`, `repo`) prompt'a koyar — sıkı beyaz liste, token asla prompt'a girmez.
+Kayıt anahtarının aksine kabın güvenli bir cevabı var: hedefte, sonuçlarda ve bağlantıda
+doğrulanamayan kap alanı (`projectKey`, `channel`, `repo`, `parentDatabaseId`,
+`spreadsheetId`, `sheetName` — `CONTAINER_FIELDS`) bağlantıdaki varsayılana çevrilir.
+İkinci yarı sonradan yaşandı: kap *yanlış* değil **yok** ise kimse bakmıyordu — bağlantıda
+`projectKey = KAN` dururken koşu `$.projectKey is required` ile öldü ve bir insana bu
+hatayla ölecek taslak onaylatıldı. Artık şemanın **required** saydığı boş kap bağlantıdan
+doldurulur; isteğe bağlı kap doldurulmaz (yokluğu "her yerde ara" demektir) ve içerik
+alanları asla doldurulmaz — `summary` üretilemediyse bu bir başarısızlıktır, hedef metni
+başlık diye ödünç alınmaz. Çözüm **onaydan önce** yapılır: onaylanan parametre ile
+gönderilen parametre aynı olmalı, onaydan sonra sessizce düzeltilen bir kanal başka bir
+mesaj olurdu. Ayrıca `ToolAgent.settings` bağlantıdaki *ayar* alanlarını
+(`defaultChannel`, `projectKey`, `baseUrl`, `login`, `repo`) prompt'a koyar — sıkı beyaz
+liste, token asla prompt'a girmez.
 
 **5 · Sınırsız JQL'i sınırlama.** `JiraTool.bound`. Jira'nın `/rest/api/3/search/jql` ucu
 kısıtlayıcı yan tümcesi olmayan sorguya HTTP 400 ("Unbounded JQL queries are not allowed
@@ -236,36 +271,64 @@ eskilerini onaylamıştı. Onay ekranının eski değerleri göstermemesi için 
 `ToolAgent.refreshParams` ile daha o anda yeniden türetilir. Söz şu: **kimsenin görmediği
 parametrelerle yazma çalışmaz.**
 
-Bu altısı `ToolAgent.execute` içinde şu sırayla ve sağlayıcı çağrısından **önce** geçilir:
+Çağrı anındaki sıra (`ToolAgent.execute`, sağlayıcı çağrısından **önce**):
 şema doğrulama → uydurulmuş anahtar → boş içerik → çözülmemiş yer tutucu → çağrı.
+Bu bölüm çekirdek kapıları anlatır; kapanış özetinin kanıt kuralı, digest kusur kapısı,
+okunamayan plan, denetçinin "denetlenemedi" yolu ve sır karartma dahil **14 kapılık tam
+katalog** [ARCHITECTURE.md §4](ARCHITECTURE.md)'te, her biri kendisini doğuran canlı
+olayla birlikte.
 
 ---
 
 ## 5. Model katmanı
 
 ```
-RoutingLlmClient
-   ├─ GroqLlmClient  (birincil)
+RoutingLlmClient — sıralı bir LİSTE, ikinci bir alan değil
+   ├─ 1. katman  birincil   (vars. Groq; etiket LLM_PRIMARY_PROVIDER)
    │     ├─ büyük model  (GROQ_MODEL, vars. llama-3.3-70b-versatile) — ApiKeyPool
    │     └─ küçük model  (GROQ_SMALL_MODEL, vars. llama-3.1-8b-instant) — AYRI ApiKeyPool
-   └─ StubLlmClient  (çevrimdışı, deterministik)
+   ├─ 2. katman  fallback   (app.llm.fallback.*, vars. DeepSeek — günlük tavansız)
+   ├─ 3. katman  third      (app.llm.third.*, vars. boş; öneri: Gemini'nin OpenAI-uyumlu ucu)
+   └─ StubLlmClient  (çevrimdışı, deterministik, $0)
 ```
+
+Üç sağlayıcı, çünkü 2026-08-01'de iki sağlayıcı aynı saat içinde düştü: yedi Groq
+anahtarı günlük token duvarına çarptı (bir günde 627 bin token), ücretli sağlayıcı aynı
+saat HTTP 599 verdi. Her katman aynı istemcidir — `{base}/chat/completions` + bearer
+anahtar — yani dördüncü sağlayıcı kod değil ortam değişkenidir; yapılandırılmamış katman
+hiç kurulmaz. Katman katman düşerken her katmanın hatası `lastError`'a **eklenir**:
+yalnız ilk hata okunsa operatör yanlış sağlayıcıya para yatırırdı. Birincilin etiketi de
+yapılandırılır (`LLM_PRIMARY_PROVIDER`, vars. `groq`): birincil başka sağlayıcıya
+çevrildiğinde her adım ekranda `groq:deepseek-v4-flash` yazacaktı — var olmayan bir
+sağlayıcı, maliyet karşılaştırmasının yanında.
+
+Çıktı-token tavanı amaca göredir: yapı üreten cevaplar (`PLAN`, `DIGEST`, `INSIGHT`,
+`ASK_ANSWER`) 3600, tek cümlelik işler 1400 (`LlmRequest.ROOM`/`LONG_ROOM`). Ölçülen
+neden: düşünen model çıktı bütçesini yazmadan önce akıl yürütmeye harcar —
+`max_tokens=1400`'de digest `finish=length` ile kırpık geldi (1095 token düşünce, 301
+yazı), 3600'de geçerli JSON döndü. Tavan harcama değildir; yükseltmenin tek bedeli
+doldurmaya karar veren bir model.
 
 `ApiKeyPool` `GROQ_API_KEYS`'teki virgülle ayrılmış anahtarlar üzerinde round-robin yapar.
 Ayrım önemli:
 
-- **429 / kota** → `penalize()`: anahtar soğumaya alınır (varsayılan 60 sn; sağlayıcının
-  `Retry-After` değeri varsa o kullanılır ama 60 sn ile **sınırlanır** — düşmanca bir
-  `Retry-After` anahtarı saatlerce devre dışı bırakamasın).
-- **401/403/402 (reddedilmiş anahtar)** → `retire()`: kalıcı. Beklemek iptal edilmiş bir
-  anahtarı düzeltmez; soğutmaya alsaydık `/api/health/details` her 60 saniyede yeşile döner, her
-  çağrı yine patlardı.
+- **429 / kota** → `penalize()`: anahtar sağlayıcının `Retry-After`'ı kadar park edilir,
+  **en çok 1 saat** (`ApiKeyPool.MAX_PARK`). Eskiden 60 saniyeye kırpılıyordu — günlük
+  duvara çarpmış anahtar her dakika sıraya girip sağlam anahtarı da aynı 429'a sokuyordu.
+- **401/403 (reddedilmiş anahtar)** → `retire()`: kalıcı. Beklemek iptal edilmiş bir
+  anahtarı düzeltmez; soğutmaya alsaydık sağlık her turda yeşile döner, her çağrı yine
+  patlardı.
+- **402 (bakiye yok)** → emekliye **ayrılmaz**, 1 saat park edilir: bakiye öbür taraftan
+  düzelen bir şeydir, emekli anahtar bir sonraki deploy'a kadar ölü kalırdı.
 - **400 (şema hatası)** → rotasyon yok, doğrudan hata. Başka anahtar bunu düzeltmez.
+- **599** → taşıma katmanının kesinti/IO hatası için sentezlediği kod; ≥ 500 gibi
+  rotasyona girer — ağ hatası anahtarın suçu değil ama o an cevap da değil.
 
 Soğuma **model başına** tutulur (`keys` ve `smallKeys` ayrı havuzlar), çünkü Groq her modeli
-ayrı sınırlar. Büyük model tükendiğinde aynı anahtar küçük modelde hâlâ cevap verebilir — tek
-havuz bu kapasiteyi çöpe atardı. Büyük tükendi → küçük denenir → o da tükendiyse
-`LlmUnavailableException` → `StubLlmClient`.
+ayrı sınırlar — kota da **kuruluş başına** sayılır, anahtar başına değil: aynı hesabın beş
+anahtarı tek bütçeyi paylaşır. Büyük model tükendiğinde aynı anahtar küçük modelde hâlâ
+cevap verebilir; ayrım iki yönlü çalışır (küçük tükenirse VERIFY büyüğe çıkar). İkisi de
+tükendiyse `LlmUnavailableException` → sıradaki katman → en sonda `StubLlmClient`.
 
 `degraded` = "**bir sonraki çağrı** birincil sağlayıcıya gitmeyecek". İki kaynağı var: kalıcı
 hata (`hardFailure`) veya kullanılabilir anahtar sayısının sıfır olması. Bir 429 serisi eskiden
@@ -281,9 +344,19 @@ kalırlar).
 `application/port/Tool.java` tek genişleme noktası: `name()`, `description()`, `schema()`,
 `risk()`, `execute()`, `withDefaults()`. Yeni entegrasyon = bu arayüzü uygulayan bir
 `@Component`; Spring toplar, `ToolRegistryImpl` LLM'e sunar, `PolicyEngine` riske göre
-varsayılan politikayı atar. Orkestratör değişmez. Şu an **18 araç** kayıtlı (`GET /api/health/details`
-→ `tools.count`): `jira.*` (7), `github.*` (3), `gmail.*` (4), `calendar.*` (2), `slack.*` (2).
-Risk dağılımı: 12 `read`, 6 `write`, **0 `destructive`** — §10'daki sınır bu sayıdan geliyor.
+varsayılan politikayı atar. Orkestratör değişmez. Şu an **21 araç** kayıtlı (`GET /api/health/details`
+→ `tools.count`): `jira.*` (7), `gmail.*` (4), `calendar.*` (3), `github.*` (3),
+`slack.*` (2), `sheets.appendRow`, `notion.createPage`. Risk dağılımı: 12 `read`,
+9 `write`, **0 `destructive`** — §10'daki sınır bu sayıdan geliyor. Yazma araçlarının
+üçü aynı gün girdi ve üçü de bilerek brief'e **eklenmedi**: brief'teki bir READ aracı her
+tazelemede iki model turu öder, bir WRITE aracı yalnız kullanıldığı koşuda ~100 token —
+bu ürün bir günde 627 bin token harcayıp günlük duvara çarptı ve harcayan okuma
+araçlarıydı. `sheets.appendRow` yalnız `values.append/INSERT_ROWS` ucuna gider (üzerine
+yazamaz, okuyamaz) ve hücreleri `RAW` yazar — model yazımı `=` ile başlayan hücre
+`USER_ENTERED`'da canlı formül olurdu. `calendar.createEvent` davetleri gerçekten yollar
+(`sendUpdates=all` — Google'ın varsayılanı davetlileri sessizce yazar) ve katılımcı
+yalnız adrestir: "Deniz Arslan"dan `deniz.arslan@` türetmek bir yabancıya postalanmış
+tahmindir, adım onun yerine kapının önünde düşer.
 
 `AbstractTool.execute` ortak zincir: süre ölçümü → **şema kapısı** (parametreler geçersizse
 sağlayıcıya hiç gidilmez, `mode: rejected`) → live/replay kararı → hata eşleme (istisna mesajı
@@ -416,12 +489,16 @@ Jüri buradan sorar; hazırlıklı olmak lazım.
   `Coordinator.cancel` uçuştaki çağrıyı aynı gerekçeyle kesmiyor. Doğru olan en küçük adım
   kurtarma değil **dürüst rapor**: açılışta bu akışları gerekçesiyle `failed` yazmak (issue
   #45).
-- **Doğrulayıcı LLM'dir.** Parse edilemeyen yargı **geçti** sayılır — akışın kilitlenmemesi
-  için bilinçli, ama denetimin garantisi değil, en iyi çabası olduğu anlamına gelir.
+- **Doğrulayıcı LLM'dir.** Parse edilemeyen yargı adımı **geçirir** — akışın
+  kilitlenmemesi için bilinçli — ama artık bunu söyleyerek geçirir: iz kaydında
+  "denetlenemedi … adım geçti, doğrulanmadı" yazar, "doğrulandı" değil. Denetim bir
+  garanti değil, en iyi çabadır; en azından sessizliği onay diye satmaz.
 - **Koruma kapıları desen eşlemesidir.** `Filler.MARKERS` ve `Placeholder.MARKERS` sabit
   listeler; yeni bir şablon kalıbı elle eklenene kadar geçer.
-- **Yazma araçları dar.** Gmail gönderme, takvim yazma, Jira silme yok (PRD'de bilinçli
-  kapsam dışı). `DESTRUCTIVE` riskli tek bir araç bile kayıtlı değil — yani mod üründe hiç
+- **Yazma araçları dar.** Gmail *gönderme* yok (yalnız taslak: `gmail.createDraft`),
+  Jira silme yok, hiçbir araçta üzerine-yazma/silme yok (PRD'de bilinçli kapsam dışı);
+  takvim yazma, tabloya satır ekleme ve Notion sayfası bugün eklendi ve üçü de yalnız
+  *ekleyen* uçlara gider. `DESTRUCTIVE` riskli tek bir araç bile kayıtlı değil — yani mod üründe hiç
   çalışmıyor. Modun kendisi test tarafında kayıtlı bir araçla (`TestDoubles.DestructiveTool`)
   yürütülüyor: varsayılan `forbidden`, adım reddediliyor, iz kaydına "YASAK" satırı düşüyor,
   araç hiç çağrılmıyor ve override `auto`'ya çekemiyor (`PolicyEngineTest`,
@@ -433,7 +510,9 @@ Jüri buradan sorar; hazırlıklı olmak lazım.
 - **Onay kapısı adım bazlıdır**, akış bazlı değil: dört yazma adımı olan bir akış dört kez
   sorar. "Hepsini onayla" yok.
 - **Bugün önbelleği global ve 180 saniyelik** (`BRIEF_CACHE_SECONDS`, varsayılan 180 sn — üç
-  dakika). Her önbellek ıskası bir sınıflandırma çağrısı demek, süre bu yüzden uzun. Bağlantı
-  değiştirdikten sonra ekran üç dakika eski kalabilir; `POST /api/brief/refresh` bunu atlar.
+  dakika). Her önbellek ıskası iki model turu demek, süre bu yüzden uzun. TTL'i geçen
+  özet artık isteği bekletmez: bayat hâli `stale: true` ile anında döner, yenisi arkada
+  kurulur (§3). Bağlantı değiştirdikten sonra ekran yine de bir tur eski kalabilir;
+  `POST /api/brief/refresh` bunu atlar.
   Aynı anda gelen ikinci `refresh` **yeni üretim başlatmaz**, sürene katılır (tek uçuş): iki
   yanıt aynı `generatedAt`'i taşır ve tur bir kez ödenir.
