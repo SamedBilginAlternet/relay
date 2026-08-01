@@ -55,3 +55,34 @@ it('the_placeholder_is_not_one_of_the_examples_printed_under_it', () => {
   expect(chips).not.toContain(placeholder.toLowerCase());
   expect(chips).not.toContain(placeholder.replace(/^Örn:\s*/i, '').replace(/\?$/, '').toLowerCase());
 });
+
+/**
+ * The trace prints the query in mono under the sentence, so the screen strips the
+ * server's echo of it out of the answer. It stripped the query and left the dash
+ * that introduced it: "Bu sorguyla eşleşen bir şey bulamadım: Gmail — ." (#99)
+ */
+it('removing_the_echoed_query_does_not_leave_a_dash_holding_nothing', async () => {
+  const { withoutQueryEcho } = await import('./AskScreen');
+  const query = '(from:anthropic) subject:(fatura OR ödeme) newer_than:30d';
+
+  const cleaned = withoutQueryEcho(
+    `Bu sorguyla eşleşen bir şey bulamadım: Gmail — ${query}. Sorunu biraz farklı sorarsan tekrar deneyebilirim.`,
+    query,
+  );
+
+  expect(cleaned).toContain('bulamadım: Gmail.');
+  expect(cleaned).not.toContain('—');
+  expect(cleaned).toContain('tekrar deneyebilirim');
+});
+
+it('a_dash_inside_a_sentence_is_left_where_the_author_put_it', async () => {
+  const { withoutQueryEcho } = await import('./AskScreen');
+
+  const cleaned = withoutQueryEcho(
+    "Jira bağlı değil — Ayarlar'dan bağlayabilirsin. Sorguyu şöyle çevirmiştim: from:x",
+    'from:x',
+  );
+
+  expect(cleaned).toContain("değil — Ayarlar'dan");
+  expect(cleaned).not.toContain('from:x');
+});

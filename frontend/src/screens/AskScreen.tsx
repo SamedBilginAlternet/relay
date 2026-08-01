@@ -76,15 +76,22 @@ function person(raw: string): string {
  * message often ends with it too — printing a 120-character Gmail expression
  * twice on one screen buries the sentence that matters.
  */
-function withoutQueryEcho(message: string, query: string): string {
+export function withoutQueryEcho(message: string, query: string): string {
   if (!query || !message.includes(query)) return message;
-  return message
-    .split(query)
-    .join('')
-    .replace(/\s*:\s*\./g, '.')
-    .replace(/\s*:\s*$/g, '.')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  return (
+    message
+      .split(query)
+      .join('')
+      // The server writes "Gmail — <query>", so taking the query out leaves the dash
+      // holding nothing: "bulamadım: Gmail — ." Only a dash that now sits in front of
+      // punctuation or the end of the line goes; one inside a sentence is the author's.
+      .replace(/\s*[—–-]\s*(?=[.,;]|$)/g, '')
+      .replace(/\s*:\s*\./g, '.')
+      .replace(/\s*:\s*$/g, '.')
+      .replace(/\s*,\s*,/g, ',')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+  );
 }
 
 /**
