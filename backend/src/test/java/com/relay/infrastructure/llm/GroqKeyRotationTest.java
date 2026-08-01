@@ -117,6 +117,41 @@ class GroqKeyRotationTest {
         assertThat(client.degraded()).isTrue();
     }
 
+    /**
+     * "groq HTTP 429" says the calls stopped; it does not say whether to wait a minute or
+     * until tomorrow. The provider's own sentence carries that, and it is the one fact
+     * anyone looking at a degraded Relay needs.
+     */
+    @Test
+    void theProvidersOwnReasonIsCarriedIntoTheError() {
+        String detailed = """
+                {"error":{"message":"Rate limit reached for model llama-3.3-70b-versatile in\
+                 organization org_x on tokens per day (TPD): Limit 100000, Used 100000.\
+                 Please try again in 32m41s","type":"tokens","code":"rate_limit_exceeded"}}
+                """;
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        FakeTransport transport = new FakeTransport(key -> new HttpTransport.Reply(429, detailed));
+        GroqLlmClient client = client(List.of("key-1"), transport, clock);
+
+        assertThatThrownBy(() -> client.complete(request()))
+                .isInstanceOf(LlmUnavailableException.class)
+                .hasMessageContaining("tokens per day")
+                .hasMessageContaining("32m41s");
+    }
+
+    /** A refusal that is not JSON still has to leave a usable line behind. */
+    @Test
+    void aRefusalWithoutABodyFallsBackToTheRetryHeader() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        FakeTransport transport = new FakeTransport(key ->
+                new HttpTransport.Reply(429, "<html>too many requests</html>", Duration.ofSeconds(45)));
+        GroqLlmClient client = client(List.of("key-1"), transport, clock);
+
+        assertThatThrownBy(() -> client.complete(request()))
+                .isInstanceOf(LlmUnavailableException.class)
+                .hasMessageContaining("retry-after 45s");
+    }
+
     @Test
     void routerFallsBackToTheStubWhenGroqIsGone() {
         TestDoubles.FixedClock clock = new TestDoubles.FixedClock();

@@ -76,6 +76,44 @@ public class GroqLlmClient implements LlmClient {
     private record Attempt(LlmResponse response, String error) {
     }
 
+    /** Anything shaped like a key, in case a provider ever echoes one back at us. */
+    private static final java.util.regex.Pattern KEY_LIKE =
+            java.util.regex.Pattern.compile("(?i)gsk_[A-Za-z0-9_-]+");
+    private static final int MAX_HINT = 180;
+
+    /**
+     * The provider's own sentence about a refusal, appended to {@code lastError}.
+     *
+     * <p>"groq HTTP 429" says the calls stopped; it does not say whether to wait a minute or
+     * until tomorrow. Groq answers a rate limit with the model, the limit that was hit and
+     * how long it lasts — <em>"Rate limit reached for model llama-3.3-70b-versatile … Please
+     * try again in 32m41s"</em> — and that is the one fact anyone looking at a degraded Relay
+     * actually needs. Live, all five keys went to 429 within a second and the screen could
+     * only say they were exhausted.
+     *
+     * <p>Shown on {@code /api/health/details}, which is behind the session. The body carries
+     * no credential, but anything key-shaped is masked before it goes anywhere.
+     */
+    private static String hint(HttpTransport.Reply reply) {
+        String message = "";
+        try {
+            message = Json.parse(reply.body()).path("error").path("message").asText("");
+        } catch (RuntimeException e) {
+            message = "";
+        }
+        if (message.isBlank() && reply.retryAfter() != null) {
+            message = "retry-after " + reply.retryAfter().toSeconds() + "s";
+        }
+        if (message.isBlank()) {
+            return "";
+        }
+        String cleaned = KEY_LIKE.matcher(message.replaceAll("\\s+", " ").trim()).replaceAll("gsk_***");
+        if (cleaned.length() > MAX_HINT) {
+            cleaned = cleaned.substring(0, MAX_HINT) + "…";
+        }
+        return " — " + cleaned;
+    }
+
     /** One pass over the pool for a single model. */
     private Attempt attempt(LlmRequest request, String targetModel, ApiKeyPool pool) {
         String body = requestBody(request, targetModel);
@@ -90,7 +128,7 @@ public class GroqLlmClient implements LlmClient {
             if (reply.ok()) {
                 return new Attempt(parse(reply.body(), targetModel), null);
             }
-            lastError = "groq HTTP " + reply.status();
+            lastError = "groq HTTP " + reply.status() + hint(reply);
             if (reply.shouldRotate()) {
                 // A refused key (revoked, out of quota) never recovers; a rate limited one
                 // does. Parking both for 60s would keep resurrecting a dead key.
