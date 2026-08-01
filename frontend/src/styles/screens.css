@@ -303,7 +303,7 @@
 @media (max-width: 640px) {
   .run-row__btn {
     flex-wrap: wrap;
-    padding: 10px 0;
+    padding: 10px var(--s-16);
   }
   .run-row__main {
     flex: 1 1 100%;

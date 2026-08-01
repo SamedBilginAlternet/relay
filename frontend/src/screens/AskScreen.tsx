@@ -302,6 +302,37 @@ export function AskScreen() {
               )}
             </section>
 
+            <section className="card ask-recent" aria-labelledby="ask-recent-h">
+              <h2 className="t-label" id="ask-recent-h">
+                Son sorular
+              </h2>
+              {recent.length === 0 ? (
+                <p className="t-caption ask-recent__none">
+                  <History size={14} aria-hidden />
+                  Henüz bir soru sormadın. Sorduklarını burada tutarız — yalnız bu tarayıcıda,
+                  sunucuda bir kayıt oluşmaz.
+                </p>
+              ) : (
+                <ul className="ask-recent__list">
+                  {recent.map((question) => (
+                    <li key={question}>
+                      <button
+                        type="button"
+                        className="ask-recent__item"
+                        onClick={() => {
+                          setText(question);
+                          void submit(question);
+                        }}
+                      >
+                        <Search size={14} aria-hidden />
+                        <span>{question}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
             {/*
               What happens between the question and the answer, in the order it
               happens. The trace under a real answer says all of this — but only
@@ -342,37 +373,6 @@ export function AskScreen() {
                   </span>
                 </li>
               </ol>
-            </section>
-
-            <section className="card ask-recent" aria-labelledby="ask-recent-h">
-              <h2 className="t-label" id="ask-recent-h">
-                Son sorular
-              </h2>
-              {recent.length === 0 ? (
-                <p className="t-caption ask-recent__none">
-                  <History size={14} aria-hidden />
-                  Henüz bir soru sormadın. Sorduklarını burada tutarız — yalnız bu tarayıcıda,
-                  sunucuda bir kayıt oluşmaz.
-                </p>
-              ) : (
-                <ul className="ask-recent__list">
-                  {recent.map((question) => (
-                    <li key={question}>
-                      <button
-                        type="button"
-                        className="ask-recent__item"
-                        onClick={() => {
-                          setText(question);
-                          void submit(question);
-                        }}
-                      >
-                        <Search size={14} aria-hidden />
-                        <span>{question}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </section>
           </div>
         )}
