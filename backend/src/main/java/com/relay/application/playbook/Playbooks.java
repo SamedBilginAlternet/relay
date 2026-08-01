@@ -55,7 +55,34 @@ public final class Playbooks {
                     Move.required("Review bekleyen PR'ları getir", "github.listMyPullRequests", Map.of()),
                     Move.optional("Bekleyenleri ekibe hatırlat", "slack.postMessage", Map.of())));
 
-    public static final List<Playbook> ALL = List.of(MORNING, BLOCKERS, PR_REVIEW, MAIL_TO_TICKET);
+    /**
+     * "Toplantıya katılmadan önce şuna bak."
+     *
+     * <p>The only read-only playbook, and the reason it is written down rather than typed as a
+     * goal: the shape never changes. Read today's calendar, take the clue the meeting itself
+     * carries — its title, the people invited — and go looking for it in the records and in
+     * the mail. Nothing is written, so no approval gate opens and the whole thing is over
+     * before the meeting starts.
+     *
+     * <p>The two search steps are optional on purpose: a workspace with Jira but no mail still
+     * gets the half it can have. The calendar step is not, because without the meeting there
+     * is nothing to prepare for.
+     */
+    public static final Playbook MEETING_PREP = new Playbook(
+            "toplanti-hazirligi",
+            "Toplantı öncesi hazırlık",
+            "Bugünkü toplantıma girmeden önce hazırlan: takvimdeki ilk toplantıyı al, "
+                    + "başlığındaki ve katılımcılarındaki ipuçlarıyla ilgili Jira kayıtlarını ve "
+                    + "mailleri bul, bulduklarını kaynak (kayıt anahtarı, mail konusu) göstererek "
+                    + "özetle. İlgili bir şey çıkmazsa uydurma — 'bulunamadı' de.",
+            "Takvim · Jira · Gmail okunur; hiçbir şey yazılmaz, onay istenmez",
+            List.of(
+                    Move.required("Bugünün toplantılarını getir", "calendar.listToday", Map.of()),
+                    Move.optional("Toplantının konusuyla ilgili kayıtları ara", "jira.searchIssues", Map.of()),
+                    Move.optional("Toplantının konusuyla ilgili mailleri ara", "gmail.search", Map.of())));
+
+    public static final List<Playbook> ALL =
+            List.of(MORNING, MEETING_PREP, BLOCKERS, PR_REVIEW, MAIL_TO_TICKET);
 
     private Playbooks() {
     }

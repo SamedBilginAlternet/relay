@@ -45,6 +45,9 @@ class PlaybookServiceTest {
                 new JiraTool.CreateIssue("replay", FIXTURES),
                 new GitHubTool.ListMyPullRequests("replay", FIXTURES),
                 new com.relay.infrastructure.tools.GmailTool.ListToday("replay", FIXTURES, null),
+                new com.relay.infrastructure.tools.GmailTool.Search("replay", FIXTURES, null),
+                new com.relay.infrastructure.tools.CalendarTool.ListToday(
+                        "replay", FIXTURES, null, "Europe/Istanbul"),
                 new SlackTool.PostMessage("replay", FIXTURES)));
         TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
         TestDoubles.InMemoryConnectionRepository connections = new TestDoubles.InMemoryConnectionRepository();
@@ -106,6 +109,38 @@ class PlaybookServiceTest {
                 .findFirst().orElseThrow();
         assertThat(mail.get("runnable")).isEqualTo(false);
         assertThat(mail.get("missing").toString()).contains("google");
+    }
+
+    /**
+     * "Toplantıya katılmadan önce şuna bak" on a workspace with a calendar and nothing else.
+     * The two search steps are the ones that can be missing, so what is left still runs.
+     */
+    @Test
+    void meeting_prep_drops_the_search_its_workspace_cannot_do() {
+        Run run = rig("google").playbooks().start("toplanti-hazirligi", 1.0);
+
+        assertThat(run.steps()).extracting(step -> step.toolName())
+                .containsExactly("calendar.listToday", "gmail.search");
+    }
+
+    /** Without a calendar there is no meeting to prepare for — the button must not run. */
+    @Test
+    void meeting_prep_without_a_calendar_refuses_to_start() {
+        Rig rig = rig("jira");
+
+        assertThatThrownBy(() -> rig.playbooks().start("toplanti-hazirligi", 1.0))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("google");
+    }
+
+    /** Everything it does is a read, so nothing about it stops on a human. */
+    @Test
+    void meeting_prep_never_opens_the_approval_gate() {
+        Run run = rig("google", "jira").playbooks().start("toplanti-hazirligi", 1.0);
+
+        assertThat(run.steps()).extracting(step -> step.toolName())
+                .containsExactly("calendar.listToday", "jira.searchIssues", "gmail.search");
+        assertThat(run.status().wire()).isNotEqualTo("awaiting_approval");
     }
 
     /** Steps are seeded, not planned — but a write still stops on the human. */
