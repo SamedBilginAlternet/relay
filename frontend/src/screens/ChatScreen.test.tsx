@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Run, RunSummary } from '../types/api';
 
@@ -21,6 +21,10 @@ import type { Run, RunSummary } from '../types/api';
  * <p>Then the screen learned to switch between runs (#125), and the two effects
  * that keep the address bar and the store in step turned out to disagree by one
  * render — the older run's id overwrote the one the user had just asked for.
+ *
+ * <p>The rail of other live flows has since moved into the sidebar (#130). What is
+ * asserted here now is the other side of that move: this screen is about one flow, and a
+ * bare `#/sohbet` is a request for a new one rather than for the last one.
  */
 
 const getRun = vi.fn<(runId: string) => Promise<Run>>();
@@ -205,55 +209,21 @@ it('yeni_is_gives_an_empty_box_even_with_a_run_still_in_the_store', async () => 
   expect(window.location.hash).toBe('#/sohbet');
 });
 
-it('a_flow_running_beside_the_open_one_is_on_screen_and_one_click_away', async () => {
+it('the_conversation_keeps_the_whole_width_now_that_the_rail_is_not_a_column', async () => {
   window.location.hash = '#/sohbet/r-a';
   useRunStore.setState({ ...IDLE, phase: 'ready', run: runWithId('r-a') });
   listRuns.mockImplementation(async (options) =>
-    options?.status === 'awaiting_approval'
-      ? [parked('r-b', 'Kararını bekleyen öteki iş')]
-      : [],
+    options?.status === 'awaiting_approval' ? [parked('r-b', 'Kararını bekleyen öteki iş')] : [],
   );
 
   const { container } = render(<ChatScreen />);
 
-  const row = await screen.findByTitle('Kararını bekleyen öteki iş');
-  // The rail costs a column, so the workbench has to know it is there.
-  expect(container.querySelector('.workbench--railed')).not.toBeNull();
-  // The open run is the one marked, and it is not the row we are about to press.
-  expect(container.querySelectorAll('[aria-current="true"]')).toHaveLength(1);
-
-  await act(async () => {
-    fireEvent.click(row);
-    await Promise.resolve();
-  });
-
-  await waitFor(() => expect(window.location.hash).toBe('#/sohbet/r-b'));
-  await waitFor(() => expect(useRunStore.getState().run?.id).toBe('r-b'));
-});
-
-it('with_nothing_else_alive_the_conversation_keeps_the_whole_width', async () => {
-  window.location.hash = '#/sohbet/r-a';
-  useRunStore.setState({ ...IDLE, phase: 'ready', run: { ...runWithId('r-a'), status: 'done' } });
-  listRuns.mockResolvedValue([]);
-
-  const { container } = render(<ChatScreen />);
-
-  await waitFor(() => expect(listRuns).toHaveBeenCalled());
-  // An empty rail is furniture: no element, and no column reserved for one.
+  await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).not.toBeNull());
+  // The other live flows are in the sidebar now (#130), where they are on screen from
+  // Bugün and Panel as well. This screen no longer spends a column of the conversation on
+  // them — and no longer asks the server for them either.
   expect(container.querySelector('.rail')).toBeNull();
   expect(container.querySelector('.workbench--railed')).toBeNull();
   expect(container.querySelector('.workbench')).not.toBeNull();
-});
-
-it('parked_decisions_are_visible_before_a_flow_is_even_opened', async () => {
-  // The empty Sohbet screen is where someone arrives with 28 runs already stopped on
-  // them. It used to greet them with a blank box and no sign that any of it existed.
-  listRuns.mockImplementation(async (options) =>
-    options?.status === 'awaiting_approval' ? [parked('r-b', 'Onay bekleyen iş')] : [],
-  );
-
-  render(<ChatScreen />);
-
-  expect(await screen.findByTitle('Onay bekleyen iş')).not.toBeNull();
-  expect(screen.getByLabelText('Yapılmasını istediğin iş')).not.toBeNull();
+  expect(listRuns).not.toHaveBeenCalled();
 });

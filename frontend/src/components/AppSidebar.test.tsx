@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { parseHash } from '../lib/router';
 import type { Route } from '../lib/router';
+import type { RunSummary } from '../types/api';
 import type { PanelRange, PanelReport } from '../types/panel';
 
 /**
@@ -25,12 +26,21 @@ import type { PanelRange, PanelReport } from '../types/panel';
  * <p>The third is where you are. Colour alone is not a state marker for somebody who
  * cannot separate two hues, so the current item carries a class that also carries weight
  * and an edge marker — and `aria-current`, which is what a screen reader reads.
+ *
+ * <p>The live runs moved here from Sohbet in the same issue, and the claims that came
+ * with them are asserted from a screen that is not Sohbet: on the live box 28 flows were
+ * stopped on a decision while the rail that listed them existed on the one screen you had
+ * to already be on to see it.
  */
 
 const report = vi.fn<(range: PanelRange) => Promise<PanelReport>>();
+const listRuns = vi.fn<(o?: { status?: string; size?: number }) => Promise<RunSummary[]>>();
 
 vi.mock('../data/PanelSource', () => ({ getPanelSource: () => ({ report }) }));
-vi.mock('../data', () => ({ getRunSource: () => ({}) }));
+vi.mock('../data', () => ({
+  getRunSource: () => ({ listRuns, streamRun: () => () => {} }),
+  RUN_SOURCE_KIND: 'api',
+}));
 
 class NoopResizeObserver {
   observe() {}
@@ -88,6 +98,35 @@ function show(over: Partial<Parameters<typeof AppSidebar>[0]> = {}) {
 }
 
 const DESTINATIONS = ['Bugün', 'Akışlar', 'Ekip', 'Panel', 'Bağlantılar', 'Politikalar'];
+
+function parked(id: string, goal: string): RunSummary {
+  return {
+    id,
+    goal,
+    status: 'awaiting_approval',
+    costTokens: 0,
+    costUsd: 0,
+    budgetUsd: null,
+    createdAt: '2026-08-01T08:00:00Z',
+    finishedAt: null,
+    stepCount: 4,
+    doneStepCount: 1,
+  };
+}
+
+beforeEach(() => {
+  listRuns.mockReset();
+  listRuns.mockResolvedValue([]);
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: false,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    // `motion` still reaches for the deprecated pair to read prefers-reduced-motion.
+    addListener: () => {},
+    removeListener: () => {},
+  }));
+});
 
 afterEach(() => {
   cleanup();
@@ -237,4 +276,81 @@ it('choosing_a_destination_in_the_drawer_closes_it', () => {
   // A drawer left open over the screen it just navigated to is a second copy of the
   // navigation, which is the thing this refactor removes.
   expect(onClose).toHaveBeenCalled();
+});
+
+it('a_flow_stopped_on_a_decision_is_on_screen_from_a_screen_that_is_not_sohbet', async () => {
+  report.mockResolvedValue(panel(1));
+  listRuns.mockImplementation(async (options) =>
+    options?.status === 'awaiting_approval' ? [parked('r-b', 'Kararını bekleyen öteki iş')] : [],
+  );
+
+  // Politikalar has no run on it at all, which is the point: the flows that are alive are
+  // the app's news, not one screen's.
+  const { onNavigate } = show({ route: { name: 'policies' } });
+
+  const row = await screen.findByTitle('Kararını bekleyen öteki iş');
+  // The move kept the counts the rail was rebuilt for in #129: how far along, not just how
+  // many steps there are.
+  expect(row.textContent).toContain('1/4 adım');
+
+  fireEvent.click(row);
+  expect(onNavigate).toHaveBeenCalledWith('#/sohbet/r-b');
+});
+
+it('with_nothing_alive_the_column_carries_no_empty_section', async () => {
+  report.mockResolvedValue(panel(0));
+  listRuns.mockResolvedValue([]);
+
+  show();
+
+  await waitFor(() => expect(listRuns).toHaveBeenCalled());
+  // An empty list under a heading says exactly what no section says, and costs a rule and
+  // a line to say it.
+  expect(document.querySelector('.rail')).toBeNull();
+  expect(document.querySelector('.sb__live')).toBeNull();
+});
+
+it('the_row_marked_open_is_the_one_the_address_names', async () => {
+  report.mockResolvedValue(panel(1));
+  listRuns.mockImplementation(async (options) =>
+    options?.status === 'awaiting_approval'
+      ? [parked('r-a', 'Açık olan iş'), parked('r-b', 'Öteki iş')]
+      : [],
+  );
+
+  show({ route: { name: 'chat', runId: 'r-a' } });
+
+  await screen.findByTitle('Açık olan iş');
+  const marked = document.querySelectorAll('[aria-current="true"]');
+  expect(marked).toHaveLength(1);
+  expect(marked[0]?.textContent).toContain('Açık olan iş');
+});
+
+it('nothing_is_marked_open_while_you_are_looking_at_another_screen', async () => {
+  report.mockResolvedValue(panel(1));
+  listRuns.mockImplementation(async (options) =>
+    options?.status === 'awaiting_approval' ? [parked('r-a', 'Açık olan iş')] : [],
+  );
+
+  // The store keeps the last run it loaded for as long as the tab lives. Marking its row
+  // current from Panel would claim a flow is on screen when the screen is something else.
+  show({ route: { name: 'panel' } });
+
+  await screen.findByTitle('Açık olan iş');
+  expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(0);
+});
+
+it('a_collapsed_row_still_says_which_flow_it_is_and_how_far_along', async () => {
+  report.mockResolvedValue(panel(1));
+  listRuns.mockImplementation(async (options) =>
+    options?.status === 'awaiting_approval' ? [parked('r-b', 'Kararını bekleyen iş')] : [],
+  );
+
+  show({ collapsed: true, onToggleCollapse: vi.fn() });
+
+  // 68px cannot hold a goal, so the whole sentence — flow, status, progress — is in the
+  // tooltip. Without it the collapsed rail is a column of coloured dots.
+  const row = await screen.findByTitle('Kararını bekleyen iş — Onay bekliyor · 1/4 adım');
+  // And the text is clipped rather than removed, so the row keeps its accessible name.
+  expect(row.textContent).toContain('Kararını bekleyen iş');
 });

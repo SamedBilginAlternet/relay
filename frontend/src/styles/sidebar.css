@@ -364,6 +364,56 @@ html[data-sidebar='tight'] {
   min-height: var(--s-12);
 }
 
+/* ------------------------------------------------------------------ */
+/* Canlı akışlar — the half of the column that is not navigation       */
+/*                                                                     */
+/* This is what makes it a sidebar rather than a table of contents: it */
+/* says what is happening, not only where you can go. It is the run    */
+/* rail, moved here from Sohbet (#130) — same rows, same order, one    */
+/* screen wider. It is the only part of the column that scrolls, and   */
+/* it takes the leftover height so the nav above and the account below */
+/* stay put while 28 parked decisions scroll between them.             */
+/* ------------------------------------------------------------------ */
+
+.sb__live {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* The section head and the group heads inside it stick while the rows move. */
+  scrollbar-width: thin;
+}
+
+.sb__section {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: 0;
+  padding: var(--s-8) 8px 4px;
+  background: var(--bg-subtle);
+  color: var(--fg-faint);
+}
+
+/* The rule above the section scrolls with it, which is right: it is the section's own
+   top edge, not a fixed line the rows pass under. */
+.sb__live .sb__rule {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+.sb--tight .sb__section {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 /* The account chip is fixed to the viewport (see below); this row is the space
    it is parked in, so nothing above it ever scrolls underneath. */
 .sb__foot {

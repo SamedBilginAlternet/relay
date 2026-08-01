@@ -1,10 +1,10 @@
 /*
-  Görev rayı — Sohbet'in sol sütunu (#125, #124'ün 2. parçası).
+  Görev rayı — kenar çubuğunun canlı akış bölümü (#125, #130 ile taşındı).
 
-  Three surfaces, hairline steps: the rail is the canvas one step back from the
-  conversation, separated by a `--line` rule rather than by a shadow or a card.
-  Rows, not cards — nothing in here floats, and nothing has a radius until it is
-  hovered or chosen.
+  It was a column of Sohbet and is now the bottom half of the sidebar: the same
+  rows, one screen wider. The box it scrolls in belongs to the sidebar
+  (`.sb__live`), so nothing here draws a background, a border or a scrollbar of
+  its own — the column already is the surface one step back from the page.
 
   The accent means state and only state: purple is the run you have open. A run
   waiting on a person is `--warn`, which is what every other surface in the app
@@ -17,11 +17,7 @@
   flex-direction: column;
   gap: 2px;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: var(--s-12) 0 var(--s-24);
-  border-right: 1px solid var(--line);
-  background: var(--bg-subtle);
+  padding: 0 0 var(--s-8);
 }
 
 .rail__group {
@@ -34,7 +30,7 @@
   align-items: center;
   gap: 8px;
   margin: 0;
-  padding: 10px 14px 6px;
+  padding: 8px 8px 5px;
   position: sticky;
   top: 0;
   z-index: 1;
@@ -65,7 +61,7 @@
   align-items: flex-start;
   gap: 8px;
   width: 100%;
-  padding: 8px 12px 9px 11px;
+  padding: 8px 8px 9px 7px;
   border: 0;
   /* The 3px is the state channel: transparent until the row is the open one. */
   border-left: 3px solid transparent;
@@ -146,133 +142,41 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* The workbench grows a third column when the rail is on screen.      */
+/* Collapsed sidebar — the status icon, and nothing else.              */
 /*                                                                     */
-/* Two class names deep so it beats `.workbench` in global.css whatever */
-/* order the bundler settles on — and so that no rail means no column   */
-/* and the conversation (and its composer) keep the full width.        */
-/* ------------------------------------------------------------------ */
-
-.workbench.workbench--railed {
-  grid-template-columns: clamp(224px, 20vw, 288px) minmax(0, 55fr) minmax(0, 45fr);
-}
-
-/* Sohbet before a flow exists: the start screen keeps its own layout and the
-   rail sits beside it, so 28 parked decisions are visible from the first paint. */
-.rail-start {
-  flex: 1 1 auto;
-  display: flex;
-  min-height: 0;
-}
-
-.rail-start > .rail {
-  flex: 0 0 clamp(224px, 20vw, 288px);
-}
-
-.rail-start > .page {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-/* ------------------------------------------------------------------ */
-/* Phone — the rail lies down instead of eating the conversation.      */
+/* A 68px column cannot hold a goal, and half a sentence is worse than */
+/* none. What survives is the one thing the column is for at that      */
+/* width: how many flows are alive and which of them are stopped on    */
+/* you, in the colour that means it everywhere else. The sentence, the */
+/* status and the step count are all in the row's `title`.             */
 /*                                                                     */
-/* A 208px column out of 390 is more than half the screen, so at this  */
-/* width the rail becomes one horizontal strip of the same rows above  */
-/* the conversation: capped at a single line of goal text, scrolling   */
-/* inside itself so the page never scrolls sideways. The group heads   */
-/* stay in the accessibility tree and leave the layout.                */
+/* The text is clipped rather than removed, so the row keeps the same  */
+/* accessible name it has when the column is open — a screen reader    */
+/* never hears an unnamed button.                                      */
 /* ------------------------------------------------------------------ */
 
-@media (max-width: 900px) {
-  .workbench.workbench--railed {
-    grid-template-columns: 1fr;
-    /* the strip takes what it needs, the conversation takes the rest and scrolls
-       inside itself — an `auto` second row would push the composer off-screen */
-    grid-template-rows: auto minmax(0, 1fr);
-  }
+.sb--tight .rail__row {
+  justify-content: center;
+  gap: 0;
+  min-height: 40px;
+  padding: 8px 0;
+  border-radius: 0 var(--r-btn) var(--r-btn) 0;
+}
 
-  .rail {
-    flex-direction: row;
-    align-items: stretch;
-    gap: 0;
-    padding: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    scrollbar-width: none;
-  }
+.sb--tight .rail__icon {
+  margin-top: 0;
+}
 
-  .rail::-webkit-scrollbar {
-    display: none;
-  }
-
-  .rail-start {
-    flex-direction: column;
-  }
-
-  .rail-start > .rail {
-    flex: 0 0 auto;
-  }
-
-  /* `contents` flattens the two groups into one strip while the DOM keeps the
-     grouping — the waiting runs are still first, they are just first in a row. */
-  .rail__group,
-  .rail__list {
-    display: contents;
-  }
-
-  .rail__grouphead {
-    /* heard, not seen: same trick as `.sr-only`, so the strip stays one line */
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
-
-  .rail__item {
-    flex: 0 0 auto;
-    max-width: 62vw;
-    /* the same hairline that separated the rows vertically, turned on its side */
-    border-right: 1px solid var(--line-soft);
-  }
-
-  .rail__row {
-    height: 100%;
-    min-height: 46px;
-    align-items: center;
-    padding: 6px 12px;
-    border-left: 0;
-    border-bottom: 3px solid transparent;
-  }
-
-  .rail__row--current {
-    border-bottom-color: var(--accent);
-  }
-
-  /* One line with an ellipsis — `-webkit-box` clips without one, and a goal that
-     stops mid-word reads as a rendering fault rather than as a truncation. */
-  .rail__goal {
-    display: block;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    overflow-wrap: normal;
-  }
-
-  /* One fact fits on a phone row; the rest is a tap away. */
-  .rail__fact:last-child {
-    display: none;
-  }
-
-  /* A strip holding only the run already on screen is furniture. */
-  .rail--solo {
-    display: none;
-  }
+.sb--tight .rail__body,
+.sb--tight .rail__grouphead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {

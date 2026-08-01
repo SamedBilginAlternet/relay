@@ -11,9 +11,11 @@ import {
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAwaitingRuns } from '../lib/awaitingRuns';
 import type { Route } from '../lib/router';
+import { useRunStore } from '../store/runStore';
+import { TaskRail, useLiveRuns } from './TaskRail';
 import '../styles/sidebar.css';
 
 /**
@@ -149,6 +151,14 @@ export function AppSidebar({
   onClose,
 }: Props) {
   const awaiting = useAwaitingRuns(route.name);
+  /*
+    The live runs, on every screen (#130). The rail used to be part of Sohbet, which meant
+    the flows stopped on a decision were visible from the one screen you had to already be
+    on to see them. It is the same rail, the same hook and the same waiting-first order —
+    it just belongs to the app now rather than to one of its screens.
+  */
+  const openRun = useRunStore((s) => s.run);
+  const liveRuns = useLiveRuns(openRun);
   const drawer = variant === 'drawer';
   // Icon-only is a rail affordance. A drawer that opened icon-only would be a drawer
   // holding a rail, which is nothing anybody asked to see.
@@ -193,10 +203,23 @@ export function AppSidebar({
     return () => document.removeEventListener('keydown', onKey);
   }, [drawer, onClose]);
 
-  const go = (hash: string) => {
-    onNavigate(hash);
-    onClose?.();
-  };
+  const go = useCallback(
+    (hash: string) => {
+      onNavigate(hash);
+      onClose?.();
+    },
+    [onNavigate, onClose],
+  );
+
+  const openFromRail = useCallback((runId: string) => go(`#/sohbet/${runId}`), [go]);
+
+  /*
+    Which row is the open one is a question about the ADDRESS, not about the store. The
+    store keeps the last run it loaded for as long as the tab lives; marking that row
+    current from Panel or Politikalar would claim a flow is on screen when the screen is
+    something else entirely.
+  */
+  const currentRunId = route.name === 'chat' ? (route.runId ?? null) : null;
 
   const item = (nav: NavItem) => {
     const current = nav.match.includes(route.name);
@@ -308,7 +331,24 @@ export function AppSidebar({
         <ul className="sb__list">{SECONDARY.map(item)}</ul>
       </nav>
 
-      <div className="sb__spacer" />
+      {/*
+        Never rendered empty. An empty list under a heading is furniture: it says the same
+        thing as no section at all and costs a rule and a line to say it.
+      */}
+      {liveRuns.length > 0 ? (
+        <div className="sb__live">
+          <hr className="sb__rule" />
+          <h2 className="sb__section t-label">Canlı akışlar</h2>
+          <TaskRail
+            runs={liveRuns}
+            currentRunId={currentRunId}
+            onOpen={openFromRail}
+            tight={tight}
+          />
+        </div>
+      ) : (
+        <div className="sb__spacer" />
+      )}
 
       {/*
         Who is signed in sits at the bottom, and it is AccountMenu that draws it — a

@@ -196,25 +196,29 @@ type Props = {
   runs: RailRun[];
   currentRunId: string | null;
   onOpen: (runId: string) => void;
+  /** The sidebar is collapsed: status icon only, and the row's sentence in a tooltip. */
+  tight?: boolean;
 };
 
 /**
- * The left rail in Sohbet: one row per live flow, the open one marked.
+ * One row per live flow, inside the sidebar, with the open one marked.
  *
  * <p>Rows, not cards (DESIGN.md v3). The goal is the sentence; the status is the colour and
  * the word; the step count and the age are machine facts and sit in the mono layer. The
  * accent is spent on one thing only — which run is open.
+ *
+ * <p>It used to be a column of Sohbet and is now part of the navigation (#130), which is
+ * a move rather than a rewrite: the same hook, the same waiting-first order, the same
+ * `n/m adım`. What it gained is being on screen from Bugün, Panel and Politikalar too —
+ * the flows parked on a decision were previously visible only from the screen you had to
+ * already be on to see them.
  */
-export function TaskRail({ runs, currentRunId, onOpen }: Props) {
+export function TaskRail({ runs, currentRunId, onOpen, tight = false }: Props) {
   const reduce = useReducedMotion();
   if (runs.length === 0) return null;
 
   const waiting = runs.filter((row) => row.status === WAITING);
   const working = runs.filter((row) => row.status !== WAITING);
-  // On a phone a rail holding only the run already on screen is the empty rail's twin: it
-  // costs a strip of the conversation and says nothing new. CSS drops it at that width; on
-  // a desktop the column is already paid for and the row still says nothing else is running.
-  const solo = runs.length === 1 && runs[0]?.id === currentRunId;
 
   let index = 0;
   const group = (title: string, items: RailRun[], key: string) =>
@@ -232,6 +236,7 @@ export function TaskRail({ runs, currentRunId, onOpen }: Props) {
               current={row.id === currentRunId}
               index={index++}
               reduce={reduce}
+              tight={tight}
               onOpen={onOpen}
             />
           ))}
@@ -240,11 +245,7 @@ export function TaskRail({ runs, currentRunId, onOpen }: Props) {
     );
 
   return (
-    <nav
-      className={`rail${solo ? ' rail--solo' : ''}`}
-      aria-label="Açık akışlar"
-      data-live={runs.length}
-    >
+    <nav className="rail" aria-label="Açık akışlar" data-live={runs.length}>
       {group('Kararını bekliyor', waiting, 'waiting')}
       {group('Sürüyor', working, 'working')}
     </nav>
@@ -256,16 +257,27 @@ function Row({
   current,
   index,
   reduce,
+  tight,
   onOpen,
 }: {
   row: RailRun;
   current: boolean;
   index: number;
   reduce: boolean | null;
+  tight: boolean;
   onOpen: (runId: string) => void;
 }) {
   const status = runStatusMeta(row.status);
   const progress = progressLabel(row.stepCount, row.done);
+  /*
+    Collapsed, the row is a status icon and nothing else, so the whole sentence moves into
+    the tooltip. The browser's own `title` rather than the CSS one the nav items use: this
+    list scrolls, and a scrolling box cannot let a tooltip out of its own edges — a native
+    tooltip is drawn by the browser and is never clipped by anything.
+  */
+  const title = tight
+    ? `${row.goal} — ${status.label}${progress ? ` · ${progress}` : ''}`
+    : row.goal;
   return (
     <motion.li className="rail__item" {...enterProps(index, reduce)}>
       <button
@@ -273,7 +285,7 @@ function Row({
         className={`rail__row${current ? ' rail__row--current' : ''}`}
         onClick={() => onOpen(row.id)}
         aria-current={current ? 'true' : undefined}
-        title={row.goal}
+        title={title}
       >
         <status.Icon size={14} aria-hidden className={`rail__icon ${status.className}`} />
         <span className="rail__body">

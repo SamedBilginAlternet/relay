@@ -1,14 +1,22 @@
 import { ChevronUp, ListChecks } from 'lucide-react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { BottomSheet } from '../components/BottomSheet';
 import { ChatPanel } from '../components/ChatPanel';
-import { TaskRail, useLiveRuns } from '../components/TaskRail';
 import { WorkflowPanel } from '../components/WorkflowPanel';
 import { RUN_SOURCE_KIND } from '../data';
 import { useHashRoute } from '../lib/router';
 import { useRunStore } from '../store/runStore';
 import { ChatStart } from './ChatStart';
 
+/**
+ * The screen that runs one flow: the conversation, and the workflow beside it.
+ *
+ * <p>It used to run two things. A rail of every other live flow sat in a third column
+ * here and nowhere else — which meant the 28 runs stopped on a decision could only be read
+ * by somebody already looking at one of them. That rail is part of the sidebar now (#130),
+ * on screen from Bugün and Panel too, and this screen went back to being about the flow it
+ * is running.
+ */
 export function ChatScreen() {
   const [route, navigate] = useHashRoute();
   const routeRunId = route.name === 'chat' ? (route.runId ?? null) : null;
@@ -98,25 +106,6 @@ export function ChatScreen() {
   }, [awaiting, setSheetOpen]);
 
   /*
-    The other flows. This screen showed one run and behaved as if it were the only one;
-    on the live box that meant 1 of 28 runs stopped on a decision was on screen and the
-    other 27 had no route in the product except Geçmiş (#125).
-
-    Only the address is set here. The effect above owns the loading — it is the one place
-    that decides what `#/sohbet/<id>` means, and a second caller would race it.
-  */
-  const liveRuns = useLiveRuns(run);
-  const openFromRail = useCallback(
-    (runId: string) => navigate(`#/sohbet/${runId}`),
-    [navigate],
-  );
-  // Never rendered empty: no live run means no column, and the composer keeps the width.
-  const rail =
-    liveRuns.length > 0 ? (
-      <TaskRail runs={liveRuns} currentRunId={run?.id ?? null} onOpen={openFromRail} />
-    ) : null;
-
-  /*
     `+ Yeni iş` — the sidebar's one primary action — lands here on a bare `#/sohbet`,
     and "new" has to mean an empty composer.
 
@@ -130,14 +119,11 @@ export function ChatScreen() {
 
   if (asked || (!run && phase === 'idle')) {
     return (
-      <div className="rail-start">
-        {rail}
-        <ChatStart
-          onSubmit={(goal) => void startRun(goal)}
-          busy={phase !== 'idle'}
-          sourceKind={RUN_SOURCE_KIND}
-        />
-      </div>
+      <ChatStart
+        onSubmit={(goal) => void startRun(goal)}
+        busy={phase !== 'idle'}
+        sourceKind={RUN_SOURCE_KIND}
+      />
     );
   }
 
@@ -180,8 +166,7 @@ export function ChatScreen() {
         <ChevronUp size={16} aria-hidden style={{ marginLeft: 'auto' }} />
       </button>
 
-      <div className={`workbench${rail ? ' workbench--railed' : ''}`}>
-        {rail}
+      <div className="workbench">
         <ChatPanel
           run={run}
           phase={phase}
