@@ -12,6 +12,11 @@ import type { PanelRange, PanelReport } from '../types/panel';
  * nothing anywhere saying so. The top bar is the only thing on screen no matter which
  * screen you are on, so the number goes there.
  *
+ * <p>Since #130 the bar is only on screen below 1024px, and it carries no destinations at
+ * all — they are in the sidebar, and in the drawer this bar opens. That is the half of
+ * the mixed-pattern rule this file is now also responsible for: if a tab strip ever comes
+ * back to the header, there are two navigations again and the test below fails.
+ *
  * <p>The tests are about the two ways a badge like this rots. It can lie downwards — the
  * obvious source, `GET /api/runs`, hands back its default page of twenty rows, which on
  * that same box held 3 of the 32; a badge is only worth having if its number is the whole
@@ -70,9 +75,11 @@ function panel(awaiting: number): PanelReport {
   };
 }
 
-function show(route: Route = { name: 'today' }, onNavigate = vi.fn()) {
-  const view = render(<AppHeader route={route} onNavigate={onNavigate} />);
-  return { ...view, onNavigate };
+function show(route: Route = { name: 'today' }, onNavigate = vi.fn(), onOpenNav = vi.fn()) {
+  const view = render(
+    <AppHeader route={route} onNavigate={onNavigate} onOpenNav={onOpenNav} navOpen={false} />,
+  );
+  return { ...view, onNavigate, onOpenNav };
 }
 
 const badge = () => screen.queryByRole('button', { name: /onayını bekliyor/i });
@@ -139,8 +146,39 @@ it('a_count_that_could_not_be_read_does_not_become_an_empty_queue', async () => 
 
   report.mockRejectedValue(new Error('Sunucuya ulaşılamadı'));
   // A navigation is what re-counts, so navigating is what re-runs the failing read.
-  rerender(<AppHeader route={{ name: 'panel' }} onNavigate={vi.fn()} />);
+  rerender(
+    <AppHeader route={{ name: 'panel' }} onNavigate={vi.fn()} onOpenNav={vi.fn()} navOpen={false} />,
+  );
 
   await waitFor(() => expect(report).toHaveBeenCalledTimes(2));
   expect(screen.getByRole('button', { name: /7 akış/i })).toBeTruthy();
+});
+
+it('the_bar_carries_no_destinations_of_its_own', async () => {
+  report.mockResolvedValue(panel(0));
+
+  show();
+
+  await waitFor(() => expect(report).toHaveBeenCalled());
+  // The six tabs that used to live here are the second navigation surface the sidebar
+  // replaced (#130). A bar and a sidebar at the same level is `avoid-mixed-patterns`, and
+  // this is the assertion that notices if one of them creeps back.
+  for (const gone of ['Bugün', 'Sohbet', 'Geçmiş', 'Bağlantılar', 'Politikalar', 'Panel']) {
+    expect(screen.queryByRole('button', { name: gone })).toBeNull();
+  }
+  expect(document.querySelector('.nav__item')).toBeNull();
+});
+
+it('the_only_way_to_the_destinations_on_a_phone_is_a_control_that_says_so', () => {
+  report.mockResolvedValue(panel(0));
+
+  const { onOpenNav } = show();
+  const menu = screen.getByRole('button', { name: 'Gezinmeyi aç' });
+  fireEvent.click(menu);
+
+  expect(onOpenNav).toHaveBeenCalled();
+  // It opens a modal layer, and it says which one and whether it is open — a menu button
+  // that announces nothing is a control only a mouse can understand.
+  expect(menu.getAttribute('aria-haspopup')).toBe('dialog');
+  expect(menu.getAttribute('aria-expanded')).toBe('false');
 });

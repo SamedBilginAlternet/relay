@@ -1,70 +1,49 @@
-import { BarChart3, History, MessageSquare, Plug, ShieldCheck, Sun } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Menu } from 'lucide-react';
+import { useLayoutEffect, useRef } from 'react';
+import type { RefObject } from 'react';
 import type { Route } from '../lib/router';
 import { ApprovalBadge } from './ApprovalBadge';
-import '../styles/screens.css';
+import '../styles/sidebar.css';
 
 type Props = {
   route: Route;
   onNavigate: (hash: string) => void;
+  /** Opens the navigation drawer — this bar carries no destinations of its own. */
+  onOpenNav: () => void;
+  navOpen: boolean;
+  /** So closing the drawer can hand focus back to the control that opened it. */
+  menuRef?: RefObject<HTMLButtonElement>;
 };
 
-/*
-  The top bar is the product's table of contents, so what is on it is a claim
-  about what the product is: it finishes work in the tools, writes, and asks
-  before it writes.
-
-  `Postana sor` (`#/sor`) does none of those three — its own copy says "Okur,
-  yazmaz" — and it sat second, ahead of the screens the pitch is actually
-  about. Seven destinations is more than three minutes can carry, and a tab
-  nobody demonstrates still gets clicked. So it comes off the bar; the route,
-  the screen and `POST /api/ask` all stay exactly where they are, and the
-  account menu keeps a way in. Removing it from the map, not from the product.
-*/
-const ITEMS: { hash: string; label: string; match: Route['name'][]; Icon: LucideIcon }[] = [
-  { hash: '#/', label: 'Bugün', match: ['today'], Icon: Sun },
-  { hash: '#/sohbet', label: 'Sohbet', match: ['chat'], Icon: MessageSquare },
-  { hash: '#/history', label: 'Geçmiş', match: ['history', 'history-detail'], Icon: History },
-  { hash: '#/connections', label: 'Bağlantılar', match: ['connections'], Icon: Plug },
-  { hash: '#/politikalar', label: 'Politikalar', match: ['policies'], Icon: ShieldCheck },
-  { hash: '#/panel', label: 'Panel', match: ['panel'], Icon: BarChart3 },
-];
-
 /**
- * Pull the current tab into the visible part of the rail.
+ * The top bar below 1024px — and only below it.
  *
- * <p>By hand rather than with `scrollIntoView`, which would also scroll the page
- * vertically to reach a bar that is already fixed to the top of it.
+ * <p>WHAT LEFT THIS FILE (#130). Six centred tabs. They were the product's second
+ * navigation surface next to the run rail, which `avoid-mixed-patterns` forbids, and on a
+ * phone they were a 560px strip inside a 364px rail that admitted it was cut off with a
+ * mask (#71). The destinations now live in the sidebar; on a viewport too narrow for a
+ * sidebar they live in the drawer this bar opens, which is what `adaptive-navigation`
+ * asks for. Nothing was dropped — the same addresses are one press away.
+ *
+ * <p>WHAT STAYED. The brand, and the count of flows parked on a person. That count is the
+ * one thing on screen that belongs to no screen in particular (#72), so it has to survive
+ * on a bar that no longer navigates anywhere.
+ *
+ * <p>The element is `header.topbar`, not `header.header`, and that is load-bearing:
+ * AccountMenu looks for `header.header` once, on mount, and portals into it. A host that
+ * exists at one viewport width and not at another would leave the chip portalled into a
+ * detached node the moment a window is dragged across 1024px. With no such host anywhere,
+ * the chip takes its own fixed position and sidebar.css puts it where it belongs at each
+ * width — one code path, no resize to get wrong.
  */
-function revealActive(nav: HTMLElement): void {
-  const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
-  if (!active) return;
-  const left = active.offsetLeft;
-  const right = left + active.offsetWidth;
-  const pad = 16;
-  if (left - pad < nav.scrollLeft) nav.scrollLeft = Math.max(0, left - pad);
-  else if (right + pad > nav.scrollLeft + nav.clientWidth) {
-    nav.scrollLeft = right + pad - nav.clientWidth;
-  }
-}
-
-export function AppHeader({ route, onNavigate }: Props) {
+export function AppHeader({ route, onNavigate, onOpenNav, navOpen, menuRef }: Props) {
   const ref = useRef<HTMLElement>(null);
-  const navRef = useRef<HTMLElement>(null);
-  /*
-    Which sides of the strip have destinations behind them. Below 960px the nav
-    scrolls sideways, and it did so with no sign at all: at 390px two of six
-    tabs were off-screen and the only clue was a word clipped by the viewport
-    edge. There is no `:hover` on a phone, so the strip has to say it itself.
-  */
-  const [cut, setCut] = useState({ start: false, end: false });
 
   /*
-    The bar floats over the scrolling content (that is what makes the frosted
-    glass mean anything), so the layout below has to know exactly how tall it
-    is. It is NOT a constant: below 640px the nav wraps onto its own row.
-    Measuring beats guessing — a wrong guess hides the first line of content.
+    The bar floats over the scrolling content, so the layout below has to know exactly how
+    tall it is. Measured rather than assumed: a wrong guess hides the first line of the
+    page. At >=1024px this component is not mounted at all, and the shell sets
+    `--header-h` to zero instead.
   */
   useLayoutEffect(() => {
     const el = ref.current;
@@ -79,97 +58,53 @@ export function AppHeader({ route, onNavigate }: Props) {
     return () => ro.disconnect();
   }, []);
 
-  useEffect(() => {
-    const nav = navRef.current;
-    if (!nav) return;
-    const measure = () => {
-      const slack = nav.scrollWidth - nav.clientWidth;
-      setCut({
-        start: nav.scrollLeft > 1,
-        // 1px of tolerance: fractional layout widths otherwise leave a fade
-        // switched on over a strip that has nothing left to show.
-        end: slack > 1 && nav.scrollLeft < slack - 1,
-      });
-    };
-    measure();
-    nav.addEventListener('scroll', measure, { passive: true });
-    // A rotation turns a strip that fitted into one that does not, so the
-    // current tab has to be pulled back into the rail on resize as well.
-    const ro = new ResizeObserver(() => {
-      revealActive(nav);
-      measure();
-    });
-    ro.observe(nav);
-    return () => {
-      nav.removeEventListener('scroll', measure);
-      ro.disconnect();
-    };
-  }, []);
-
-  /*
-    Land on Panel from a link and the tab for it was off-screen: the bar
-    claimed you were nowhere.
-  */
-  useLayoutEffect(() => {
-    if (navRef.current) revealActive(navRef.current);
-  }, [route.name]);
-
   return (
-    <header className="header" ref={ref}>
-      {/*
-        The brand and the bar's one piece of news share the left cheek. The grid
-        centres the nav on the PAGE, so this side must not grow into a column of
-        its own — see styles/header-badge.css for why the badge is two digits and
-        not a sentence.
-      */}
-      <div className="header__left">
-        <button type="button" className="brand" onClick={() => onNavigate('#/')} aria-label="Relay ana ekran">
-          <span className="brand__mark" aria-hidden>
-            {/* bayrak devri: nokta -> cubuk -> nokta */}
-            <svg viewBox="0 0 64 64" width="15" height="15">
-              <circle cx="17" cy="38" r="7" fill="currentColor" />
-              <rect x="20" y="23.5" width="24" height="8" rx="4" fill="currentColor" transform="rotate(-14 32 27.5)" />
-              <circle cx="47" cy="20" r="7" fill="currentColor" />
-            </svg>
-          </span>
-          <span className="brand__word" aria-hidden>
-            <span className="brand__r">r</span>elay
-          </span>
-        </button>
-        {/*
-          A run parked on a person is the one thing in this product that costs
-          something to miss, and until now it was only visible from the screen it
-          started on (issue #72).
-        */}
-        <ApprovalBadge routeKey={route.name} onNavigate={onNavigate} />
-      </div>
+    <header className="topbar" ref={ref}>
+      <button
+        type="button"
+        className="topbar__menu"
+        ref={menuRef}
+        onClick={onOpenNav}
+        aria-label="Gezinmeyi aç"
+        aria-haspopup="dialog"
+        aria-expanded={navOpen}
+      >
+        <Menu size={18} aria-hidden />
+      </button>
+
+      <button
+        type="button"
+        className="brand"
+        onClick={() => onNavigate('#/')}
+        aria-label="Relay ana ekran"
+      >
+        <span className="brand__mark" aria-hidden>
+          {/* bayrak devri: nokta -> cubuk -> nokta */}
+          <svg viewBox="0 0 64 64" width="15" height="15">
+            <circle cx="17" cy="38" r="7" fill="currentColor" />
+            <rect
+              x="20"
+              y="23.5"
+              width="24"
+              height="8"
+              rx="4"
+              fill="currentColor"
+              transform="rotate(-14 32 27.5)"
+            />
+            <circle cx="47" cy="20" r="7" fill="currentColor" />
+          </svg>
+        </span>
+        <span className="brand__word" aria-hidden>
+          <span className="brand__r">r</span>elay
+        </span>
+      </button>
 
       {/*
-        Labels are ALWAYS rendered — an icon-only nav is an accessibility
-        failure (issue #12). On narrow viewports the strip wraps to its own
-        row and scrolls horizontally instead of dropping the text.
+        A run parked on a person is the one thing in this product that costs something to
+        miss (#72). It reads the same count as the sidebar's Akışlar badge — one hook, one
+        request, one number (#100).
       */}
-      <nav
-        className={`nav${cut.start ? ' nav--cut-start' : ''}${cut.end ? ' nav--cut-end' : ''}`}
-        aria-label="Ana gezinme"
-        ref={navRef}
-      >
-        {ITEMS.map((item) => {
-          const active = item.match.includes(route.name);
-          return (
-            <button
-              key={item.hash}
-              type="button"
-              className="nav__item"
-              aria-current={active ? 'page' : undefined}
-              onClick={() => onNavigate(item.hash)}
-            >
-              <item.Icon size={15} aria-hidden />
-              <span className="nav__label">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      <ApprovalBadge routeKey={route.name} onNavigate={onNavigate} />
     </header>
   );
 }

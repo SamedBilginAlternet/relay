@@ -116,7 +116,19 @@ export function ChatScreen() {
       <TaskRail runs={liveRuns} currentRunId={run?.id ?? null} onOpen={openFromRail} />
     ) : null;
 
-  if (!run && phase === 'idle') {
+  /*
+    `+ Yeni iş` — the sidebar's one primary action — lands here on a bare `#/sohbet`,
+    and "new" has to mean an empty composer.
+
+    Without this, it meant whatever run was still in the store: the button that starts
+    work reopened the last flow, and the only way to a blank box was a page reload. The
+    ref is what makes the question answerable. A run whose id was published into the
+    address and is now missing from it is a run the user has navigated AWAY from; a run
+    that has not published yet is one being created right now, and it keeps the screen.
+  */
+  const asked = !routeRunId && run != null && publishedRunId.current === run.id;
+
+  if (asked || (!run && phase === 'idle')) {
     return (
       <div className="rail-start">
         {rail}

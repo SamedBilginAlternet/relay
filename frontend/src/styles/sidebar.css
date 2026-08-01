@@ -1,0 +1,530 @@
+/* ------------------------------------------------------------------ */
+/* Kenar çubuğu — ürünün tek gezinme yüzeyi (#130)                      */
+/*                                                                     */
+/* Two navigations at the same level is a rule violation with a name    */
+/* (`avoid-mixed-patterns`), and the product had exactly that: six      */
+/* centred tabs on top, plus a rail of live runs on one screen out of  */
+/* seven. The strip is the half that went. What is left is a column    */
+/* that answers both questions at once — where you can go, and what is  */
+/* happening right now.                                                */
+/*                                                                     */
+/* Nothing here invents a colour, a radius or a spacing step; the       */
+/* tokens all come from global.css. The accent still means state and    */
+/* only state: it marks where you are, and nothing else in this file    */
+/* is violet.                                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+  The width lives on the root element because two things need it and only one of
+  them is inside the tree that draws it: the shell's grid column, and the account
+  chip, which AccountMenu pins to the viewport from outside the app. App.tsx
+  writes `data-sidebar` — off | wide | tight — and this file reads it.
+*/
+html[data-sidebar='wide'] {
+  --sb-w: 260px;
+}
+
+/* 68px: a 44px target with 12px of daylight either side. Below that the row is
+   no longer a touch target, and a rail you cannot press is not a saving. */
+html[data-sidebar='tight'] {
+  --sb-w: 68px;
+}
+
+.app--sidebar {
+  display: grid;
+  grid-template-columns: var(--sb-w, 260px) minmax(0, 1fr);
+  /*
+    There is no top bar at this width, so the padding the shell reserves for one
+    is zero. It is set here rather than on `:root` on purpose: AppHeader writes
+    the measured height as an inline style on `:root`, an inline style wins, and
+    that value would survive a resize past the breakpoint as 56px of blank at the
+    top of every screen.
+  */
+  --header-h: 0px;
+}
+
+.app--sidebar .main {
+  grid-column: 2;
+}
+
+/* ------------------------------------------------------------------ */
+/* The column                                                          */
+/* ------------------------------------------------------------------ */
+
+.sb {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 10px 10px 0;
+  background: var(--bg-subtle);
+  border-right: 1px solid var(--line);
+  /* Visible, not hidden: the collapsed rail's tooltips are drawn outside this
+     box and clipping them would take the labels away twice over. */
+  overflow: visible;
+  z-index: 20;
+}
+
+.sb__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  min-height: 44px;
+}
+
+.sb__brand {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: 4px;
+}
+
+.sb--tight .sb__head {
+  /* 26px of mark and a 30px button do not fit in 48px of usable width. */
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sb--tight .sb__brand {
+  flex: 0 0 auto;
+  padding: 6px 0;
+  justify-content: center;
+}
+
+.sb__icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-btn);
+  background: transparent;
+  color: var(--fg-faint);
+  cursor: pointer;
+  transition: background-color 160ms ease-out, color 160ms ease-out;
+}
+
+.sb__icon-btn:hover {
+  background: rgba(17, 17, 17, 0.05);
+  color: var(--fg);
+}
+
+/* ------------------------------------------------------------------ */
+/* The one primary action                                              */
+/*                                                                     */
+/* Filled, alone, above the destinations — it is the only thing in the  */
+/* column that starts something rather than going somewhere.           */
+/* ------------------------------------------------------------------ */
+
+.sb__new {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-8);
+  min-height: 44px;
+  margin: var(--s-12) 0 var(--s-8);
+  padding: 0 var(--s-12);
+  border: 0;
+  border-radius: var(--r-btn);
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 160ms ease-out;
+}
+
+.sb__new:hover {
+  background: #5b21b6;
+}
+
+.sb--tight .sb__new {
+  padding: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Destinations                                                        */
+/* ------------------------------------------------------------------ */
+
+.sb__nav {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
+
+.sb__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sb__li {
+  margin: 0;
+}
+
+.sb__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px; /* touch target — never shrink this */
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--r-btn);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 160ms ease-out, color 160ms ease-out;
+}
+
+.sb__item:hover {
+  background: rgba(17, 17, 17, 0.05);
+  color: var(--fg);
+}
+
+/*
+  `nav-state-active`: three signals, not one. Colour alone fails anybody who
+  cannot separate two hues, and it is also the signal that survives the least on
+  a pale tinted column.
+*/
+.sb__item--current {
+  color: var(--accent);
+  font-weight: 650;
+  background: var(--accent-soft);
+}
+
+.sb__item--current:hover {
+  background: var(--accent-soft);
+}
+
+/* The edge marker, drawn on the column's own border line rather than inside the
+   row — so it reads as "this side of the app is lit" and not as a fourth kind of
+   button. */
+.sb__item--current::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  width: 3px;
+  height: 22px;
+  transform: translateY(-50%);
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+
+.sb__rule {
+  height: 1px;
+  margin: var(--s-8) 6px;
+  border: 0;
+  background: var(--line);
+}
+
+/* ------------------------------------------------------------------ */
+/* The waiting count                                                   */
+/*                                                                     */
+/* Amber, like every other "stopped on a person" surface in the app —   */
+/* the violet in this column already means "where you are".            */
+/* ------------------------------------------------------------------ */
+
+.sb__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: rgba(180, 83, 9, 0.12);
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ */
+/* Collapsed — icon only, and still usable                             */
+/*                                                                     */
+/* `nav-label-icon`: an icon-only nav costs discoverability, so it only */
+/* ships with the two things that pay that back — a tooltip on every    */
+/* control, and the badge still on screen. A count that disappears when */
+/* the rail narrows is the pile-up this product exists to prevent,      */
+/* hidden by a preference.                                             */
+/* ------------------------------------------------------------------ */
+
+.sb--tight .sb__item,
+.sb--tight .sb__new {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Clipped rather than removed: the label is still the button's accessible name,
+   so a screen reader reads "Akışlar" and not an unnamed button. */
+.sb--tight .sb__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.sb--tight .sb__badge {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  min-width: 17px;
+  height: 17px;
+  margin: 0;
+  padding: 0 4px;
+  background: var(--warn);
+  color: #fff;
+  font-size: 10.5px;
+  /* On the tinted current row the amber-on-amber pill lost its edge; a solid
+     chip with a hairline of the column behind it survives every row state. */
+  box-shadow: 0 0 0 2px var(--bg-subtle);
+}
+
+.sb--tight .sb__item--current::before {
+  left: -10px;
+}
+
+/*
+  The tooltip.
+
+  Drawn here rather than with the browser's `title`, for two reasons: a native
+  tooltip needs a mouse and about a second of hovering, and it never appears for
+  a keyboard. This one is on `:hover` and on `:focus-visible`, which is the state
+  a keyboard actually produces.
+*/
+.sb--tight [data-tip]::after {
+  /*
+    No content until it is asked for, which is not a style choice: a pseudo-element with
+    content is a box, an absolutely positioned box outside a 68px column is overflow, and
+    measured at 1440 the page grew to 1492 and scrolled sideways with every tooltip in the
+    column standing invisibly off the right edge of the rail.
+  */
+  content: none;
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  z-index: 40;
+  transform: translateY(-50%);
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: #111111;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.sb--tight [data-tip]:hover::after,
+.sb--tight [data-tip]:focus-visible::after {
+  content: attr(data-tip);
+}
+
+/* ------------------------------------------------------------------ */
+/* Focus                                                               */
+/*                                                                     */
+/* The global ring sits 2px outside the element, which on a 260px       */
+/* column puts it half over the page edge. Inside, it hugs the row.    */
+/* ------------------------------------------------------------------ */
+
+.sb__item:focus-visible,
+.sb__new:focus-visible,
+.sb__brand:focus-visible,
+.sb__icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.sb__spacer {
+  flex: 1 1 auto;
+  min-height: var(--s-12);
+}
+
+/* The account chip is fixed to the viewport (see below); this row is the space
+   it is parked in, so nothing above it ever scrolls underneath. */
+.sb__foot {
+  flex: 0 0 auto;
+  height: 62px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Who is signed in                                                    */
+/*                                                                     */
+/* AccountMenu portals into `header.header` when it finds one and pins  */
+/* itself to the viewport when it does not. There is no `header.header` */
+/* in this product any more — deliberately, because a portal host that  */
+/* exists at one width and not another detaches on resize — so the chip */
+/* always takes the second path and this file decides where that is.    */
+/* ------------------------------------------------------------------ */
+
+html[data-sidebar='wide'] .account--loose,
+html[data-sidebar='tight'] .account--loose {
+  top: auto;
+  right: auto;
+  bottom: 10px;
+  left: 10px;
+  width: calc(var(--sb-w) - 20px);
+  /* `.account` carries a 12px left margin for the header row it used to sit in; kept, it
+     pushes the chip 12px past the column's own edge. Measured: 262 against a 260px rail. */
+  margin-left: 0;
+}
+
+html[data-sidebar='wide'] .account--loose .account__chip {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+html[data-sidebar='tight'] .account--loose .account__chip {
+  width: 100%;
+  padding: 3px;
+}
+
+html[data-sidebar='tight'] .account--loose .account__name {
+  display: none;
+}
+
+/* At the bottom of the column the menu has to open upwards, or it opens into
+   the desk. */
+html[data-sidebar='wide'] .account--loose .account__menu,
+html[data-sidebar='tight'] .account--loose .account__menu {
+  top: auto;
+  right: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Below 1024px — a top bar and a drawer                               */
+/*                                                                     */
+/* `adaptive-navigation`: a permanent 260px column out of 390 is two    */
+/* thirds of a phone spent on furniture. Same component, same order,    */
+/* one press away.                                                     */
+/* ------------------------------------------------------------------ */
+
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  min-height: 56px;
+  /* The account chip is pinned to the top right at this width and is 44px wide
+     with the name hidden; this keeps the bar's own content clear of it. */
+  padding: 0 68px 0 var(--s-8);
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
+  border-bottom: 1px solid rgba(17, 17, 17, 0.07);
+}
+
+/* Without backdrop-filter the translucency would just leak text through. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .topbar {
+    background: var(--bg);
+    border-bottom-color: var(--border);
+  }
+}
+
+.topbar__menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-btn);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.topbar__menu:hover {
+  background: rgba(17, 17, 17, 0.06);
+}
+
+.sb-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+}
+
+.sb-drawer__scrim {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: rgba(17, 17, 17, 0.34);
+  cursor: pointer;
+}
+
+.sb-drawer .sb {
+  position: relative;
+  flex: 0 0 auto;
+  /* 86vw, not 100: the strip of page still showing is what says this is a layer
+     over the screen rather than a new screen. */
+  width: min(288px, 86vw);
+  height: 100dvh;
+  padding-bottom: 0;
+  /* A drawer is opened to be read, so its labels are never clipped — but it can
+     be taller than a phone, and then it scrolls inside itself. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: 0 0 44px rgba(0, 0, 0, 0.18);
+  animation: sb-slide-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The chip lives in the top bar's corner at this width, so the drawer needs no
+   room reserved for it. */
+.sb-drawer .sb__foot {
+  height: var(--s-12);
+}
+
+@keyframes sb-slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-drawer .sb {
+    animation: none;
+  }
+  .sb__item,
+  .sb__new,
+  .sb__icon-btn {
+    transition: none;
+  }
+}

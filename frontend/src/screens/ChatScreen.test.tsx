@@ -183,6 +183,28 @@ it('a_run_the_store_just_created_still_writes_itself_into_the_address', async ()
   await waitFor(() => expect(window.location.hash).toBe('#/sohbet/r-c'));
 });
 
+it('yeni_is_gives_an_empty_box_even_with_a_run_still_in_the_store', async () => {
+  // `+ Yeni iş` is the sidebar's one primary action (#130) and it lands on a bare
+  // `#/sohbet`. Before this, "new" meant whatever run was still in memory: the button
+  // that starts work reopened the last flow, and the only route to a blank box was a
+  // page reload.
+  window.location.hash = '#/sohbet/r-a';
+  useRunStore.setState({ ...IDLE, phase: 'ready', run: runWithId('r-a') });
+  const view = render(<ChatScreen />);
+  await waitFor(() => expect(window.location.hash).toBe('#/sohbet/r-a'));
+
+  await act(async () => {
+    window.location.hash = '#/sohbet';
+    await Promise.resolve();
+  });
+  view.rerender(<ChatScreen />);
+
+  expect(screen.getByLabelText('Yapılmasını istediğin iş')).not.toBeNull();
+  // And the screen does not put the old run's id back in the address behind the user's
+  // back — that is the same one-render disagreement #125 was fixed for.
+  expect(window.location.hash).toBe('#/sohbet');
+});
+
 it('a_flow_running_beside_the_open_one_is_on_screen_and_one_click_away', async () => {
   window.location.hash = '#/sohbet/r-a';
   useRunStore.setState({ ...IDLE, phase: 'ready', run: runWithId('r-a') });
