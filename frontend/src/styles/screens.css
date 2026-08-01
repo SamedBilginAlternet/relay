@@ -26,6 +26,20 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* Bağlantılar — a saved value looks saved (issue #66)                 */
+/*                                                                     */
+/* The stored secret is the field's value, not its placeholder, so it   */
+/* is drawn in `--fg` like anything else typed in. It is read-only      */
+/* until touched — a mask cannot be edited a character at a time — and  */
+/* the pointer says so before the click does.                           */
+/* ------------------------------------------------------------------ */
+
+.conn-value {
+  color: var(--fg);
+  cursor: text;
+}
+
+/* ------------------------------------------------------------------ */
 /* Load error (issue #63)                                              */
 /*                                                                     */
 /* Every screen that reads from the API fails the same way, so it says  */

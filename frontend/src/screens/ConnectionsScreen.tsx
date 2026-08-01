@@ -259,6 +259,7 @@ type CardProps = {
 
 function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: CardProps) {
   const [values, setValues] = useState<Record<string, string>>({});
+  const [replacing, setReplacing] = useState<Record<string, boolean>>({});
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -269,9 +270,18 @@ function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: C
     setSaving(true);
     setError(null);
     try {
-      const saved = await getRunSource().saveConnection(provider, values);
+      // Only what was actually typed goes up. An emptied field is not an
+      // instruction to delete the stored value — there is no undo behind it,
+      // and a blank input is far more often a slip than a decision.
+      const payload: Record<string, string> = {};
+      for (const [key, value] of Object.entries(values)) {
+        if (value.trim()) payload[key] = value.trim();
+      }
+      const saved = await getRunSource().saveConnection(provider, payload);
       onSaved(saved);
       setValues({});
+      setReplacing({});
+      setReveal({});
       setResult(null);
     } catch (err) {
       setError(err);
@@ -315,20 +325,50 @@ function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: C
           const stored = connection?.config?.[f.key] ?? '';
           const isSecret = Boolean(f.secret);
           const shown = reveal[f.key] ?? false;
+          // A saved secret comes back masked, so it cannot be edited in place: the
+          // field shows it as the value it is, and touching it starts a replacement.
+          const holding = isSecret && Boolean(stored) && !replacing[f.key];
           return (
             <label className="field" key={f.key}>
               <span className="t-label">{f.label}</span>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type={isSecret && !shown ? 'password' : 'text'}
-                  value={values[f.key] ?? ''}
-                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                  placeholder={stored ? stored : f.placeholder}
-                  autoComplete="off"
-                  spellCheck={false}
-                  style={{ flex: '1 1 auto' }}
-                />
-                {isSecret && (
+                {holding ? (
+                  <input
+                    type="text"
+                    className="conn-value"
+                    value={stored}
+                    readOnly
+                    autoComplete="off"
+                    spellCheck={false}
+                    style={{ flex: '1 1 auto' }}
+                    onFocus={() => setReplacing((r) => ({ ...r, [f.key]: true }))}
+                  />
+                ) : (
+                  <input
+                    type={isSecret && !shown ? 'password' : 'text'}
+                    value={values[f.key] ?? (isSecret ? '' : stored)}
+                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                    placeholder={isSecret && stored ? 'Yeni token yapıştır' : f.placeholder}
+                    autoComplete="off"
+                    spellCheck={false}
+                    autoFocus={replacing[f.key]}
+                    style={{ flex: '1 1 auto' }}
+                    // Left empty, the replacement is a change of mind, not a deletion:
+                    // the stored token comes back and nothing was sent anywhere.
+                    onBlur={() => {
+                      if (isSecret && stored && !(values[f.key] ?? '').trim()) {
+                        setReplacing((r) => ({ ...r, [f.key]: false }));
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape' && isSecret && stored) {
+                        setValues((v) => ({ ...v, [f.key]: '' }));
+                        setReplacing((r) => ({ ...r, [f.key]: false }));
+                      }
+                    }}
+                  />
+                )}
+                {isSecret && !holding && (
                   <button
                     type="button"
                     className="btn btn--ghost btn--icon"
@@ -339,9 +379,11 @@ function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: C
                   </button>
                 )}
               </div>
-              <span className="field__hint">
-                {stored ? `Kayıtlı: ${stored}` : f.hint ?? 'Henüz kayıt yok.'}
-              </span>
+              {(holding || f.hint) && (
+                <span className="field__hint">
+                  {holding ? 'Değiştirmek için tıkla — yenisini yapıştırana kadar bu token geçerli.' : f.hint}
+                </span>
+              )}
             </label>
           );
         })}
