@@ -128,7 +128,7 @@ Minimum edits:
 | `CORS_ALLOWED_ORIGINS` | `https://<APP_DOMAIN>` |
 | `GROQ_API_KEYS` | comma-separated Groq keys. Empty = the API runs on `StubLlmClient` |
 | `GROQ_MODEL` | e.g. `llama-3.3-70b-versatile` |
-| `TOOLS_MODE` | `stub` for a side-effect-free demo, `live` for real Jira/Slack calls |
+| `TOOLS_MODE` | `replay` for a side-effect-free demo, `live` for real Jira/Slack calls. Those are the only two values `ToolsMode.parse` knows — **anything else, including `stub`, silently becomes `replay`** |
 | `WEB_PORT` / `API_PORT` | only if 8086/8087 were taken in §1 |
 | `VITE_RUN_SOURCE` | `api` — `mock` ships the fixture demo and looks deceptively fine |
 | `VITE_API_BASE_URL` | leave **empty** — production is same-origin behind Caddy |
@@ -596,3 +596,95 @@ deploy/
   Caddyfile.snippet           the site block to add in the n11 repo
   DEPLOY.md                   this file
 ```
+
+---
+
+## 13. A review-only replay deployment — *draft, not built yet*
+
+**Why this exists.** Relay is a single shared workspace on purpose: `runs`,
+`connections` and `tool_policies` carry no `user_id` (`V2__auth.sql` says so in
+its own header). So *any* account handed to a reviewer opens the founder's real
+Gmail, Jira, Slack and GitHub — `GET /api/connections` returns all four,
+`GET /api/brief` returns the actual inbox. The product decision is that nobody
+signs in but the presenter (`docs/DEMO.md` §5 item 0). This section is the
+fallback for the one case that decision does not cover: an evaluation process
+that *requires* hands-on access.
+
+**What it is.** A second, independent deployment of the same images with no
+connections configured and `TOOLS_MODE=replay`. Every tool call is answered from
+`backend/src/main/resources/fixtures/<toolName>.json`, so the plan, the policy
+engine, the approval gate, the cost meter and the audit trail all behave
+identically — only the provider responses are recorded ones. Nothing reaches
+Jira, Slack, Google or GitHub, because there is nothing to reach them with.
+
+**Effort:** ~30–45 minutes, entirely deploy + env. No code, no migration.
+
+### 13.1 What differs from §3
+
+Start from a copy of the production `.env` and change exactly these:
+
+| Variable | Value | Why |
+|---|---|---|
+| `APP_DOMAIN` | a second hostname, e.g. `relay-demo.samedbilgin.com` | Its own Caddy site block (§6) and its own certificate |
+| `CORS_ALLOWED_ORIGINS` | `https://<that hostname>` | — |
+| `TOOLS_MODE` | `replay` | The whole point. Verify after deploy, do not assume |
+| `WEB_PORT` / `API_PORT` | a free pair, e.g. `8088` / `8089` | §1's port check applies again — the production pair is taken |
+| `POSTGRES_PASSWORD` | a **new** value | Separate database; never point this at the production volume |
+| `APP_ENCRYPTION_KEY` | a **new** value | It encrypts nothing here, but sharing the production key across a public-facing box is free risk |
+| `GROQ_API_KEYS` | either its own keys, or empty | Empty falls back to `StubLlmClient`: plans become deterministic and dull, but nothing breaks. Sharing the production keys means a reviewer can burn the demo's quota — prefer separate keys |
+| `DEFAULT_BUDGET_USD` | keep `0.50` | The budget gate is part of what is being reviewed |
+| `VITE_RUN_SOURCE` | `api` | `mock` would fake the backend too, which is a different (and dishonest) thing |
+
+Coolify: this is a **new resource**, not a new environment on the existing one —
+sharing a resource shares the volumes. Same rules as §4B: proxy off, FQDN field
+empty, no `SERVICE_FQDN_*`, ports published on all interfaces.
+
+### 13.2 Leave `connections` empty
+
+Do not open the `Bağlantılar` screen and do not paste any token. An empty
+`connections` table is what makes this safe, and it is also what makes the mode
+visible: `AbstractTool` reports `replay (no connection)` rather than plain
+`replay`, and `BriefService` counts those sections as `unavailable` instead of
+`ok` — the Bugün screen shows "connect me" cards rather than presenting fixture
+data as somebody's inbox. That behaviour is deliberate (`docs/NASIL-CALISIYOR.md`
+§3) and must not be worked around by seeding fake connection rows.
+
+### 13.3 Seed one account, and say what it is
+
+Register a single reviewer account through `#/kayit` and note it in the delivery
+text as an **evaluation account on an evaluation environment** — never as "the
+app". One line is enough:
+
+> Değerlendirme ortamı: `https://relay-demo.…` — bağlantısız ve `TOOLS_MODE=replay`
+> ile koşuyor. Akış, onay kapısı, politika motoru ve iz kaydı canlıdakiyle birebir
+> aynı; araç yanıtları kayıtlı yanıtlardır, kimsenin gerçek verisi değildir.
+> Canlı ortam sunum sırasında sunucunun ekranından gösterilir.
+
+### 13.4 Verify before sharing the address
+
+```bash
+# 1. The mode. This is the only check that matters.
+curl -s https://<host>/api/health | python3 -m json.tool
+# -> "tools": {"mode": "replay", "count": 18}
+
+# 2. Nothing is connected. Needs the reviewer session cookie.
+curl -s -b cookies.txt https://<host>/api/connections
+# -> every provider must be "configured": false
+
+# 3. The brief is fixture data and says so.
+curl -s -b cookies.txt https://<host>/api/brief | grep -c '"status": *"unavailable"'
+# -> non-zero. If a section says "ok", something got connected — stop and fix it.
+```
+
+If check 1 returns `"mode": "live"`, the address does **not** get shared: a live
+mode with no connections still falls back to fixtures per provider, but a single
+token pasted later turns the reviewer environment into the production one.
+
+### 13.5 What this does not solve
+
+Still one shared workspace: two reviewers on this box see each other's runs and
+each other's policy changes. That is fine for evaluation and must not be
+described as multi-tenancy. Fixtures are static, so two reviewers running the
+same playbook get the same result — a jury that expects live-looking variation
+will notice. And the runs pile up in a database nobody prunes; tear the whole
+resource down after the evaluation window rather than cleaning it.
