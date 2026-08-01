@@ -101,6 +101,7 @@ function normalizeCard(raw: unknown, index: number): InsightCard {
     source,
     title: asString(r.title) || '(başlıksız)',
     from: asString(r.from) || undefined,
+    subtitle: asString(r.subtitle) || undefined,
     kind: asString(r.kind) || 'fyi',
     urgency,
     summary: asString(r.summary),

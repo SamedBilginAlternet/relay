@@ -156,3 +156,155 @@ export function reasonEarnsItsLine(title: string, reason: string | null | undefi
   if (fresh.some((word) => /\p{N}/u.test(word))) return true;
   return fresh.length >= NEW_WORDS_NEEDED;
 }
+
+/* ------------------------------------------------------------------ */
+/* The fact strip (issue #141)                                        */
+/*                                                                     */
+/* Three rows of the live brief carried, word for word:               */
+/*                                                                     */
+/*   "…deposuna ait bir pull request var ve senin PR'ın —              */
+/*    incelemeye başlanabilir."                                        */
+/*                                                                     */
+/* Three sentences saying the same thing is a model repeating itself,  */
+/* and the reader learns in one visit that the second line of a row is */
+/* not worth reading. What differs between those three rows is the     */
+/* repository, the number and the age — facts the payload already      */
+/* carries and the screen was throwing away.                           */
+/*                                                                     */
+/* So the sentence is replaced by at most three machine tokens in the  */
+/* mono layer, with the same grammar on every row and different values */
+/* in it. Same shape, different numbers: that is what makes a column   */
+/* scannable, and it is the opposite of what prose does.               */
+/* ------------------------------------------------------------------ */
+
+/** One row's tokens, keyed so the caller can put them back on their row. */
+export type FactStrip = { id: string; tokens: string[] };
+
+/** At most three, because a fourth stops being scannable and starts being a sentence. */
+export const MAX_TOKENS = 3;
+
+/**
+ * Make every visible strip different from every other one.
+ *
+ * <p>WHY THIS IS A FUNCTION AND NOT A CONVENTION. Mono type is a truth claim. Three rows
+ * reading `github · pull request · açık` are *worse* than the repeated sentence they
+ * replaced: repeated prose reads as a tired model, but identical mono reads as measured
+ * data, and measured data is believed. Sameness in a fixed-width column is invisible
+ * until it has already destroyed the scanning it exists to enable.
+ *
+ * <p>Collisions are resolved by taking tokens away, never by adding them. For each group
+ * of identical strips the highest-ranked row keeps everything; each lower one drops
+ * trailing tokens until it differs, and a row left with nothing renders no strip at all.
+ * Silence is honest. A synthesised disambiguator — an index, a dash, the word "diğer" —
+ * would be a fact the payload never contained.
+ *
+ * <p>Every PREFIX of a kept strip is spoken for, not only the whole of it. Trimming the
+ * age off `github · pull request · açık` leaves `github · pull request`, which is not a
+ * different fact — it is the same claim with less of it, and two rows carrying it are as
+ * indistinguishable as before. A row whose every prefix is already on screen has nothing
+ * of its own to say and says nothing.
+ *
+ * @param rows ordered by rank; earlier rows win a collision
+ */
+export function dedupeStrips(rows: FactStrip[]): FactStrip[] {
+  const taken = new Set<string>();
+  return rows.map((row) => {
+    let tokens = row.tokens.slice(0, MAX_TOKENS);
+    while (tokens.length > 0 && taken.has(tokens.join(' '))) {
+      tokens = tokens.slice(0, -1);
+    }
+    for (let end = 1; end <= tokens.length; end += 1) {
+      taken.add(tokens.slice(0, end).join(' '));
+    }
+    return { id: row.id, tokens };
+  });
+}
+
+/**
+ * Which rows keep their sentence, and which give it up to the row above.
+ *
+ * <p>`reasonEarnsItsLine` already drops a reason that only rephrases its own title. This
+ * is the other half: a reason that is a rephrasing of *another row's* reason. Neither
+ * sentence is filler on its own — the tautology guard passes all three — and together
+ * they are three quarters of the screen's prose saying one thing.
+ *
+ * <p>The scarcity is the point. Once at most one or two rows a day carry a sentence, a
+ * sentence means "this one is different", which is what a reason was always supposed to
+ * mean. The rows that lose it lose nothing: it is in the body, one press away.
+ *
+ * @param rows ordered by rank; earlier rows keep their sentence
+ * @returns the reason to print on each row's line, or null to leave the line off
+ */
+export function rationReasons(
+  rows: { id: string; title: string; why: string | null | undefined }[],
+): Map<string, string | null> {
+  const kept: string[][] = [];
+  const out = new Map<string, string | null>();
+  for (const row of rows) {
+    const why = (row.why ?? '').trim();
+    if (!why || !reasonEarnsItsLine(row.title, why)) {
+      out.set(row.id, null);
+      continue;
+    }
+    const mine = words(why);
+    const echoesOne = kept.some((earlier) => overlap(mine, earlier) >= ECHO_RATIO);
+    out.set(row.id, echoesOne ? null : why);
+    if (!echoesOne) kept.push(mine);
+  }
+  return out;
+}
+
+/** How much of `a` is already in `b`, allowing for Turkish suffixes. */
+function overlap(a: string[], b: string[]): number {
+  if (a.length === 0) return 0;
+  const shared = a.filter((word) => b.some((other) => sameWord(word, other)));
+  return shared.length / a.length;
+}
+
+/**
+ * The item's own name in its own system: `KAN-42`, `acme/pay#128`, or the person.
+ *
+ * <p>Parsed off the id, which is where the backend already puts it — `jira:KAN-42`,
+ * `github-pr:acme/pay#128`, `gmail:18f2…`. Gmail's id is an opaque handle and never goes
+ * on screen, so a mail is named by whoever sent it.
+ */
+export function itemHandle(card: {
+  id: string;
+  source: InsightSource;
+  from?: string;
+}): string | null {
+  const colon = card.id.indexOf(':');
+  const rest = colon >= 0 ? card.id.slice(colon + 1) : card.id;
+  if (card.source === 'gmail') return (card.from ?? '').trim() || null;
+  return rest.trim() || (card.from ?? '').trim() || null;
+}
+
+/**
+ * One row's machine facts: what it is, where it stands, how old it is.
+ *
+ * <p>Three tokens at most, the same three kinds on every row, so the column reads down
+ * rather than across. Nothing is invented to reach three: a row with one fact prints one
+ * fact. `ACİL` is not in here — it is drawn separately, in the danger colour, because it
+ * is the one token that is a warning rather than a description.
+ *
+ * @param age the section item's own `meta` string, joined by the caller; the server wrote
+ *            it and it is never reformatted here
+ */
+export function factStrip(
+  card: { id: string; source: InsightSource; from?: string; subtitle?: string; kind: string },
+  age: string | null | undefined,
+): string[] {
+  const tokens: string[] = [];
+  const handle = itemHandle(card);
+  if (handle) tokens.push(handle);
+
+  const state = (card.subtitle ?? '').trim();
+  // Gmail's subtitle is the sender, which is already the handle. Printing it twice is
+  // the sameness this strip exists to remove, so the mail says what kind of mail it is.
+  const secondary = state && state !== handle ? state : kindLabel(card.kind);
+  if (secondary && secondary !== handle) tokens.push(secondary);
+
+  const when = (age ?? '').trim();
+  if (when) tokens.push(when);
+  return tokens.slice(0, MAX_TOKENS);
+}

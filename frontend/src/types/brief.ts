@@ -49,6 +49,16 @@ export type InsightCard = {
   source: InsightSource;
   title: string;
   from?: string;
+  /**
+   * What the source system itself says about the item — `senin PR'ın`, `review
+   * bekliyor`, `Yapılacak · Samed`.
+   *
+   * <p>The backend has always sent it (`BriefService.card`) and the client dropped it on
+   * the floor, because a field the type does not declare is a field `normalizeCard` never
+   * copies. It is the middle token of the fact strip: the one thing on the row that is
+   * neither the item's name nor its age.
+   */
+  subtitle?: string;
   /** bug_report | request | fyi | needs_reply | scheduling | … */
   kind: string;
   urgency: InsightUrgency;
