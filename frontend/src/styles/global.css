@@ -3492,3 +3492,127 @@ a.btn {
     opacity: 1;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Bugün — one column of work, one margin of context (issue #142)      */
+/*                                                                     */
+/* Everything that is ABOUT the day used to be stacked ON TOP of the   */
+/* day: a headline, a written paragraph, a counted line, an advice     */
+/* sentence and a status line, then a section heading, and only then   */
+/* the first job — a third of the way down a 900px screen. Under the   */
+/* list, ~240px of white sat doing nothing.                            */
+/*                                                                     */
+/* Rotating that stack ninety degrees costs no vertical room and fills  */
+/* the column that was empty. The list keeps the width it needs for a   */
+/* title and a fact strip; the margin takes what is left.               */
+/* ------------------------------------------------------------------ */
+
+.brief-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 372px;
+  gap: var(--s-24);
+  align-items: start;
+}
+.brief-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-16);
+  min-width: 0;
+}
+
+/*
+  Sticky, so the day's context does not scroll away from the work it is about.
+  The offset clears the page's own padding and nothing else — there is no top
+  bar at this width.
+*/
+.day-rail {
+  position: sticky;
+  top: var(--s-24);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+  min-width: 0;
+}
+.day-rail__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding: var(--s-16);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.day-rail__label {
+  margin: 0;
+}
+.day-rail__stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/*
+  One arrival per line. They were one run-on sentence joined by middots — three
+  different counts of three different things, read as a single claim.
+*/
+.day-rail__stat {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.day-rail__note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg-muted);
+}
+/* The one thing to do first, when the model committed to one (#102). */
+.day-rail__advice {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg);
+}
+.day-rail__advice > svg {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: var(--accent);
+}
+
+/* The shelf came from the bottom of the page, where it was a row. */
+.day-rail .shelf {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-8);
+  padding: var(--s-16);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.day-rail .shelf .btn {
+  justify-content: flex-start;
+}
+
+/*
+  Below this the margin is no longer a margin — it is a second column squeezed
+  into a phone. It goes back under the list, in the order it was read in.
+*/
+@media (max-width: 1120px) {
+  .brief-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .day-rail {
+    position: static;
+  }
+  .day-rail .shelf {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+}

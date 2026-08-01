@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { dedupeStrips, factStrip, itemHandle, rationReasons } from './insight';
+import { dedupeStrips, dropCommonOwner, factStrip, itemHandle, rationReasons } from './insight';
 
 /**
  * Why this file exists.
@@ -157,4 +157,45 @@ it('two_spellings_of_one_turkish_word_count_as_one_reason', () => {
 
   expect(kept.get('a')).not.toBeNull();
   expect(kept.get('b')).toBeNull();
+});
+
+/**
+ * Live on 2026-08-01 the strip read
+ * `SamedBilginAlternet/issue-to-notion-demo#43 · senin PR'ın · SamedBilginAlternet · 8sa
+ * önce` — nineteen characters of account name printed twice on one line and identically
+ * on the row below it, which is the sameness the strip exists to remove.
+ */
+it('an_account_name_shared_by_every_row_is_not_printed_on_any_of_them', () => {
+  const out = dropCommonOwner([
+    { id: 'a', tokens: ['acme/pay#128', "senin PR'ın", '8sa önce'] },
+    { id: 'b', tokens: ['acme/api#7', 'sana atandı', '2 gün'] },
+  ]);
+
+  expect(out.map((r) => r.tokens[0])).toEqual(['pay#128', 'api#7']);
+});
+
+it('an_account_name_that_tells_two_rows_apart_stays_on_both', () => {
+  const rows = [
+    { id: 'a', tokens: ['acme/pay#128', "senin PR'ın", '8sa önce'] },
+    { id: 'b', tokens: ['other/pay#128', 'sana atandı', '2 gün'] },
+  ];
+
+  // Dropping it here would leave two rows reading `pay#128`, and the dedupe would then
+  // silently empty the second one for a collision this function had caused.
+  expect(dropCommonOwner(rows)).toEqual(rows);
+});
+
+it('the_subtitle_contributes_one_token_not_a_line_of_its_own', () => {
+  const tokens = factStrip(
+    {
+      id: 'github-pr:acme/pay#43',
+      source: 'github',
+      // What the backend actually sends: two facts joined by this strip's own separator.
+      subtitle: "senin PR'ın · SamedBilginAlternet",
+      kind: 'fyi',
+    },
+    '8sa önce',
+  );
+
+  expect(tokens).toEqual(['acme/pay#43', "senin PR'ın", '8sa önce']);
 });

@@ -145,7 +145,10 @@ it('the_day_is_said_in_words_as_well_as_in_numbers', async () => {
   // The advice line came back with it: "first this, then that" is a sentence
   // about the list, and the product owner wants it said rather than implied by
   // the ordering (#102, reversing that half of #58).
+  // Still said out loud (#102) — in the margin beside the list now rather than stacked
+  // above it, which is where everything ABOUT the day moved in #142.
   expect(screen.getByText(/Önce ödeme hatasını çöz/)).toBeTruthy();
+  expect(document.querySelector('.day-rail')?.textContent).toContain('Önce ödeme hatasını');
 });
 
 /** A spent token budget costs a sentence, not the screen: the counts stand alone. */
@@ -187,7 +190,10 @@ it('what_arrived_today_is_counted_and_labelled_next_to_what_must_be_done', async
 
   expect(await screen.findByText(/7 mail bir kişiden geldi/)).toBeTruthy();
   expect(screen.getByText('Bugün gelenler')).toBeTruthy();
+  // Still said out loud (#102) — in the margin beside the list now rather than stacked
+  // above it, which is where everything ABOUT the day moved in #142.
   expect(screen.getByText(/Önce ödeme hatasını çöz/)).toBeTruthy();
+  expect(document.querySelector('.day-rail')?.textContent).toContain('Önce ödeme hatasını');
 });
 
 /** A day the server counted nothing for draws no empty label and no stray dot. */
@@ -349,7 +355,10 @@ it('three_rows_that_arrived_alike_are_drawn_apart_by_their_own_facts', async () 
   await screen.findByText('Kurulum notunu README ekle');
   const strips = [...document.querySelectorAll('.arow__facts')].map((el) => el.textContent);
   expect(strips).toHaveLength(2);
-  expect(strips[0]).toContain('acme/pay#128');
+  // The account name is dropped because both rows carry it: a name shared by every row
+  // is not a fact about any of them (#141).
+  expect(strips[0]).toContain('pay#128');
+  expect(strips[0]).not.toContain('acme/');
   expect(strips[0]).toContain("senin PR'ın");
   expect(strips[0]).toContain('262 gün');
   expect(new Set(strips).size).toBe(strips.length);

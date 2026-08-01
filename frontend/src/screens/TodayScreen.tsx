@@ -7,7 +7,6 @@ import {
   ClipboardList,
   GitPullRequest,
   Inbox,
-  ListChecks,
   Plug,
   RefreshCw,
   Undo2,
@@ -22,7 +21,7 @@ import { ApiError } from '../data/ApiRunSource';
 import { getPlaybookSource } from '../data/PlaybookSource';
 import type { Playbook } from '../data/PlaybookSource';
 import { formatDayMonth } from '../lib/format';
-import { dedupeStrips, factStrip, rationReasons } from '../lib/insight';
+import { dedupeStrips, dropCommonOwner, factStrip, rationReasons } from '../lib/insight';
 import { enterProps, expandProps } from '../lib/motion';
 import { EMPTY_SECTION } from '../types/brief';
 import type { Brief, BriefSectionKey, InsightCard, SuggestedAction } from '../types/brief';
@@ -293,7 +292,9 @@ export function TodayScreen({ onNavigate }: Props) {
   */
   const factsById = useMemo(() => {
     const strips = dedupeStrips(
-      priority.map((card) => ({ id: card.id, tokens: factStrip(card, ageById.get(card.id)) })),
+      dropCommonOwner(
+        priority.map((card) => ({ id: card.id, tokens: factStrip(card, ageById.get(card.id)) })),
+      ),
     );
     return new Map(strips.map((strip) => [strip.id, strip.tokens]));
   }, [priority, ageById]);
@@ -541,61 +542,42 @@ export function TodayScreen({ onNavigate }: Props) {
               the counted line still stands on its own, so a spent token budget
               costs a sentence, not the screen.
             */}
-            {!loading && summary ? <p className="tally__summary">{summary}</p> : null}
-
             {/*
-              What actually arrived, counted by the server. This is a different
-              question from the headline above it and has to look like one: the
-              headline counts what needs doing (the rows below), this counts
-              what came in — fifteen mails of which eight were mailings and
-              seven from people. #60 was opened because three numbers sat on
-              this screen with nothing saying what each was; the label is what
-              was missing, not the numbers.
+              What arrived, what the day is about and what can be started are all still
+              on this screen — in the margin beside the list rather than stacked on top
+              of it (#142). Everything that was here pushed the first actual job to
+              y≈190 on a 900px screen, and none of it was the work.
             */}
-            {!loading && dayLines.length > 0 ? (
-              <p className="tally__lines">
-                <span className="tally__lines-label">Bugün gelenler</span>
-                {dayLines.join(' · ')}
-              </p>
-            ) : null}
-
-            {/* And the one thing to do first, when the model committed to one. */}
-            {!loading && advice ? (
-              <p className="tally__advice">
-                <ArrowRight size={13} aria-hidden />
-                <span>{advice}</span>
-              </p>
-            ) : null}
-
-            {/*
-              The dot and the source, and nothing else. "Öneriye basmadan hiçbir şey
-              çalışmaz" used to hang off the end — a promise printed where a status
-              belongs. The promise is kept by the gate, and now stated where it is
-              about to matter: on the row's own draft, next to the values that would
-              be sent. A line that reassures on every screen stops being read on any.
-            */}
-            <p className="brief-top__meta">
-              <span
-                className={`src-dot src-dot--${RUN_SOURCE_KIND}${phase === 'error' ? ' src-dot--down' : ''}`}
-                aria-hidden
-              />
-              {/* Three states, in the one line that already says where the data comes
-                  from: dead, being rebuilt behind this answer, current. */}
-              {phase === 'error'
-                ? `${SOURCE_NOTE} — yanıt yok`
-                : brief?.stale
-                  ? `${SOURCE_NOTE} — yenileniyor`
-                  : SOURCE_NOTE}
-            </p>
           </div>
           <button
             type="button"
             className="btn btn--outline btn--sm"
             onClick={() => void load('refresh')}
             disabled={loading || refreshing}
+            title={
+              phase === 'error'
+                ? `${SOURCE_NOTE} — yanıt yok`
+                : brief?.stale
+                  ? `${SOURCE_NOTE} — yenileniyor`
+                  : SOURCE_NOTE
+            }
           >
+            {/* The source dot rides on the control it describes. It used to hold a line
+                of its own under the headline, which is a whole row of the screen spent
+                saying "still connected". */}
+            <span
+              className={`src-dot src-dot--${RUN_SOURCE_KIND}${phase === 'error' ? ' src-dot--down' : ''}`}
+              aria-hidden
+            />
             <RefreshCw size={14} aria-hidden className={loading || refreshing ? 'spin' : undefined} />
             {refreshing ? 'Yenileniyor…' : 'Yenile'}
+            <span className="sr-only">
+              {phase === 'error'
+                ? ` — ${SOURCE_NOTE}, yanıt yok`
+                : brief?.stale
+                  ? ` — ${SOURCE_NOTE}, yenileniyor`
+                  : ` — ${SOURCE_NOTE}`}
+            </span>
           </button>
         </motion.div>
 
@@ -641,7 +623,8 @@ export function TodayScreen({ onNavigate }: Props) {
           The error card above is the whole screen until it loads.
         */}
         {!showBody ? null : (
-          <div className="brief-body">
+          <div className="brief-body brief-grid">
+            <div className="brief-main">
             {/* The written summary used to sit here, between the headline and the
                 list, and it said the list out loud a second time: the paragraph
                 named the same records, the advice line under it repeated the
@@ -656,12 +639,16 @@ export function TodayScreen({ onNavigate }: Props) {
                 from is a badge on the row; it was a section heading until today,
                 which answered a question nobody had asked. */}
             <section className="brief-prio" aria-labelledby="brief-priority-h">
-              <div className="brief-prio__head">
-                <h2 className="t-label" id="brief-priority-h">
-                  <ListChecks size={12} aria-hidden /> Yapılacak işler
-                </h2>
-                {!loading && rowCount > 0 && <span className="t-caption">{rowCount} iş</span>}
-                {!loading && dismissed.length > 0 && (
+              {/* The heading and the count are both gone. The headline above already
+                  counts the rows and the rank numbers already order them; a third
+                  statement of the same number is what #60 was opened about. The
+                  section keeps its accessible name, which is what the heading was
+                  actually load-bearing for. */}
+              <h2 className="sr-only" id="brief-priority-h">
+                Yapılacak işler
+              </h2>
+              {!loading && dismissed.length > 0 && (
+                <div className="brief-prio__head">
                   <button
                     type="button"
                     className="btn btn--ghost btn--sm brief-prio__undo"
@@ -670,8 +657,8 @@ export function TodayScreen({ onNavigate }: Props) {
                     <Undo2 size={14} aria-hidden />
                     {dismissed.length} yoksayılanı geri al
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
               {loading && (
                 <div className="brief-prio__skeleton">
@@ -825,16 +812,63 @@ export function TodayScreen({ onNavigate }: Props) {
               </AnimatePresence>
             </section>
 
-            {/* ---------------- HAZIR AKIŞLAR ---------------- */}
-            {/* Last on the screen on purpose: everything above answers "what
-                happened", this answers "what can I start". Issue #15. */}
-            <PlaybookShelf
-              playbooks={shelfPlaybooks}
-              loading={playbookPhase === 'loading'}
-              error={playbookError}
-              starting={starting}
-              onRun={(id) => void startPlaybook(id)}
-            />
+            </div>
+
+            {/*
+              The margin: everything that is ABOUT the day rather than IN it.
+
+              It used to be stacked above the list — a counted line, a paragraph, an
+              advice sentence, a status line — so the first job started a third of the
+              way down a 900px screen while ~240px of white sat under the list doing
+              nothing. Rotated ninety degrees it costs no vertical room at all and fills
+              the column that was empty.
+
+              Blocks are hide-when-empty, never a placeholder: a quiet day makes this
+              rail shorter, and the white it leaves is the honest picture of that day.
+              It is capped at three blocks — a fourth idea has to displace one, or the
+              300px that moved sideways grows back downward within a month.
+            */}
+            <aside className="day-rail" aria-label="Günün özeti">
+              {!loading && dayLines.length > 0 && (
+                <section className="day-rail__block">
+                  <h2 className="t-label day-rail__label">Bugün gelenler</h2>
+                  <ul className="day-rail__stats">
+                    {dayLines.map((line) => (
+                      <li key={line} className="day-rail__stat">
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {!loading && summary && (
+                <section className="day-rail__block">
+                  <h2 className="t-label day-rail__label">Günün özeti</h2>
+                  <p className="day-rail__note">{summary}</p>
+                  {/* The advice line comes with it. #58 deleted it as a restatement of
+                      the ordering and #102 put it back because the ordering is implicit
+                      and this is not — that decision stands; what changed is only where
+                      it sits. */}
+                  {advice && (
+                    <p className="day-rail__advice">
+                      <ArrowRight size={13} aria-hidden />
+                      <span>{advice}</span>
+                    </p>
+                  )}
+                </section>
+              )}
+
+              {/* Last, because everything above answers "what happened" and this answers
+                  "what can I start". Issue #15. */}
+              <PlaybookShelf
+                playbooks={shelfPlaybooks}
+                loading={playbookPhase === 'loading'}
+                error={playbookError}
+                starting={starting}
+                onRun={(id) => void startPlaybook(id)}
+              />
+            </aside>
           </div>
         )}
       </div>

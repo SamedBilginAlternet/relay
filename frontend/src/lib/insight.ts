@@ -298,7 +298,13 @@ export function factStrip(
   const handle = itemHandle(card);
   if (handle) tokens.push(handle);
 
-  const state = (card.subtitle ?? '').trim();
+  /*
+    The first segment only. The backend writes GitHub's subtitle as
+    `senin PR'ın · SamedBilginAlternet`, and ` · ` is this strip's own separator — a token
+    carrying it is not one token, it is two, and the second of them was the account name
+    already printed at the head of the line.
+  */
+  const state = (card.subtitle ?? '').split(' · ')[0]!.trim();
   // Gmail's subtitle is the sender, which is already the handle. Printing it twice is
   // the sameness this strip exists to remove, so the mail says what kind of mail it is.
   const secondary = state && state !== handle ? state : kindLabel(card.kind);
@@ -307,4 +313,32 @@ export function factStrip(
   const when = (age ?? '').trim();
   if (when) tokens.push(when);
   return tokens.slice(0, MAX_TOKENS);
+}
+
+/**
+ * Drop the owner from every repository handle when it is the same owner every time.
+ *
+ * <p>Measured on the live screen: `SamedBilginAlternet/issue-to-notion-demo#43 · senin
+ * PR'ın · SamedBilginAlternet · 8sa önce`. Nineteen characters of account name, twice on
+ * one line, and identical on the row below — which is exactly the thing this strip exists
+ * to stop printing. A name shared by every row is not a fact about any of them.
+ *
+ * <p>It is dropped only when it is shared. With two owners on screen the owner IS what
+ * tells the rows apart, and taking it away would leave `pay#128` and `pay#128` — the
+ * dedupe would then silently empty the second row for a collision this function caused.
+ * One repository on its own keeps its owner too: there is nothing for it to be common to.
+ */
+export function dropCommonOwner(rows: FactStrip[]): FactStrip[] {
+  const owners = new Set<string>();
+  for (const row of rows) {
+    const slash = (row.tokens[0] ?? '').indexOf('/');
+    if (slash > 0) owners.add(row.tokens[0]!.slice(0, slash));
+  }
+  if (owners.size !== 1) return rows;
+  const owner = [...owners][0]!;
+  return rows.map((row) => {
+    const tokens = row.tokens.slice();
+    if (tokens[0]?.startsWith(`${owner}/`)) tokens[0] = tokens[0].slice(owner.length + 1);
+    return { id: row.id, tokens };
+  });
 }
