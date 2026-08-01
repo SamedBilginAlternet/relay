@@ -85,7 +85,7 @@ type Props = {
 export function LoadError({ error, onRetry, retryLabel }: Props) {
   return (
     <div className="notice notice--danger load-error" role="alert">
-      <TriangleAlert size={16} aria-hidden />
+      <TriangleAlert size={16} aria-hidden className="load-error__icon" />
       <div className="load-error__body">
         <span className="load-error__text">{describeLoadError(error)}</span>
         {onRetry && (

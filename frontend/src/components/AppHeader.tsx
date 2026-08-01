@@ -30,6 +30,24 @@ const ITEMS: { hash: string; label: string; match: Route['name'][]; Icon: Lucide
   { hash: '#/panel', label: 'Panel', match: ['panel'], Icon: BarChart3 },
 ];
 
+/**
+ * Pull the current tab into the visible part of the rail.
+ *
+ * <p>By hand rather than with `scrollIntoView`, which would also scroll the page
+ * vertically to reach a bar that is already fixed to the top of it.
+ */
+function revealActive(nav: HTMLElement): void {
+  const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
+  if (!active) return;
+  const left = active.offsetLeft;
+  const right = left + active.offsetWidth;
+  const pad = 16;
+  if (left - pad < nav.scrollLeft) nav.scrollLeft = Math.max(0, left - pad);
+  else if (right + pad > nav.scrollLeft + nav.clientWidth) {
+    nav.scrollLeft = right + pad - nav.clientWidth;
+  }
+}
+
 export function AppHeader({ route, onNavigate }: Props) {
   const ref = useRef<HTMLElement>(null);
   const navRef = useRef<HTMLElement>(null);
@@ -74,7 +92,12 @@ export function AppHeader({ route, onNavigate }: Props) {
     };
     measure();
     nav.addEventListener('scroll', measure, { passive: true });
-    const ro = new ResizeObserver(measure);
+    // A rotation turns a strip that fitted into one that does not, so the
+    // current tab has to be pulled back into the rail on resize as well.
+    const ro = new ResizeObserver(() => {
+      revealActive(nav);
+      measure();
+    });
     ro.observe(nav);
     return () => {
       nav.removeEventListener('scroll', measure);
@@ -84,21 +107,10 @@ export function AppHeader({ route, onNavigate }: Props) {
 
   /*
     Land on Panel from a link and the tab for it was off-screen: the bar
-    claimed you were nowhere. Scroll it into the rail by hand rather than with
-    `scrollIntoView`, which would also scroll the page vertically to reach a
-    bar that is already fixed at the top of it.
+    claimed you were nowhere.
   */
   useLayoutEffect(() => {
-    const nav = navRef.current;
-    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
-    if (!nav || !active) return;
-    const left = active.offsetLeft;
-    const right = left + active.offsetWidth;
-    const pad = 16;
-    if (left - pad < nav.scrollLeft) nav.scrollLeft = Math.max(0, left - pad);
-    else if (right + pad > nav.scrollLeft + nav.clientWidth) {
-      nav.scrollLeft = right + pad - nav.clientWidth;
-    }
+    if (navRef.current) revealActive(navRef.current);
   }, [route.name]);
 
   return (

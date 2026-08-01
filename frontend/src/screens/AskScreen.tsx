@@ -302,6 +302,48 @@ export function AskScreen() {
               )}
             </section>
 
+            {/*
+              What happens between the question and the answer, in the order it
+              happens. The trace under a real answer says all of this — but only
+              after there is one, and this screen's whole problem was the state
+              before that.
+            */}
+            <section className="card ask-how" aria-labelledby="ask-how-h">
+              <h2 className="t-label" id="ask-how-h">
+                Soru nasıl yanıtlanır
+              </h2>
+              <ol className="ask-how__steps">
+                <li>
+                  <span className="ask-how__n" aria-hidden>
+                    1
+                  </span>
+                  <span className="ask-how__body">
+                    <b>Sorgu yazılır.</b> Sorun bir Gmail arama sorgusuna çevrilir; sorgu ekranda
+                    aynen gösterilir, gizlenmez.
+                  </span>
+                </li>
+                <li>
+                  <span className="ask-how__n" aria-hidden>
+                    2
+                  </span>
+                  <span className="ask-how__body">
+                    <b>Gelen kutunda aranır.</b> Tek çağrı, tek araç:{' '}
+                    <code className="t-mono">gmail.searchMessages</code> — okuma riski, onay
+                    gerektirmez.
+                  </span>
+                </li>
+                <li>
+                  <span className="ask-how__n" aria-hidden>
+                    3
+                  </span>
+                  <span className="ask-how__body">
+                    <b>Yanıt kaynağıyla gelir.</b> Metindeki <code className="t-mono">[1]</code>{' '}
+                    atıfları listedeki maile götürür. Kaynak yoksa yanıt da yok.
+                  </span>
+                </li>
+              </ol>
+            </section>
+
             <section className="card ask-recent" aria-labelledby="ask-recent-h">
               <h2 className="t-label" id="ask-recent-h">
                 Son sorular

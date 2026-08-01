@@ -177,7 +177,11 @@ export function PanelScreen() {
               </button>
             ))}
           </div>
-          <p className="t-caption panel-range__label">{fromLabel} – {toLabel}</p>
+          {report && (
+            <p className="t-caption panel-range__label">
+              {fromLabel} – {toLabel}
+            </p>
+          )}
         </div>
 
         {error != null && <LoadError error={error} onRetry={() => void load(range)} />}

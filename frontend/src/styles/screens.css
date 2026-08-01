@@ -25,6 +25,16 @@
   max-width: 1040px;
 }
 
+/*
+  Measured at 1440: a short screen (Panel) has no scrollbar and a long one
+  (Politikalar) does, which put the same centred column 5px apart between two
+  clicks. Reserving the gutter costs nothing on a screen that never scrolls and
+  keeps the left edge still on the ones that do.
+*/
+.page:has(> .page__inner--app) {
+  scrollbar-gutter: stable;
+}
+
 /* ------------------------------------------------------------------ */
 /* Postana sor — the screen before the first question (issue #73)      */
 /*                                                                     */
@@ -67,6 +77,41 @@
 }
 .ask-scope .btn {
   align-self: flex-start;
+}
+.ask-how {
+  grid-column: 1 / -1;
+}
+.ask-how__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-16);
+}
+.ask-how__steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-8);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+.ask-how__n {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+.ask-how__body b {
+  color: var(--fg);
+  font-weight: 600;
 }
 .ask-recent__none {
   display: flex;
@@ -113,7 +158,8 @@
 }
 
 @media (max-width: 780px) {
-  .ask__intro {
+  .ask__intro,
+  .ask-how__steps {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -292,8 +338,9 @@
 /* exception text ("Failed to fetch") never reaches this block.         */
 /* ------------------------------------------------------------------ */
 
-.load-error {
-  align-items: center;
+.load-error__icon {
+  /* optical alignment with the first line of the sentence, not with the block */
+  margin-top: 2px;
 }
 .load-error__body {
   flex: 1 1 auto;
