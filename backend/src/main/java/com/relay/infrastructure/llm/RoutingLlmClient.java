@@ -5,7 +5,10 @@ import com.relay.application.port.LlmRequest;
 import com.relay.application.port.LlmResponse;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -20,14 +23,25 @@ import java.util.concurrent.atomic.AtomicReference;
  * fell to the stub, which writes no digest and no summary — the demo would have run on
  * counted numbers alone. A provider that bills per token has no daily wall to hit, so it
  * takes over exactly when the free one runs out and costs nothing while the free one works.
+ *
+ * <p>WHY THE TIERS ARE A LIST NOW. Two named slots was one slot too few, and it was not a
+ * hypothetical: on 2026-08-01 all seven Groq keys hit their daily wall and the paid
+ * provider answered {@code HTTP 599} in the same hour. Both slots down at once leaves the
+ * stub, which writes no digest and no summary. Three providers on three different
+ * companies' outages is a different bet from two, and the change is a list rather than a
+ * third field so a fourth costs nothing.
+ *
+ * <p>The order is the preference order and nothing else infers it: tier 0 is the one the
+ * product wants to use, and each next one is tried only when everything before it cannot
+ * answer. Health keeps calling tier 1 {@code fallback} because that is the name every
+ * screen and every operator already reads.
  */
 public class RoutingLlmClient implements LlmClient {
 
     private static final Logger LOG = System.getLogger(RoutingLlmClient.class.getName());
 
-    private final GroqLlmClient primary;
-    /** Paid, unmetered, and idle until the free tier runs out. Null when not configured. */
-    private final GroqLlmClient secondary;
+    /** In preference order, nulls dropped. Never empty of meaning: it may be empty of tiers. */
+    private final List<GroqLlmClient> tiers;
     private final StubLlmClient fallback;
     /**
      * Set only by failures another key cannot fix (a rejected request, a dead key).
@@ -38,44 +52,67 @@ public class RoutingLlmClient implements LlmClient {
     private final AtomicReference<String> lastError = new AtomicReference<>();
 
     public RoutingLlmClient(GroqLlmClient primary, StubLlmClient fallback) {
-        this(primary, null, fallback);
+        this(Arrays.asList(primary), fallback);
     }
 
     public RoutingLlmClient(GroqLlmClient primary, GroqLlmClient secondary, StubLlmClient fallback) {
-        this.primary = primary;
-        this.secondary = secondary;
+        this(Arrays.asList(primary, secondary), fallback);
+    }
+
+    /** @param tiers in preference order; nulls are the "not configured" case and are dropped */
+    public RoutingLlmClient(List<GroqLlmClient> tiers, StubLlmClient fallback) {
+        List<GroqLlmClient> kept = new ArrayList<>();
+        for (GroqLlmClient tier : tiers) {
+            if (tier != null) {
+                kept.add(tier);
+            }
+        }
+        this.tiers = List.copyOf(kept);
         this.fallback = fallback;
+    }
+
+    private GroqLlmClient tier(int index) {
+        return index < tiers.size() ? tiers.get(index) : null;
+    }
+
+    private GroqLlmClient primary() {
+        return tier(0);
     }
 
     @Override
     public LlmResponse complete(LlmRequest request) {
-        if (usable(primary)) {
-            try {
-                LlmResponse response = primary.complete(request);
-                if (hardFailure.compareAndSet(true, false)) {
-                    LOG.log(Level.INFO, "{0} recovered — leaving fallback mode", primary.provider());
-                }
-                lastError.set(null);
-                return response;
-            } catch (RuntimeException e) {
-                hardFailure.set(!exhausted(e));
-                lastError.set(e.getMessage());
-                LOG.log(Level.WARNING, "{0} unavailable ({1})", primary.provider(), e.getMessage());
+        for (int i = 0; i < tiers.size(); i++) {
+            GroqLlmClient tier = tiers.get(i);
+            if (!usable(tier)) {
+                continue;
             }
-        }
-        if (usable(secondary)) {
             try {
-                LlmResponse response = secondary.complete(request);
-                LOG.log(Level.INFO, "answered on {0} — {1} is out",
-                        secondary.provider(), primary == null ? "the primary" : primary.provider());
+                LlmResponse response = tier.complete(request);
+                if (i == 0) {
+                    if (hardFailure.compareAndSet(true, false)) {
+                        LOG.log(Level.INFO, "{0} recovered — leaving fallback mode", tier.provider());
+                    }
+                    lastError.set(null);
+                } else {
+                    LOG.log(Level.INFO, "answered on {0} — the tiers before it are out",
+                            tier.provider());
+                }
                 return response;
             } catch (RuntimeException e) {
-                // Both providers down is worth its own line: the first message would
-                // otherwise be the only one on the record and it names the wrong console.
-                lastError.set(lastError.get() == null ? e.getMessage()
-                        : lastError.get() + "; " + e.getMessage());
-                LOG.log(Level.WARNING, "{0} unavailable too ({1}) — falling back to stub",
-                        secondary.provider(), e.getMessage());
+                if (i == 0) {
+                    hardFailure.set(!exhausted(e));
+                    lastError.set(e.getMessage());
+                } else {
+                    /*
+                      Every tier that failed gets on the record. The first message alone
+                      names the wrong console: an operator reading "all groq keys
+                      exhausted" would go top up Groq while the outage that actually
+                      reached the stub was somewhere else entirely.
+                    */
+                    lastError.set(lastError.get() == null ? e.getMessage()
+                            : lastError.get() + "; " + e.getMessage());
+                }
+                LOG.log(Level.WARNING, "{0} unavailable ({1})", tier.provider(), e.getMessage());
             }
         }
         return fallback.complete(request);
@@ -87,21 +124,38 @@ public class RoutingLlmClient implements LlmClient {
 
     @Override
     public String name() {
-        if (!usable(primary) && !usable(secondary)) {
+        if (!configured()) {
             return fallback.name();
         }
         if (!degraded()) {
             return answering().name();
         }
-        return fallback.name() + " (" + (usable(primary) ? primary.provider() : "llm") + " degraded)";
+        return fallback.name() + " ("
+                + (usable(primary()) ? primary().provider() : "llm") + " degraded)";
+    }
+
+    private boolean configured() {
+        return tiers.stream().anyMatch(RoutingLlmClient::usable);
     }
 
     /** The tier the next call would reach — what {@code provider} and {@code model} describe. */
     private GroqLlmClient answering() {
-        if (usable(primary) && !hardFailure.get() && primary.keys().available() > 0) {
-            return primary;
+        for (int i = 0; i < tiers.size(); i++) {
+            GroqLlmClient tier = tiers.get(i);
+            if (!usable(tier) || tier.keys().available() == 0) {
+                continue;
+            }
+            if (i == 0 && hardFailure.get()) {
+                continue;
+            }
+            return tier;
         }
-        return usable(secondary) ? secondary : primary;
+        for (GroqLlmClient tier : tiers) {
+            if (usable(tier)) {
+                return tier;
+            }
+        }
+        return null;
     }
 
     /**
@@ -113,16 +167,19 @@ public class RoutingLlmClient implements LlmClient {
      */
     @Override
     public boolean degraded() {
-        if (usable(secondary) && secondary.keys().available() > 0) {
-            // The paid tier can answer, so the product is not degraded — it is just not free
-            // this minute. Reporting red here would send someone looking for an outage that
-            // the second provider has already absorbed.
-            return false;
+        for (int i = 1; i < tiers.size(); i++) {
+            GroqLlmClient tier = tiers.get(i);
+            if (usable(tier) && tier.keys().available() > 0) {
+                // A tier behind the first can answer, so the product is not degraded — it is
+                // just not on its first choice this minute. Reporting red here would send
+                // someone looking for an outage another provider has already absorbed.
+                return false;
+            }
         }
-        if (!usable(primary)) {
+        if (!usable(primary())) {
             return true;
         }
-        return hardFailure.get() || primary.keys().available() == 0;
+        return hardFailure.get() || primary().keys().available() == 0;
     }
 
     /** Was the failure "every key is cooling down" rather than something a retry cannot fix? */
@@ -144,38 +201,55 @@ public class RoutingLlmClient implements LlmClient {
      */
     public Map<String, Object> health() {
         Map<String, Object> map = new LinkedHashMap<>();
-        boolean configured = usable(primary) || usable(secondary);
+        boolean configured = configured();
         GroqLlmClient answering = configured ? answering() : null;
-        map.put("provider", configured && !degraded() ? answering.provider() : "stub");
-        map.put("model", configured ? answering.model() : "stub");
+        map.put("provider", configured && !degraded() && answering != null
+                ? answering.provider() : "stub");
+        map.put("model", configured && answering != null ? answering.model() : "stub");
         map.put("degraded", degraded());
         // These stay about the primary, which is what they have always meant and what the
         // screens read. The second tier gets its own block rather than being averaged in.
-        map.put("keysTotal", usable(primary) ? primary.keys().total() : 0);
-        map.put("keysAvailable", usable(primary) ? primary.keys().available() : 0);
+        map.put("keysTotal", usable(primary()) ? primary().keys().total() : 0);
+        map.put("keysAvailable", usable(primary()) ? primary().keys().available() : 0);
         map.put("lastError", lastError.get());
         // Groq counts tokens per organisation. Fewer organisations than keys means the
         // extra keys are spending one budget, which is the one thing rotation cannot fix.
-        if (usable(primary) && !primary.organisations().isEmpty()) {
-            map.put("organizations", primary.organisations());
+        if (usable(primary()) && !primary().organisations().isEmpty()) {
+            map.put("organizations", primary().organisations());
         }
         // Which jobs are being answered cheaply. The split is a property, so the only way to
         // know what a running deployment is actually doing is to ask the running deployment.
-        if (usable(primary) && primary.smallModel() != null && !primary.smallPurposes().isEmpty()) {
+        if (usable(primary()) && primary().smallModel() != null
+                && !primary().smallPurposes().isEmpty()) {
             Map<String, Object> routing = new LinkedHashMap<>();
-            routing.put("strongModel", primary.model());
-            routing.put("smallModel", primary.smallModel());
-            routing.put("smallPurposes", primary.smallPurposes());
+            routing.put("strongModel", primary().model());
+            routing.put("smallModel", primary().smallModel());
+            routing.put("smallPurposes", primary().smallPurposes());
             map.put("routing", routing);
         }
-        if (usable(secondary)) {
-            Map<String, Object> paid = new LinkedHashMap<>();
-            paid.put("provider", secondary.provider());
-            paid.put("model", secondary.model());
-            paid.put("keysTotal", secondary.keys().total());
-            paid.put("keysAvailable", secondary.keys().available());
-            map.put("fallback", paid);
+        // Kept under its old name because every screen and every operator already reads it
+        // there. `tiers` below is the whole chain, in the order it is tried.
+        if (usable(tier(1))) {
+            map.put("fallback", describe(tier(1)));
+        }
+        if (tiers.size() > 1) {
+            List<Map<String, Object>> chain = new ArrayList<>();
+            for (GroqLlmClient tier : tiers) {
+                if (usable(tier)) {
+                    chain.add(describe(tier));
+                }
+            }
+            map.put("tiers", chain);
         }
         return map;
+    }
+
+    private static Map<String, Object> describe(GroqLlmClient tier) {
+        Map<String, Object> one = new LinkedHashMap<>();
+        one.put("provider", tier.provider());
+        one.put("model", tier.model());
+        one.put("keysTotal", tier.keys().total());
+        one.put("keysAvailable", tier.keys().available());
+        return one;
     }
 }

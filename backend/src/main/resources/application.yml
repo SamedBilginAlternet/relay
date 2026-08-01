@@ -125,6 +125,20 @@ app:
       price:
         input-usd-per-million: ${LLM_FALLBACK_PRICE_INPUT:0.14}
         output-usd-per-million: ${LLM_FALLBACK_PRICE_OUTPUT:0.28}
+    # A third provider behind the second. Empty = not configured, and the chain is two deep.
+    #
+    # It exists because two was one too few: on 2026-08-01 all seven Groq keys hit their
+    # daily wall and the paid provider answered HTTP 599 within the same hour, which leaves
+    # the stub — no digest, no summary. Any OpenAI-compatible endpoint fits; Gemini's is
+    # https://generativelanguage.googleapis.com/v1beta/openai
+    third:
+      api-keys: ${LLM_THIRD_API_KEYS:}
+      base-url: ${LLM_THIRD_BASE_URL:}
+      model: ${LLM_THIRD_MODEL:}
+      provider: ${LLM_THIRD_PROVIDER:third}
+      price:
+        input-usd-per-million: ${LLM_THIRD_PRICE_INPUT:0}
+        output-usd-per-million: ${LLM_THIRD_PRICE_OUTPUT:0}
 
 logging:
   level:

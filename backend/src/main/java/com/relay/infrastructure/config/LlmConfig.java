@@ -133,22 +133,38 @@ public class LlmConfig {
      * OpenRouter all speak it, so choosing one is three environment variables rather than a
      * new client.
      */
-    private static GroqLlmClient fallbackClient(HttpTransport transport, Clock clock, String rawKeys,
-                                                String baseUrl, String model, String provider,
-                                                double input, double output, long cooldownSeconds) {
+    private static GroqLlmClient behindClient(HttpTransport transport, Clock clock, String rawKeys,
+                                              String baseUrl, String model, String provider,
+                                              double input, double output, long cooldownSeconds) {
         List<String> keys = parseKeys(rawKeys);
-        if (keys.isEmpty()) {
-            LOG.log(Level.INFO, "no fallback LLM configured — the stub is the only safety net");
+        // A tier with no keys, no endpoint or no model is a tier nobody configured. Building
+        // it anyway would put a client in the chain that fails every call it is handed and
+        // reports the failure as an outage.
+        if (keys.isEmpty() || baseUrl == null || baseUrl.isBlank() || model == null || model.isBlank()) {
             return null;
         }
-        LOG.log(Level.INFO, "fallback LLM: {0} ({1}), {2} key(s)", provider, model, keys.size());
+        LOG.log(Level.INFO, "behind the primary: {0} ({1}), {2} key(s)", provider, model, keys.size());
         ApiKeyPool pool = new ApiKeyPool(keys, Duration.ofSeconds(cooldownSeconds), clock);
         // No small-model tier: the point of this provider is that it has no daily wall to
         // duck under, so there is nothing to fall back to within it.
         return new GroqLlmClient(pool, transport, baseUrl, model, input, output, null, null, provider);
     }
 
-    /** The bean the orchestrator gets: the free tier, a paid one behind it, then the stub. */
+    /**
+     * The bean the orchestrator gets: the tiers in preference order, then the stub.
+     *
+     * <p>Three, not two, and the third is not decoration. On 2026-08-01 all seven Groq keys
+     * hit their daily wall and the paid provider answered {@code HTTP 599} within the same
+     * hour — both configured tiers down at once, leaving the stub, which writes no digest
+     * and no summary. A third provider is a bet on three companies not having a bad hour
+     * together, which is a materially different bet from two.
+     *
+     * <p>Every tier is the same client class pointed somewhere else: this code posts
+     * {@code {base}/chat/completions} with a bearer key and reads
+     * {@code choices[0].message.content} plus {@code usage}. Groq, DeepSeek, Gemini's
+     * OpenAI-compatible endpoint, Cerebras, Together and OpenRouter all speak it, so adding
+     * a provider is environment variables rather than code.
+     */
     @Bean
     @Primary
     public LlmClient llmClient(GroqLlmClient groqLlmClient, StubLlmClient stub,
@@ -159,9 +175,22 @@ public class LlmConfig {
                                @Value("${app.llm.fallback.provider:deepseek}") String provider,
                                @Value("${app.llm.fallback.price.input-usd-per-million:0.14}") double input,
                                @Value("${app.llm.fallback.price.output-usd-per-million:0.28}") double output,
+                               @Value("${app.llm.third.api-keys:}") String thirdKeys,
+                               @Value("${app.llm.third.base-url:}") String thirdBaseUrl,
+                               @Value("${app.llm.third.model:}") String thirdModel,
+                               @Value("${app.llm.third.provider:third}") String thirdProvider,
+                               @Value("${app.llm.third.price.input-usd-per-million:0}") double thirdInput,
+                               @Value("${app.llm.third.price.output-usd-per-million:0}") double thirdOutput,
                                @Value("${app.groq.cooldown-seconds:60}") long cooldownSeconds) {
-        return new RoutingLlmClient(groqLlmClient,
-                fallbackClient(transport, clock, rawKeys, baseUrl, model, provider, input, output, cooldownSeconds),
+        // `Arrays.asList`, not `List.of`: an unconfigured tier is null and the router is
+        // what drops it. `List.of` throws on a null element, which would turn "no third
+        // provider" into a failure to start.
+        return new RoutingLlmClient(java.util.Arrays.asList(
+                groqLlmClient,
+                behindClient(transport, clock, rawKeys, baseUrl, model, provider, input, output,
+                        cooldownSeconds),
+                behindClient(transport, clock, thirdKeys, thirdBaseUrl, thirdModel, thirdProvider,
+                        thirdInput, thirdOutput, cooldownSeconds)),
                 stub);
     }
 }
