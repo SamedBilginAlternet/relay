@@ -47,9 +47,27 @@ public class Verifier {
 
         LlmResponse response = llm.complete(request);
         JsonNode node = Json.extract(response.content());
-        boolean pass = node == null || !node.has("pass") || node.path("pass").asBoolean(true);
-        String reason = node == null ? "verifier could not parse a verdict, accepting"
-                : node.path("reason").asText(pass ? "sonuç hedefe uygun" : "sonuç hedefi karşılamıyor");
+        // Nothing parseable came back. Passing here is deliberate: the auditor being unable
+        // to speak must not lock a run that has already done its work — see
+        // docs/NASIL-CALISIYOR.md §10, "Doğrulayıcı LLM'dir".
+        if (node == null) {
+            return new Verdict(true, "verifier could not parse a verdict, accepting",
+                    response.totalTokens(), response.costUsd());
+        }
+        // JSON, but no verdict in it. That is not the same thing at all: the schema above
+        // declares "pass" required, so a model that answers {"reason": "mesaj hiçbir bulgu
+        // taşımıyor"} has given a negative judgement and left out the field that carries it.
+        // Reading that as a pass told the user "doğrulandı" over the auditor's own objection.
+        if (!node.has("pass")) {
+            String said = node.path("reason").asText("").trim();
+            return new Verdict(false, said.isEmpty()
+                    ? "doğrulayıcı bir yargı vermedi"
+                    : "doğrulayıcı bir yargı vermedi: " + said,
+                    response.totalTokens(), response.costUsd());
+        }
+        boolean pass = node.path("pass").asBoolean(true);
+        String reason = node.path("reason")
+                .asText(pass ? "sonuç hedefe uygun" : "sonuç hedefi karşılamıyor");
         return new Verdict(pass, reason, response.totalTokens(), response.costUsd());
     }
 
