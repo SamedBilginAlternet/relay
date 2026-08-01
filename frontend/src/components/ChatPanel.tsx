@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react';
-import { ArrowRight, Bot, MessageSquare, Sparkles, TriangleAlert, User } from 'lucide-react';
+import { Bot, MessageSquare, TriangleAlert, User } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { formatTime } from '../lib/format';
 import type { RunPhase } from '../store/runStore';
@@ -8,6 +8,7 @@ import { Composer } from './Composer';
 import { EmptyState } from './EmptyState';
 import { agentLabel } from '../lib/agents';
 import { BrandMark, providerOf } from './BrandMark';
+import '../styles/worklog.css';
 
 type Props = {
   run: Run | null;
@@ -31,6 +32,86 @@ function isToUser(message: AgentMessage): boolean {
   return USER_TARGETS.has((message.toAgent ?? '').trim().toLowerCase());
 }
 
+/**
+ * The machine half of a sentence, so the type layer can split it off.
+ *
+ * <p>DESIGN.md's first v3 rule — prose sans, machine fact mono — was applied
+ * everywhere a fact is printed on its own (the tool chip, the parameter list,
+ * the price). It could not reach the transcript, because there the two live in
+ * the same line: "gmail.search tamam (156 ms), sonuç doğrulamaya gidiyor." is a
+ * tool id, a duration and a Turkish clause. Set in one face it reads as one
+ * thing, which is why an audit trail looked like chat.
+ *
+ * <p>The list below is deliberately closed, and every entry is a shape the
+ * backend actually emits — checked against a live six-step run: a fenced span,
+ * a parameter object, a quoted value, a link, the address that approved a step,
+ * a dotted tool id, an issue key, a channel or issue reference, a duration, an
+ * amount, a uuid, a `key=value` pair. Everything else stays prose. A false
+ * positive sets a Turkish word in mono and is worse than a miss, so no rule
+ * here guesses at a bare word.
+ */
+const MACHINE = new RegExp(
+  [
+    '`[^`]+`', //                                          fenced span (the fence is dropped)
+    '\\{[^{}]{0,400}\\}', //                               a parameter object as one span
+    'https?://\\S+', //                                    a link is never a sentence
+    '[\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+', //                 the address that approved a step
+    '"[^"\\n]{1,80}"', //                                  a straight-quoted value
+    "'[^'\\n]{1,80}'", //                                  …and its single-quoted form
+    '\\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b',
+    '\\b[a-z][a-z0-9_]+(?:\\.[a-z][a-zA-Z0-9_]*)+\\b', //  jira.createIssue
+    '\\b[A-Z][A-Z0-9]{1,9}-\\d+\\b', //                    KAN-20
+    '#[A-Za-z0-9][\\w.-]*', //                             #all-samed, #43
+    '\\b\\d+(?:[.,]\\d+)?\\s?(?:ms|sn)\\b', //             156 ms, 7.2 sn
+    '\\$\\d[\\d.,]*', //                                   $0.0078
+    '\\b[a-z][a-zA-Z0-9_]*[:=][A-Za-z0-9_.\\-/]+', //      ok:true, id=42
+  ].join('|'),
+  'g',
+);
+
+export type Fragment = { text: string; machine: boolean };
+
+/** A line cut into the two type layers, in order, with nothing dropped. */
+export function splitMachine(line: string): Fragment[] {
+  const out: Fragment[] = [];
+  let last = 0;
+
+  for (const hit of line.matchAll(MACHINE)) {
+    const at = hit.index ?? 0;
+    if (at > last) out.push({ text: line.slice(last, at), machine: false });
+    const raw = hit[0];
+    // A fence is punctuation for the reader, not part of the fact.
+    out.push({ text: raw.startsWith('`') ? raw.slice(1, -1) : raw, machine: true });
+    last = at + raw.length;
+  }
+
+  if (last < line.length) out.push({ text: line.slice(last), machine: false });
+  return out;
+}
+
+/** The body of one row: sans by default, mono where the machine speaks. */
+function Line({ text }: { text: string }) {
+  return (
+    <>
+      {splitMachine(text).map((part, i) =>
+        part.machine ? (
+          <code key={i} className="worklog__fact">
+            {part.text}
+          </code>
+        ) : (
+          <span key={i}>{part.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+/** The provider's own mark where there is one, the crew's glyph where there is not. */
+function Mark({ agent }: { agent: string }) {
+  const provider = providerOf(agent.replace(/-agent$/, ''));
+  return provider ? <BrandMark provider={provider} size={12} /> : <Bot size={12} aria-hidden />;
+}
+
 export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = false }: Props) {
   const reduce = useReducedMotion();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -49,6 +130,18 @@ export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = fal
   const thinking =
     phase === 'creating' ||
     (run != null && (run.status === 'planning' || run.status === 'running'));
+
+  /* One wave, capped: a live run keeps appending rows, and a row that waits a
+     third of a second before it appears reads as a stall, not as a stagger. */
+  const enter = (i: number) => ({
+    initial: reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(6px)' },
+    animate: { opacity: 1, transform: 'translateY(0px)' },
+    transition: {
+      duration: reduce ? 0.15 : 0.28,
+      delay: reduce ? 0 : Math.min(i, 8) * 0.02,
+      ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+    },
+  });
 
   return (
     <section className="chat-col" aria-label="Konuşma">
@@ -76,65 +169,61 @@ export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = fal
         )}
 
         {run && (
-          <motion.div
-            className="msg-user"
-            initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(6px)' }}
-            animate={{ opacity: 1, transform: 'translateY(0px)' }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-          >
-            <div className="t-label" style={{ marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
-              <User size={11} aria-hidden /> Sen
-            </div>
-            <p className="t-body">{run.goal}</p>
-          </motion.div>
-        )}
+          <ol className="worklog">
+            {/*
+              The ask is the first entry in the record, and it belongs to the
+              human layer with the answers: those are what a person reads, the
+              rows between them are what the machine did about it.
+            */}
+            <motion.li className="worklog__row worklog__row--goal" {...enter(0)}>
+              <span className="worklog__who">
+                <User size={12} aria-hidden />
+                {agentLabel('user')}
+              </span>
+              <p className="worklog__line">{run.goal}</p>
+              <time className="worklog__time" dateTime={run.createdAt}>
+                {formatTime(run.createdAt)}
+              </time>
+            </motion.li>
 
-        {messages.map((m, i) =>
-          isToUser(m) ? (
-            <motion.div
-              key={m.id}
-              className="msg-agent"
-              initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(8px)' }}
-              animate={{ opacity: 1, transform: 'translateY(0px)' }}
-              transition={{ duration: reduce ? 0.2 : 0.3, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <div className="msg-agent__who">
-                <span className="agent-badge agent-badge--accent">
-                  {/* A specialist wears its provider's mark; the crew keeps the bot. */}
-                  {providerOf(m.fromAgent.replace(/-agent$/, '')) ? (
-                    <BrandMark provider={providerOf(m.fromAgent.replace(/-agent$/, ''))!} size={12} />
-                  ) : (
-                    <Bot size={12} aria-hidden />
-                  )}
-                  {agentLabel(m.fromAgent)}
-                </span>
-                <span className="t-caption">{formatTime(m.createdAt)}</span>
-              </div>
-              <p className="t-body">{m.content}</p>
-            </motion.div>
-          ) : (
-            <motion.article
-              key={m.id}
-              className="a2a"
-              aria-label={`Ajan mesajı: ${agentLabel(m.fromAgent)} → ${agentLabel(m.toAgent)}`}
-              initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(8px)' }}
-              animate={{ opacity: 1, transform: 'translateY(0px)' }}
-              transition={{
-                duration: reduce ? 0.2 : 0.3,
-                delay: reduce ? 0 : Math.min(i, 4) * 0.02,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-            >
-              <header className="a2a__route">
-                <Sparkles size={12} aria-hidden />
-                <span className="a2a__from">{agentLabel(m.fromAgent)}</span>
-                <ArrowRight size={12} aria-hidden />
-                <span className="a2a__to">{agentLabel(m.toAgent)}</span>
-                <span style={{ marginLeft: 'auto' }}>{formatTime(m.createdAt)}</span>
-              </header>
-              <p className="a2a__body">{m.content}</p>
-            </motion.article>
-          ),
+            {messages.map((m, i) => {
+              const toUser = isToUser(m);
+              return (
+                <motion.li
+                  key={m.id}
+                  className={`worklog__row ${toUser ? 'worklog__row--tome' : 'worklog__row--a2a'}`}
+                  aria-label={
+                    toUser
+                      ? `${agentLabel(m.fromAgent)} sana yazdı`
+                      : `Ajan mesajı: ${agentLabel(m.fromAgent)} → ${agentLabel(m.toAgent)}`
+                  }
+                  {...enter(i + 1)}
+                >
+                  <span className="worklog__who">
+                    <Mark agent={m.fromAgent} />
+                    {agentLabel(m.fromAgent)}
+                  </span>
+                  <p className="worklog__line">
+                    {/* The route is machine routing and is set as such — and only
+                        where there is one: a message to the person is addressed
+                        to them, not forwarded to them. */}
+                    {!toUser && (
+                      <>
+                        <span className="worklog__arrow" aria-hidden>
+                          →
+                        </span>
+                        <span className="worklog__to">{agentLabel(m.toAgent)}</span>
+                      </>
+                    )}
+                    <Line text={m.content} />
+                  </p>
+                  <time className="worklog__time" dateTime={m.createdAt}>
+                    {formatTime(m.createdAt)}
+                  </time>
+                </motion.li>
+              );
+            })}
+          </ol>
         )}
 
         {thinking && (
