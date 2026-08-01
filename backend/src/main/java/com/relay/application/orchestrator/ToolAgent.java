@@ -365,6 +365,11 @@ public class ToolAgent {
         if (tool == null) {
             return new ParamRefresh(false, 0, 0);
         }
+        // The step is on its way back to the gate, so the human's earlier correction has had
+        // its turn and lost — the provider refused it. Releasing the lock here lets the
+        // specialist propose something new, which the human sees and may correct again;
+        // keeping it would park the step forever on a value already known to be rejected.
+        step.paramsLocked(false);
         ParamOutcome outcome = finaliseParams(run, step, tool);
         if (outcome.valid()) {
             step.params(Json.toMap(outcome.params()));
@@ -380,6 +385,18 @@ public class ToolAgent {
         if (!draft.isObject()) {
             draft = Json.object();
         }
+        if (step.paramsLocked()) {
+            // A person read these values, changed them and pressed Onayla. Three things
+            // below would quietly undo that: the defaults, the model turn a filled-in
+            // lastProviderError forces, and the address correction — which replaces any
+            // channel the goal never mentions, and the goal never mentions the one the user
+            // just typed. So the edit goes to the provider exactly as it was on the screen.
+            // The guards in execute() still see it: an edit is trusted, not exempt, and a
+            // person who pastes {{steps[3].channel}} into the box is stopped like anyone.
+            SchemaValidator.Result edited = SchemaValidator.validate(tool.schema(), draft);
+            return new ParamOutcome(edited.valid(), draft, edited.valid() ? null : edited.message(), 0, 0);
+        }
+
         // Before the model sees the draft: what the user configured beats what a model would
         // invent. A blank channel filled in from the connection is also one fewer model call.
         Connection connection = connections.findByProvider(tool.provider()).orElse(null);

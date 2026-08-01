@@ -72,6 +72,10 @@ public class StepEntity {
     @Column(nullable = false)
     private int attempts;
 
+    /** Set when a human rewrote the parameters at the gate — see {@code Step.paramsLocked}. */
+    @Column(name = "params_locked", nullable = false)
+    private boolean paramsLocked;
+
     public UUID getId() {
         return id;
     }
@@ -206,5 +210,13 @@ public class StepEntity {
 
     public void setAttempts(int attempts) {
         this.attempts = attempts;
+    }
+
+    public boolean isParamsLocked() {
+        return paramsLocked;
+    }
+
+    public void setParamsLocked(boolean paramsLocked) {
+        this.paramsLocked = paramsLocked;
     }
 }

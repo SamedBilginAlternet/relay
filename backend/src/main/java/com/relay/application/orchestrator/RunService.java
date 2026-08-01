@@ -2,6 +2,7 @@ package com.relay.application.orchestrator;
 
 import com.relay.application.port.Clock;
 import com.relay.application.port.RunRepository;
+import com.relay.application.port.Tool;
 import com.relay.application.port.ToolRegistry;
 import com.relay.domain.AgentRole;
 import com.relay.domain.Decision;
@@ -144,20 +145,37 @@ public class RunService {
     }
 
     public Run approve(UUID runId, UUID stepId) {
-        return approve(runId, stepId, null);
+        return approve(runId, stepId, null, null);
+    }
+
+    public Run approve(UUID runId, UUID stepId, String actor) {
+        return approve(runId, stepId, null, actor);
     }
 
     /**
-     * @param actor who pressed the button — written into the audit trail. The trail claimed
-     *              "kim, neyi, neden" but only ever recorded a generic user, so on a shared
-     *              workspace nobody could answer the "kim".
+     * Approves a step, optionally with the parameters the human corrected on the screen.
+     *
+     * <p>Before this, the gate was binary and a nearly-right parameter cost a rejection, a
+     * written reason and another model turn — while the person pressing the button already
+     * knew the right value. Now they can type it. What they type is checked against the
+     * tool's own schema first: a refused edit changes nothing at all and the step stays at
+     * the gate, which is the difference between an approval gate and an open door.
+     *
+     * @param editedParams the fields the user rewrote, or {@code null} to approve what is on
+     *                     screen — approving unchanged behaves exactly as it always did
+     * @param actor        who pressed the button — written into the audit trail. The trail
+     *                     claimed "kim, neyi, neden" but only ever recorded a generic user,
+     *                     so on a shared workspace nobody could answer the "kim".
      */
-    public Run approve(UUID runId, UUID stepId, String actor) {
+    public Run approve(UUID runId, UUID stepId, Map<String, Object> editedParams, String actor) {
         Run run = get(runId);
         stillOpen(run);
         Step step = step(run, stepId);
         if (step.status() != StepStatus.AWAITING_APPROVAL) {
             throw new IllegalStateException("step " + stepId + " is not awaiting approval");
+        }
+        if (editedParams != null && !editedParams.isEmpty()) {
+            applyEdit(run, step, editedParams, actor);
         }
         step.approve();
         if (run.overBudget()) {
@@ -170,6 +188,44 @@ public class RunService {
         runs.save(run);
         executor.execute(() -> coordinator.drive(runId));
         return run;
+    }
+
+    /**
+     * Writes the human's correction onto the step — or refuses the whole approval.
+     *
+     * <p>Every changed field lands on the timeline with both values and the name of whoever
+     * typed them: "kim, neyi, neden" is the promise the trail makes, and an edit that only
+     * showed its result would answer none of the three.
+     */
+    private void applyEdit(Run run, Step step, Map<String, Object> editedParams, String actor) {
+        if (tools == null || step.toolName() == null || step.toolName().isBlank()) {
+            throw new IllegalArgumentException("step " + step.id() + " has no tool to take parameters");
+        }
+        Tool tool = tools.find(step.toolName())
+                .orElseThrow(() -> new IllegalArgumentException("unknown tool: " + step.toolName()));
+
+        ParamEdit.Result edit = ParamEdit.of(tool, step.params(), editedParams);
+        if (!edit.ok()) {
+            throw new InvalidParams("Düzenlenen parametreler " + tool.name()
+                    + " şemasına uymuyor — adım onayda kaldı.", edit.errors());
+        }
+        if (edit.changes().isEmpty()) {
+            return;
+        }
+        step.paramsEditedByUser(edit.params());
+        String agent = step.role() == null ? AgentRole.COORDINATOR : step.role();
+        edit.changes().forEach((field, change) -> journal.say(run, step.id(), AgentRole.USER, agent,
+                "Parametre kullanıcı tarafından düzenlendi" + by(actor) + " — " + field + ": "
+                        + show(change.before()) + " → " + show(change.after())));
+    }
+
+    /** Long values are for the parameter panel; the trail needs the value to be recognisable. */
+    private static String show(Object value) {
+        if (value == null) {
+            return "(boş)";
+        }
+        String text = String.valueOf(value);
+        return "\"" + (text.length() > 120 ? text.substring(0, 119) + "…" : text) + "\"";
     }
 
     public Run reject(UUID runId, UUID stepId, String reason) {
@@ -256,6 +312,26 @@ public class RunService {
     public static class Conflict extends RuntimeException {
         public Conflict(String message) {
             super(message);
+        }
+    }
+
+    /**
+     * The parameters a human typed at the gate did not survive the tool's schema.
+     *
+     * <p>Carries a sentence per field rather than one summary line: the screen puts each one
+     * under the box that caused it, and "channel şu değerlerden biri olmalı" three fields
+     * away from the channel box is not an error message, it is a puzzle. Answered with 400.
+     */
+    public static class InvalidParams extends RuntimeException {
+        private final Map<String, String> fields;
+
+        public InvalidParams(String message, Map<String, String> fields) {
+            super(message);
+            this.fields = fields == null ? Map.of() : Map.copyOf(fields);
+        }
+
+        public Map<String, String> fields() {
+            return fields;
         }
     }
 }

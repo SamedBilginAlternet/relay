@@ -38,6 +38,24 @@ class ApiExceptionHandlerTest {
         assertThat(body(response).get("message")).asString().doesNotContain("RunController");
     }
 
+    /**
+     * A refused edit at the approval gate answers per field. One line at the top of the
+     * screen ("parametreler geçersiz") sends the reader hunting through four text boxes for
+     * the one that is wrong; the field name is the whole value of the message.
+     */
+    @Test
+    void a_refused_parameter_edit_says_which_field_and_why() {
+        ResponseEntity<Map<String, Object>> response = handler.invalidParams(
+                new RunService.InvalidParams("Düzenlenen parametreler slack.postMessage şemasına uymuyor.",
+                        Map.of("text", "En az 1 karakter olmalı.")));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(body(response).get("error")).isEqualTo("invalid_params");
+        // The two familiar keys stay put: every caller already reads them.
+        assertThat(body(response).keySet()).containsExactly("error", "message", "fields");
+        assertThat(body(response).get("fields")).isEqualTo(Map.of("text", "En az 1 karakter olmalı."));
+    }
+
     @Test
     void the_envelope_is_the_same_two_keys_whatever_went_wrong() {
         assertThat(body(handler.notFound(new RunService.NotFound("run x not found"))).keySet())

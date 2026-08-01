@@ -76,6 +76,7 @@ public class JpaRunRepository implements RunRepository {
             stepEntity.setTokens(step.tokens());
             stepEntity.setCostUsd(step.costUsd());
             stepEntity.setAttempts(step.attempts());
+            stepEntity.setParamsLocked(step.paramsLocked());
         }
         entity.getSteps().removeIf(s -> !keptSteps.contains(s.getId()));
 
@@ -158,6 +159,7 @@ public class JpaRunRepository implements RunRepository {
             step.tokens(s.getTokens());
             step.costUsd(s.getCostUsd());
             step.attempts(s.getAttempts());
+            step.paramsLocked(s.isParamsLocked());
             steps.add(step);
         }
         run.replaceSteps(steps);

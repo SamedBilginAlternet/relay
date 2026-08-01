@@ -31,6 +31,16 @@ public class Step {
      * set of parameters.
      */
     private String lastProviderError;
+    /**
+     * A human typed these parameters at the approval gate.
+     *
+     * <p>Everything that would otherwise rewrite them — the specialist's model turn, the
+     * address correction — stands down while this is set, because a value the user saw,
+     * changed and approved must reach the provider as it was on the screen. Persisted:
+     * approval and execution are two different requests, and between them the run is read
+     * back from the database.
+     */
+    private boolean paramsLocked;
     private Instant startedAt;
     private Instant finishedAt;
     private long tokens;
@@ -159,6 +169,20 @@ public class Step {
 
     public void params(Map<String, Object> params) {
         this.params = params == null ? new LinkedHashMap<>() : new LinkedHashMap<>(params);
+    }
+
+    /** The human corrected the parameters at the gate: these are final, nobody rewrites them. */
+    public void paramsEditedByUser(Map<String, Object> params) {
+        params(params);
+        this.paramsLocked = true;
+    }
+
+    public boolean paramsLocked() {
+        return paramsLocked;
+    }
+
+    public void paramsLocked(boolean paramsLocked) {
+        this.paramsLocked = paramsLocked;
     }
 
     public StepStatus status() {

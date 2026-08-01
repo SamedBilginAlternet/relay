@@ -41,6 +41,13 @@ public class RunController {
     public record RejectRequest(String reason) {
     }
 
+    /**
+     * {@code params} carries only what the human changed on the approval screen; an empty
+     * or absent body is the old "approve what you see" and behaves identically.
+     */
+    public record ApproveRequest(Map<String, Object> params) {
+    }
+
     /** {@code cardId} is the brief card the action came from — echoed back, never trusted. */
     public record FromSuggestionRequest(String cardId, @NotBlank String tool, Map<String, Object> params,
                                         String label, Double budgetUsd) {
@@ -98,10 +105,16 @@ public class RunController {
         return sse.subscribe(id);
     }
 
+    /**
+     * Approve — with the corrected parameters, when the human fixed something on screen.
+     * An edit that fails the tool's schema answers 400 with a message per field and leaves
+     * the step waiting exactly where it was.
+     */
     @PostMapping("/{id}/steps/{stepId}/approve")
     public Map<String, Object> approve(@PathVariable UUID id, @PathVariable UUID stepId,
+                                       @RequestBody(required = false) ApproveRequest body,
                                        jakarta.servlet.http.HttpServletRequest request) {
-        return Views.run(runService.approve(id, stepId, actor(request)));
+        return Views.run(runService.approve(id, stepId, body == null ? null : body.params(), actor(request)));
     }
 
     /** The signed-in e-mail, so the audit trail can answer "who approved this". */

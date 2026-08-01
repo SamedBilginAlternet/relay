@@ -32,6 +32,20 @@ public class ApiExceptionHandler {
         return body(HttpStatus.CONFLICT, "conflict", e.getMessage());
     }
 
+    /**
+     * A rejected edit at the approval gate. The envelope keeps {@code error}/{@code message}
+     * so every existing caller still reads it, and adds {@code fields} — the screen puts
+     * each sentence under the box it belongs to instead of showing one line at the top.
+     */
+    @ExceptionHandler(RunService.InvalidParams.class)
+    public ResponseEntity<Map<String, Object>> invalidParams(RunService.InvalidParams e) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "invalid_params");
+        body.put("message", e.getMessage());
+        body.put("fields", e.fields());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
     @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
     public ResponseEntity<Map<String, Object>> badRequest(RuntimeException e) {
         return body(HttpStatus.BAD_REQUEST, "bad_request", e.getMessage());
