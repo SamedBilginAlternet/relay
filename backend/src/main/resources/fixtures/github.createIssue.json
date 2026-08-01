@@ -1,0 +1,9 @@
+{
+  "repo": "{{repo}}",
+  "number": 47,
+  "title": "{{title}}",
+  "url": "https://github.com/{{repo}}/issues/47",
+  "state": "open",
+  "labels": [],
+  "created": true
+}

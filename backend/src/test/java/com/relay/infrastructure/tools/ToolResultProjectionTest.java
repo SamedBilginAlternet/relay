@@ -143,6 +143,7 @@ class ToolResultProjectionTest {
                 new JiraTool.AddComment("replay", FIXTURES),
                 new SlackTool.ListChannels("replay", FIXTURES),
                 new SlackTool.PostMessage("replay", FIXTURES),
+                new GitHubTool.CreateIssue("replay", FIXTURES),
                 new CalendarCreateEventTool("replay", FIXTURES, null, "Europe/Istanbul"),
                 new SheetsTool.AppendRow("replay", FIXTURES, null),
                 new SheetsTool.ReadRange("replay", FIXTURES, null),

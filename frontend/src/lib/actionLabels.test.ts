@@ -45,6 +45,7 @@ describe('actionLabel', () => {
       'gmail.search',
       'gmail.listToday',
       'github.addComment',
+      'github.createIssue',
       'github.listMyPullRequests',
       'github.listMyIssues',
       'notion.createPage',

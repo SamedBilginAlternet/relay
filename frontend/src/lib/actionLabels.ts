@@ -37,6 +37,7 @@ const LABELS: Record<string, string> = {
   'gmail.listToday': 'Bugünün maillerini getir',
 
   // GitHub
+  'github.createIssue': 'GitHub kaydı aç',
   'github.addComment': 'İncele ve yorumla',
   'github.listMyPullRequests': 'Bekleyen değişiklikleri getir',
   'github.listMyIssues': 'Bana atanan kayıtları getir',

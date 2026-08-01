@@ -72,6 +72,7 @@ const LABELS: Record<string, string> = {
   // GitHub
   repo: 'Depo',
   number: 'Numara',
+  labels: 'Etiketler',
 
   // Shared
   query: 'Arama',

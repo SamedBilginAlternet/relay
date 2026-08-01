@@ -351,4 +351,127 @@ public abstract class GitHubTool extends AbstractTool {
             return out;
         }
     }
+
+    // --------------------------------------------------------- createIssue
+
+    /**
+     * Opens an issue — the GitHub half of "maili işe çevir".
+     *
+     * <p>{@code jira.createIssue} is the demo's spine, and a team that lives on GitHub
+     * Issues instead of Jira had no equivalent: Relay could comment under their records
+     * ({@code addComment}) but never open one, so the flow that turns a bug mail into a
+     * tracked piece of work simply did not exist for them.
+     *
+     * <p>{@code repo} is a container, not a record pointer: it comes from the goal, from an
+     * earlier read, or from the connection's {@code defaultRepo} — {@code
+     * ToolAgent.CONTAINER_DEFAULTS} already knows the key, this tool just gives it a write
+     * worth filling for. {@code title} and {@code body} are the work itself. Nothing fills
+     * them, nothing borrows the goal text for them; a step that produced no title is a
+     * failed step, and the Filler gate holds the body to that.
+     */
+    @Component
+    public static class CreateIssue extends GitHubTool {
+
+        public CreateIssue(@Value("${app.tools.mode:replay}") String mode, FixtureStore fixtures) {
+            super(ToolsMode.parse(mode), fixtures);
+        }
+
+        @Override
+        public String name() {
+            return "github.createIssue";
+        }
+
+        @Override
+        public String description() {
+            return "Open a GitHub issue with a title and body. repo is owner/name; labels are "
+                    + "optional existing label names. Requires approval by default.";
+        }
+
+        @Override
+        public RiskLevel risk() {
+            return RiskLevel.WRITE;
+        }
+
+        @Override
+        public JsonNode schema() {
+            ObjectNode schema = Json.object();
+            schema.put("type", "object");
+            schema.putArray("required").add("repo").add("title").add("body");
+            ObjectNode props = schema.putObject("properties");
+            ObjectNode repo = props.putObject("repo");
+            repo.put("type", "string");
+            repo.put("description",
+                    "owner/name, e.g. acme/payments — omit to use the connection's default repo");
+            ObjectNode title = props.putObject("title");
+            title.put("type", "string");
+            title.put("minLength", 1);
+            title.put("description", "One line title of the issue");
+            ObjectNode body = props.putObject("body");
+            body.put("type", "string");
+            body.put("minLength", 1);
+            body.put("description", "Issue body (GitHub markdown) — say where this came from, "
+                    + "e.g. the mail subject and sender it was opened for");
+            ObjectNode labels = props.putObject("labels");
+            labels.put("type", "array");
+            labels.put("description", "Optional label names, e.g. [\"bug\"]");
+            labels.putObject("items").put("type", "string");
+            return schema;
+        }
+
+        @Override
+        protected JsonNode call(JsonNode params, Connection connection) throws Exception {
+            String repo = params.path("repo").asText().trim();
+            ObjectNode body = Json.object();
+            body.put("title", params.path("title").asText());
+            body.put("body", params.path("body").asText());
+            ArrayNode labels = Json.mapper().createArrayNode();
+            for (JsonNode label : params.path("labels")) {
+                String name = label.asText("").trim();
+                if (!name.isEmpty()) {
+                    labels.add(name);
+                }
+            }
+            if (!labels.isEmpty()) {
+                // Absent means absent: an empty labels array is a statement about labels,
+                // and this step is not making one.
+                body.set("labels", labels);
+            }
+
+            JsonNode response;
+            try {
+                response = post(API + "/repos/" + repo + "/issues", headers(connection), body);
+            } catch (HttpJson.ToolCallException e) {
+                // 410 is GitHub's word for "this repository has its Issues tab switched
+                // off" — a setting, not a permission, and the generic 403/404 sentences
+                // would both send the reader to the wrong screen.
+                if (e.status() == 410) {
+                    throw new HttpJson.ToolCallException("Bu depoda Issues kapalı (HTTP 410). "
+                            + repo + " → Settings → Features altından Issues açılmadan kayıt "
+                            + "açılamaz.", e.status(), e.body());
+                }
+                throw explain(e, repo);
+            }
+
+            ObjectNode out = Json.object();
+            out.put("repo", repo);
+            out.put("number", response.path("number").asInt());
+            out.put("title", response.path("title").asText(params.path("title").asText()));
+            out.put("url", response.path("html_url").asText(""));
+            out.put("state", response.path("state").asText("open"));
+            ArrayNode outLabels = out.putArray("labels");
+            for (JsonNode label : response.path("labels")) {
+                outLabels.add(label.path("name").asText(""));
+            }
+            out.put("created", true);
+            return out;
+        }
+
+        /**
+         * The single network call, isolated so a test can watch exactly what would land in
+         * somebody's issue tracker — and that nothing else ever leaves this tool.
+         */
+        JsonNode post(String url, Map<String, String> headers, JsonNode body) throws Exception {
+            return HttpJson.send("POST", url, headers, body);
+        }
+    }
 }

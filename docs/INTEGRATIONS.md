@@ -23,8 +23,15 @@ Zorluk sırası: **Notion → GitHub → Jira → Slack → Google**. İlk dörd
 | Permissions → Metadata | Read (otomatik eklenir) |
 | Expiration | 30 gün yeterli |
 
-Yazma izni yalnızca `github.addComment` için gerekiyor ve o araç WRITE riskli → onay kapısından geçer.
-Sadece okuma isteniyorsa iki izni Read yapmak yeterli; o durumda yorum eylemi reddedilir.
+Yazma izni iki araç için gerekiyor — `github.addComment` ve `github.createIssue` — ikisi de
+WRITE riskli → onay kapısından geçer. Sadece okuma isteniyorsa iki izni Read yapmak yeterli;
+o durumda yorum ve kayıt açma eylemleri reddedilir.
+
+**`github.createIssue` için kurulumda yeni hiçbir şey yok:** `addComment` için zaten istenen
+aynı PAT ve aynı *Issues: Read and write* izni kayıt açmayı da kapsıyor. Jira'sız, GitHub
+Issues ile yaşayan bir ekipte "maili işe çevir" artık bu araçla biter. Deponun Issues sekmesi
+kapalıysa GitHub 410 döner; araç bunu Türkçe söyler (*"Bu depoda Issues kapalı… Settings →
+Features"*).
 
 **Relay'e girilecek** (Bağlantılar ekranı → `github`):
 
@@ -32,6 +39,7 @@ Sadece okuma isteniyorsa iki izni Read yapmak yeterli; o durumda yorum eylemi re
 |---|---|
 | `token` | `github_pat_...` |
 | `login` | GitHub kullanıcı adı — boş bırakılırsa aramalar `@me` ile yapılır |
+| `defaultRepo` | (opsiyonel) `kullanici/depo` — `github.createIssue` hedef verilmediğinde kaydı buraya açar; Slack'teki `defaultChannel` ile aynı yol (`withDefaults` + `ToolAgent.CONTAINER_DEFAULTS`), onay ekranı boş hedef göstermez |
 
 ---
 

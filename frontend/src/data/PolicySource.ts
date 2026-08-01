@@ -114,6 +114,7 @@ class MockPolicySource implements PolicySource {
       ['google', 'calendar.listToday', 'read'],
       ['google', 'calendar.listUpcoming', 'read'],
       ['github', 'github.addComment', 'write'],
+      ['github', 'github.createIssue', 'write'],
       ['github', 'github.listMyIssues', 'read'],
       ['github', 'github.listMyPullRequests', 'read'],
       ['google', 'gmail.createDraft', 'write'],

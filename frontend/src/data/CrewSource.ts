@@ -153,6 +153,7 @@ const MOCK_TOOLS: [string, RiskLevel][] = [
   ['calendar.listToday', 'read'],
   ['calendar.listUpcoming', 'read'],
   ['github.addComment', 'write'],
+  ['github.createIssue', 'write'],
   ['github.listMyIssues', 'read'],
   ['github.listMyPullRequests', 'read'],
   ['gmail.createDraft', 'write'],

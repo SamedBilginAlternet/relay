@@ -118,6 +118,12 @@ export const PROVIDERS: ProviderDef[] = [
         placeholder: 'kullanici-adi',
         hint: 'Boş bırakılırsa aramalar @me ile yapılır.',
       },
+      {
+        key: 'defaultRepo',
+        label: 'Varsayılan depo (opsiyonel)',
+        placeholder: 'kullanici/depo',
+        hint: 'github.createIssue hedef depo verilmediğinde kaydı buraya açar — Slack’teki varsayılan kanalın deposu.',
+      },
     ],
   },
   {

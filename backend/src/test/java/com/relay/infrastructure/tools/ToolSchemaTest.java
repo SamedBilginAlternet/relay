@@ -27,6 +27,7 @@ class ToolSchemaTest {
                 new GitHubTool.ListMyPullRequests("replay", FIXTURES),
                 new GitHubTool.ListMyIssues("replay", FIXTURES),
                 new GitHubTool.AddComment("replay", FIXTURES),
+                new GitHubTool.CreateIssue("replay", FIXTURES),
                 new JiraTool.ListMyIssues("replay", FIXTURES),
                 new JiraTool.CreateIssue("replay", FIXTURES),
                 new JiraTool.GetComments("replay", FIXTURES),
@@ -64,6 +65,9 @@ class ToolSchemaTest {
         assertThat(new GitHubTool.ListMyPullRequests("replay", FIXTURES).risk()).isEqualTo(RiskLevel.READ);
         assertThat(new GitHubTool.ListMyIssues("replay", FIXTURES).risk()).isEqualTo(RiskLevel.READ);
         assertThat(new GitHubTool.AddComment("replay", FIXTURES).risk()).isEqualTo(RiskLevel.WRITE);
+        assertThat(new GitHubTool.CreateIssue("replay", FIXTURES).risk()).isEqualTo(RiskLevel.WRITE);
+        assertThat(new GitHubTool.CreateIssue("replay", FIXTURES).risk().defaultMode().wire())
+                .isEqualTo("ask");
         assertThat(new JiraTool.ListMyIssues("replay", FIXTURES).risk()).isEqualTo(RiskLevel.READ);
         assertThat(new JiraTool.CreateIssue("replay", FIXTURES).risk()).isEqualTo(RiskLevel.WRITE);
         // WRITE means the approval gate opens by default (ARCHITECTURE §6).
