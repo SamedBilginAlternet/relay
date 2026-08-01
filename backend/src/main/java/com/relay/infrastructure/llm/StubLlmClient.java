@@ -179,6 +179,11 @@ public class StubLlmClient implements LlmClient {
         if (lower.contains("channel")) {
             return Json.mapper().getNodeFactory().textNode(firstChannel(previousJson));
         }
+        // A reply's subject belongs to the mail it answers, never to the goal: falling back
+        // to the goal here is how a draft ends up titled after the button that started it.
+        if (lower.contains("subject")) {
+            return Json.mapper().getNodeFactory().textNode(firstSubject(previousJson, goal));
+        }
         if (lower.contains("jql")) {
             return Json.mapper().getNodeFactory().textNode(jql(goal));
         }
@@ -208,6 +213,12 @@ public class StubLlmClient implements LlmClient {
             return fromGoal.group(1);
         }
         return "RELAY-1";
+    }
+
+    /** The headline a previous step actually read — a mail's subject, an issue's summary. */
+    private String firstSubject(String previousJson, String goal) {
+        List<String> found = collect(SUBJECT_LIKE, resultsOnly(previousJson), 1);
+        return found.isEmpty() ? goal : found.get(0);
     }
 
     private String firstChannel(String previousJson) {

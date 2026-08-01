@@ -10,8 +10,11 @@ import com.relay.domain.Run;
 import com.relay.domain.RunStatus;
 import com.relay.domain.Step;
 import com.relay.domain.StepStatus;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 
@@ -121,15 +124,98 @@ public class RunService {
         }
         String title = SuggestionGoal.stepTitle(label, toolName);
         String goal = SuggestionGoal.of(label, toolName, context);
+        List<SeedStep> seeds = seedSteps(toolName, params, context, title);
 
         Run run = Run.create(goal, clock.now(), budgetUsd != null ? budgetUsd : defaultBudgetUsd);
-        run.addStep(Step.create(run.id(), 1, title, AgentRole.toolAgent(toolName), toolName,
-                params == null ? Map.of() : params));
+        int ordinal = 0;
+        for (SeedStep seed : seeds) {
+            run.addStep(Step.create(run.id(), ++ordinal, seed.title(),
+                    AgentRole.toolAgent(seed.toolName()), seed.toolName(), seed.params()));
+        }
         runs.save(run);
         journal.say(run, null, AgentRole.USER, AgentRole.COORDINATOR,
-                "Bugün ekranından öneri çalıştırılıyor: " + toolName);
+                seeds.size() == 1
+                        ? "Bugün ekranından öneri çalıştırılıyor: " + toolName
+                        : "Bugün ekranından öneri çalıştırılıyor: " + toolName
+                                + " — cevap yazılmadan önce mail " + READ_MAIL + " ile okunuyor.");
         executor.execute(() -> coordinator.drive(run.id()));
         return run;
+    }
+
+    /** The read that has to happen before a reply can be written. */
+    private static final String READ_MAIL = "gmail.getMessage";
+
+    /**
+     * The fields of a reply that are the reply — and therefore may not be pre-written.
+     *
+     * <p>The suggestion arrives with a courtesy template ("… konusunu aldım, bugün içinde
+     * dönüş yapacağım"), which is schema-valid, so the specialist would never be asked to
+     * write anything and the answer would be about the subject line rather than about the
+     * mail. Dropped, they have to be derived — and the only place to derive them from is the
+     * message the step in front just read.
+     */
+    private static final Set<String> WRITTEN_FROM_THE_MAIL = Set.of("subject", "body");
+
+    /**
+     * The steps a suggestion turns into: one, or two when the answer has to be read first.
+     *
+     * <p>A mail reply is the case where a single step cannot be honest. Everything the flow
+     * knew about the message was its subject, and a subject is not enough to answer with —
+     * live, that produced a draft addressed to a conversation whose content Relay had never
+     * seen. So {@code gmail.getMessage} goes in front: the sender, the real subject and the
+     * body land in the previous results, and the draft is written from them.
+     *
+     * <p>Only for mail. A Jira comment or a GitHub review does not need the record's full
+     * text to say "starting on this" — there the goal sentence carries enough, and a second
+     * provider call would be spending someone's budget to confirm what the card already said.
+     */
+    private List<SeedStep> seedSteps(String toolName, Map<String, Object> params,
+                                     SuggestionContext context, String title) {
+        Map<String, Object> given = params == null ? Map.of() : params;
+        String messageId = mailBehind(toolName, given, context);
+        if (messageId == null) {
+            return List.of(new SeedStep(title, toolName, given));
+        }
+        return List.of(
+                new SeedStep("Cevaplanacak maili oku", READ_MAIL, Map.of("messageId", messageId)),
+                new SeedStep(title, toolName, without(given, WRITTEN_FROM_THE_MAIL)));
+    }
+
+    /**
+     * The message a draft suggestion is answering, or {@code null} when this is not one.
+     *
+     * <p>The tool is recognised by what it does rather than by a hard-coded name, the same
+     * way the brief finds it: a Gmail tool that writes drafts. The id comes from the card's
+     * own item id ({@code gmail:18f2…}), which is where the brief got it from in the first
+     * place — and it only ever feeds a READ, so a wrong one costs a failed lookup, not a
+     * write to a stranger's conversation.
+     */
+    private String mailBehind(String toolName, Map<String, Object> params, SuggestionContext context) {
+        String name = toolName.toLowerCase(Locale.ROOT);
+        if (!name.startsWith("gmail.") || !name.contains("draft")) {
+            return null;
+        }
+        if (tools == null || tools.find(READ_MAIL).isEmpty()) {
+            return null;
+        }
+        Object given = params.get("messageId");
+        if (given != null && !String.valueOf(given).isBlank()) {
+            return String.valueOf(given).trim();
+        }
+        String itemId = context == null || context.itemId() == null ? "" : context.itemId().trim();
+        String prefix = "gmail:";
+        return itemId.startsWith(prefix) && itemId.length() > prefix.length()
+                ? itemId.substring(prefix.length()) : null;
+    }
+
+    private static Map<String, Object> without(Map<String, Object> params, Set<String> fields) {
+        Map<String, Object> kept = new LinkedHashMap<>();
+        params.forEach((key, value) -> {
+            if (!fields.contains(key.toLowerCase(Locale.ROOT))) {
+                kept.put(key, value);
+            }
+        });
+        return kept;
     }
 
     /** One seeded step of a playbook: title, tool and starting parameters. */

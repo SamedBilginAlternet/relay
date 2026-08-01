@@ -191,6 +191,12 @@ in it. Omit it and the goal is the label alone, exactly as before. Each field is
 server-side: the goal is prompt text on every model call of the run, so it stays a headline,
 never the item's full text.
 
+A mail reply is seeded as **two** steps — `gmail.getMessage` then `gmail.createDraft` — and
+the pre-written `subject`/`body` are dropped from the second one, so the answer is written
+from the message that was just read instead of from a template. Everything else stays a
+single step: a Jira comment does not need the issue's full text to say what it is going to
+say. The approval gate is unmoved either way — the read runs, the write waits.
+
 ---
 
 ## 6. Layout
