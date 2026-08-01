@@ -44,6 +44,7 @@ class ToolSchemaTest {
                 new DocsCreateDocumentTool("replay", FIXTURES, null),
                 new NotionTool.CreatePage("replay", FIXTURES),
                 new NotionTool.AppendToPage("replay", FIXTURES),
+                new NotionTool.Search("replay", FIXTURES),
                 new ConfluenceTool.CreatePage("replay", FIXTURES));
     }
 
@@ -93,6 +94,12 @@ class ToolSchemaTest {
         Tool leave = new HrLogLeaveTool("replay", FIXTURES, null);
         assertThat(leave.risk()).isEqualTo(RiskLevel.WRITE);
         assertThat(leave.risk().defaultMode().wire()).isEqualTo("ask");
+        // Notion's one READ runs without a gate — that is what lets the coordinator
+        // insert it in front of an ungrounded Notion write, and what lets
+        // "Bağlantıyı Test Et" probe the connection at all.
+        Tool notionSearch = new NotionTool.Search("replay", FIXTURES);
+        assertThat(notionSearch.risk()).isEqualTo(RiskLevel.READ);
+        assertThat(notionSearch.risk().defaultMode().wire()).isEqualTo("auto");
     }
 
     @Test

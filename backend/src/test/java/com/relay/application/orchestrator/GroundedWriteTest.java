@@ -38,7 +38,8 @@ class GroundedWriteTest {
                 new JiraTool.SearchIssues("replay", fixtures),
                 new JiraTool.UpdateIssue("replay", fixtures),
                 new JiraTool.CreateIssue("replay", fixtures),
-                new com.relay.infrastructure.tools.HrLogLeaveTool("replay", fixtures, null)));
+                new com.relay.infrastructure.tools.HrLogLeaveTool("replay", fixtures, null),
+                new com.relay.infrastructure.tools.NotionTool.AppendToPage("replay", fixtures)));
         clock = new TestDoubles.FixedClock();
         llm = new StubLlmClient(tools);
         toolAgent = new ToolAgent(tools, llm, new TestDoubles.InMemoryConnectionRepository(),
@@ -235,6 +236,56 @@ class GroundedWriteTest {
         } finally {
             Locale.setDefault(original);
         }
+    }
+
+    /**
+     * {@code pageId} left {@code CONTAINER_FIELDS} the day {@code notion.search} arrived:
+     * it points at one existing page — the record being appended to — and with a lookup now
+     * possible on the provider, an invented one earns the same refusal an invented issueKey
+     * does (and, driven by the coordinator, the same repair — see NotionLookupRepairTest).
+     * While it wore the container label, an id from nowhere was quietly put back and sent,
+     * and Notion's {@code object_not_found} answer blamed sharing for an invention.
+     */
+    @Test
+    void an_invented_notion_page_id_never_reaches_the_provider() {
+        Run run = runWith("Kararı karar kütüğüne ekle",
+                appendStep("44440000aaaa4bbb8ccc0123456789ab"));
+
+        StepOutcome outcome = toolAgent.execute(run, run.steps().get(0));
+
+        assertThat(outcome.ok()).isFalse();
+        assertThat(outcome.error()).contains("uydurulmuş tanımlayıcı", "pageId=");
+    }
+
+    /**
+     * A Notion id is the same id in three spellings — dashed, bare, and glued to the title
+     * slug inside every page URL. The word-boundary rule (built for KAN-1 vs KAN-10) sees a
+     * dash hard against the id in a URL and would refuse a destination the user themselves
+     * pasted; at 32 hex digits prefix collision is not real, so containment grounds it.
+     */
+    @Test
+    void a_page_id_read_out_of_a_pasted_notion_url_is_grounded() {
+        Run run = runWith("Şu sayfaya ekle: https://www.notion.so/acme/Karar-k%C3%BCt%C3%BC%C4%9F%C3%BC-"
+                        + "2f0a1b9c4d5e4f60a1b2c3d4e5f60718?v=abc",
+                appendStep("2f0a1b9c4d5e4f60a1b2c3d4e5f60718"));
+
+        assertThat(toolAgent.execute(run, run.steps().get(0)).ok())
+                .as("the goal itself carries this id, slug-glued inside the URL")
+                .isTrue();
+    }
+
+    @Test
+    void a_dashed_id_in_the_goal_grounds_its_dashless_spelling() {
+        Run run = runWith("2f0a1b9c-4d5e-4f60-a1b2-c3d4e5f60718 sayfasına kararı ekle",
+                appendStep("2f0a1b9c4d5e4f60a1b2c3d4e5f60718"));
+
+        assertThat(toolAgent.execute(run, run.steps().get(0)).ok()).isTrue();
+    }
+
+    private static Step appendStep(String pageId) {
+        return Step.create(java.util.UUID.randomUUID(), 1, "Kararı kütüğe ekle",
+                AgentRole.COORDINATOR, "notion.appendToPage",
+                Map.of("pageId", pageId, "content", "Karar: fatura itirazı kabul edildi."));
     }
 
     /** A project key is a destination, not a record — creating in it needs no grounding. */

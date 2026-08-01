@@ -150,6 +150,7 @@ class ToolResultProjectionTest {
                 new HrLogLeaveTool("replay", FIXTURES, null),
                 new NotionTool.CreatePage("replay", FIXTURES),
                 new NotionTool.AppendToPage("replay", FIXTURES),
+                new NotionTool.Search("replay", FIXTURES),
                 new ConfluenceTool.CreatePage("replay", FIXTURES),
                 new DocsCreateDocumentTool("replay", FIXTURES, null));
 

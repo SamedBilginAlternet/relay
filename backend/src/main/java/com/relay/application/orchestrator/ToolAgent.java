@@ -295,7 +295,7 @@ public class ToolAgent {
             // is a record key is decided by the field's *name*, not by how it is spelled, so
             // "issueKey": "KAN 42" is exactly as much of a claim about an existing record as
             // "KAN-42" is — and was the one nobody checked.
-            if (value.isEmpty() || mentions(haystack, value)) {
+            if (value.isEmpty() || mentions(haystack, value) || mentionedAsLongId(haystack, value)) {
                 continue;
             }
             return tool.name() + " için " + UNGROUNDED + ": " + field.getKey() + "=" + value
@@ -322,7 +322,6 @@ public class ToolAgent {
             Map.entry("parentdatabaseid", List.of("parentDatabaseId", "defaultDatabaseId")),
             Map.entry("spreadsheetid", List.of("defaultSpreadsheetId")),
             Map.entry("sheetname", List.of("defaultSheetName")),
-            Map.entry("pageid", List.of("defaultPageId")),
             Map.entry("spacekey", List.of("defaultSpaceKey")));
 
     /** One field the model addressed wrongly, and what was done about it. */
@@ -458,16 +457,22 @@ public class ToolAgent {
      * goal mention them would block ordinary work. Getting one wrong costs a 400, not a
      * stranger's issue.
      *
-     * <p>{@code parentDatabaseId}, {@code spreadsheetId} and {@code pageId} have to be named
-     * here rather than left to {@link #isIdentifier}'s "ends with id" rule. By that rule they
-     * read as pointers at one existing record — and a Notion id is a 32-character uuid, a
-     * spreadsheet id a 44-character token out of a URL, neither of which anybody types into a
-     * goal. Every page creation, every appended row and every appended note would be refused
-     * as ungrounded. They are containers: the database the page opens in, the file the row
-     * goes into, the log page the note lands on — not the record being changed. {@code
-     * pageId} earns the label the same way the other two did: Notion has no reading tool, so
-     * the only honest sources for it are the goal and the connection's {@code defaultPageId},
-     * and a page is a container of blocks exactly as a database is a container of pages.
+     * <p>{@code parentDatabaseId} and {@code spreadsheetId} have to be named here rather
+     * than left to {@link #isIdentifier}'s "ends with id" rule. By that rule they read as
+     * pointers at one existing record — and a Notion id is a 32-character uuid, a
+     * spreadsheet id a 44-character token out of a URL, neither of which anybody types into
+     * a goal. Every page creation and every appended row would be refused as ungrounded.
+     * They are containers: the database the page opens in, the file the row goes into —
+     * not the record being changed.
+     *
+     * <p>{@code pageId} was on this list while Notion had no reading tool: with no lookup
+     * possible, being an identifier would have made every append whose page came from the
+     * connection's {@code defaultPageId} unrescuable, so it wore the container label. That
+     * premise fell with {@code notion.search}. A pageId points at one existing page — the
+     * record being appended to — and an invented one now earns what an invented issueKey
+     * earns: the ungrounded refusal, and the lookup step the coordinator inserts to repair
+     * it. Blank pageIds are still filled from {@code defaultPageId}, by the tool's own
+     * {@code withDefaults}.
      *
      * <p>{@code spaceKey} is {@code projectKey} one Atlassian product over: by the "ends
      * with key" rule it would read as a pointer at one existing record, and every Confluence
@@ -476,7 +481,7 @@ public class ToolAgent {
      */
     private static final java.util.Set<String> CONTAINER_FIELDS = java.util.Set.of(
             "projectkey", "project", "repo", "repository", "owner", "channel", "channelid",
-            "parentdatabaseid", "spreadsheetid", "sheetname", "pageid", "spacekey");
+            "parentdatabaseid", "spreadsheetid", "sheetname", "spacekey");
 
     /**
      * Did the run really see this value, as a value — or does it just happen to sit inside a
@@ -499,6 +504,23 @@ public class ToolAgent {
         return Pattern.compile("(?<![\\w-])" + Pattern.quote(value.toLowerCase(Locale.ROOT)) + "(?![\\w-])")
                 .matcher(haystack)
                 .find();
+    }
+
+    /**
+     * The same id, in another of the spellings Notion writes it in.
+     *
+     * <p>A Notion id is 32 hex digits that legitimately arrive three ways: dashed
+     * ({@code 2f0a1b9c-4d5e-…}), bare, and glued to the title slug inside every page URL
+     * ({@code notion.so/Karar-kütüğü-2f0a…}). {@link #mentions}' boundary — built to keep
+     * KAN-1 from vouching for KAN-10 — refuses the third form, because the slug's own dash
+     * sits hard against the id; the day {@code pageId} became an identifier, a correctly
+     * pasted URL would have been refused as an invention. Prefix collision is a short-key
+     * problem: no 32-digit id sits inside a different value by accident, so at this length
+     * containment, dashes ignored on both sides, is the honest test.
+     */
+    private static boolean mentionedAsLongId(String haystack, String value) {
+        String bare = value.replace("-", "").toLowerCase(Locale.ROOT);
+        return bare.matches("[0-9a-f]{32}") && haystack.replace("-", "").contains(bare);
     }
 
     /** Names that point at one specific, already existing record. */

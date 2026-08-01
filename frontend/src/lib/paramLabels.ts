@@ -47,6 +47,7 @@ const LABELS: Record<string, string> = {
   parentdatabaseid: 'Veritabanı',
   pageid: 'Sayfa',
   content: 'İçerik',
+  objecttype: 'Sonuç türü',
 
   // Confluence — "space" is Alan in Atlassian's own Turkish interface.
   spacekey: 'Alan',

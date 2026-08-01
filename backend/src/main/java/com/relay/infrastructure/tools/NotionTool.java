@@ -20,14 +20,16 @@ import org.springframework.stereotype.Component;
  * <p>Connection config keys: {@code token} and, optionally, {@code parentDatabaseId} — the
  * database new pages land in when the model does not name one.
  *
- * <p>WHY THIS PROVIDER IS WRITE-ONLY. Every other integration here reads first and writes
- * second, and Notion deliberately does not. A reading tool has to be offered to the model on
- * every brief, and the brief runs whether or not anybody asked for it; measured on this
- * product that is two extra model turns per brief, and the day the daily token wall was hit
- * at 627k it was reading tools that spent it. One WRITE tool costs about a hundred tokens on
- * the runs that actually use it and nothing at all on the ones that do not. So there is no
- * {@code SECTIONS} entry and no {@code BriefService.fetch} for Notion, and adding one is a
- * decision, not a completion.
+ * <p>WHY THE ONE READ HERE IS PLANNER-ONLY. Every other integration reads into the brief,
+ * and Notion deliberately does not: a brief READ runs whether or not anybody asked for it —
+ * measured on this product that is two extra model turns per refresh, and the day the daily
+ * token wall was hit at 627k it was reading tools that spent it. {@code notion.search} is
+ * the other kind of READ: offered to the planner, it costs ~60–130 tokens and only on the
+ * runs whose plans actually mention it. It exists because the coordinator's plan repair
+ * ({@code Coordinator.insertLookupBefore}) needs a search tool on the provider to ground an
+ * ungrounded write, and without one every misaddressed Notion write was unrescuable. There
+ * is still no {@code SECTIONS} entry and no {@code BriefService.fetch} for Notion, and
+ * adding one is a decision, not a completion.
  *
  * <p>The version header is not optional. Notion rejects a request without
  * {@code Notion-Version} with a 400 before it looks at anything else, so it is pinned here
@@ -377,12 +379,11 @@ public abstract class NotionTool extends AbstractTool {
 
         /**
          * {@code pageId} is required for the same reason {@code parentDatabaseId} is on
-         * {@code createPage} — and its default is decided by the same fact: Notion has no
-         * reading tool here, so a model asked to "add this to the log" has no honest way to
-         * find a page id. The sources are the goal, the connection's {@code defaultPageId}
-         * (the log page, configured once), or — when neither exists — the editable approval
-         * gate, where the step fails with a sentence naming the setting and the human can
-         * paste the id themselves. Inventing a destination page is not on the list.
+         * {@code createPage}: there is no call without it. Its honest sources are the goal,
+         * the connection's {@code defaultPageId} (the log page, configured once), a
+         * {@code notion.search} step's result, or the human at the editable approval gate.
+         * Inventing a destination page is not on the list — an id from nowhere fails as
+         * ungrounded, and the coordinator puts a search step in front of the write.
          */
         @Override
         public JsonNode schema() {
@@ -495,5 +496,177 @@ public abstract class NotionTool extends AbstractTool {
 
         private static final Pattern PAGE_ID = Pattern.compile(
                 "([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})");
+    }
+
+    // ------------------------------------------------------------- search
+
+    /**
+     * Finds the page or database a later step needs — the provider's one READ.
+     *
+     * <p>It exists for the lookup the coordinator inserts in front of an ungrounded write.
+     * With Notion write-only, {@code ToolAgent.lookupToolFor} came back empty, the repair in
+     * {@code Coordinator.insertLookupBefore} could not run, and a {@code notion.appendToPage}
+     * whose page was not on the connection had nowhere honest to get one from. The same hole
+     * showed on Bağlantılar: "Bağlantıyı Test Et" probes a provider's cheapest READ, so Notion
+     * answered <em>"notion için kayıtlı bir okuma aracı yok."</em> ({@code
+     * ConnectionService.test}).
+     *
+     * <p>The empty answer is the important one. An integration nobody shared a page with gets
+     * an empty list from Notion, not an error — the number-one setup failure arrives looking
+     * like a search that merely found nothing. So zero results carry a note naming the same
+     * three clicks {@link #explain} names, and the symptom diagnoses itself.
+     */
+    @Component
+    public static class Search extends NotionTool {
+
+        /** Nothing on a timeline or in a prompt needs more; Notion's own page cap is 100. */
+        static final int MAX_RESULTS = 20;
+        static final int DEFAULT_RESULTS = 10;
+
+        /** The sentence a shared-with-nobody integration needs to read on its empty list. */
+        static final String EMPTY_NOTE = "Hiç sonuç dönmedi. Notion'da bu çoğu zaman arama "
+                + "değil paylaşım sorunudur: bir integration yalnızca kendisiyle açıkça "
+                + "paylaşılan sayfaları görebilir. Notion'da aranan sayfayı/veritabanını "
+                + "açın, sağ üstteki ••• menüsünden Connections (Bağlantılar) → Relay "
+                + "integration'ını ekleyin ve tekrar deneyin.";
+
+        public Search(@Value("${app.tools.mode:replay}") String mode, FixtureStore fixtures) {
+            super(ToolsMode.parse(mode), fixtures);
+        }
+
+        @Override
+        public String name() {
+            return "notion.search";
+        }
+
+        @Override
+        public String description() {
+            return "Search Notion pages and databases by title. Returns id, type, title "
+                    + "and url per match. An empty query lists everything shared with the "
+                    + "integration. Use it to find the page or database a later step "
+                    + "writes to. Runs automatically.";
+        }
+
+        @Override
+        public RiskLevel risk() {
+            return RiskLevel.READ;
+        }
+
+        /**
+         * Nothing is required: an empty query is a real question ("what can I see?"),
+         * and it is the exact probe the repair path and the connection test both need —
+         * a search that can always run, whatever state the run is in.
+         */
+        @Override
+        public JsonNode schema() {
+            ObjectNode schema = Json.object();
+            schema.put("type", "object");
+            schema.putArray("required");
+            ObjectNode props = schema.putObject("properties");
+            ObjectNode query = props.putObject("query");
+            query.put("type", "string");
+            query.put("description",
+                    "Words from the title. Empty means everything shared with the integration");
+            ObjectNode objectType = props.putObject("objectType");
+            objectType.put("type", "string");
+            objectType.putArray("enum").add("page").add("database");
+            objectType.put("description", "Only pages or only databases; omit for both");
+            ObjectNode max = props.putObject("maxResults");
+            max.put("type", "integer");
+            max.put("minimum", 1);
+            max.put("maximum", MAX_RESULTS);
+            max.put("description", "How many results at most (default " + DEFAULT_RESULTS + ")");
+            return schema;
+        }
+
+        @Override
+        protected JsonNode call(JsonNode params, Connection connection) throws Exception {
+            ObjectNode body = Json.object();
+            String query = params.path("query").asText("").trim();
+            if (!query.isEmpty()) {
+                body.put("query", query);
+            }
+            String objectType = params.path("objectType").asText("").trim();
+            if ("page".equals(objectType) || "database".equals(objectType)) {
+                // Notion's spelling of "only this kind": filter.property is always the
+                // literal "object", filter.value is what objectType means here.
+                ObjectNode filter = body.putObject("filter");
+                filter.put("property", "object");
+                filter.put("value", objectType);
+            }
+            body.put("page_size", pageSize(params));
+            return post("https://api.notion.com/v1/search", headers(connection), body);
+        }
+
+        /**
+         * The single network call, isolated so a test can watch it — same shape as
+         * {@code AppendToPage.patch}. It rides {@link #notion}, so a 401 or a 429 stops
+         * with the sentence the other two Notion tools stop with.
+         */
+        JsonNode post(String url, Map<String, String> headers, JsonNode body) throws Exception {
+            return notion("POST", url, headers, body);
+        }
+
+        static int pageSize(JsonNode params) {
+            int asked = params.path("maxResults").asInt(DEFAULT_RESULTS);
+            return Math.max(1, Math.min(MAX_RESULTS, asked));
+        }
+
+        /**
+         * Four fields a next step can act on, out of the heaviest envelope Notion sends:
+         * a search result carries every property of every matched page, created_by and
+         * last_edited_by user objects, covers, icons and a cursor. The id is projected
+         * dashless because that is the spelling the rest of this codebase writes.
+         *
+         * <p>Replayed, the fixture already carries the projected shape ({@code resultCount}
+         * is this projection's own word), so it passes through untouched — the same rule
+         * {@code CreatePage.titleOf} follows.
+         */
+        @Override
+        protected JsonNode project(JsonNode raw) {
+            if (raw.has("resultCount")) {
+                return raw;
+            }
+            ObjectNode out = Json.object();
+            ArrayNode results = out.putArray("results");
+            for (JsonNode item : raw.path("results")) {
+                ObjectNode row = results.addObject();
+                row.put("id", item.path("id").asText("").replace("-", ""));
+                row.put("type", item.path("object").asText(""));
+                row.put("title", titleOf(item));
+                row.put("url", item.path("url").asText(""));
+            }
+            out.put("resultCount", results.size());
+            out.put("truncated", raw.path("has_more").asBoolean(false));
+            if (results.isEmpty()) {
+                out.put("note", EMPTY_NOTE);
+            }
+            return out;
+        }
+
+        /**
+         * A database's title sits on the object; a page's inside its one property of type
+         * {@code title}, under whatever name the user gave the first column. An untitled
+         * page projects an empty title — never an invented one.
+         */
+        private static String titleOf(JsonNode item) {
+            if ("database".equals(item.path("object").asText(""))) {
+                return plainText(item.path("title"));
+            }
+            for (JsonNode property : item.path("properties")) {
+                if ("title".equals(property.path("type").asText(""))) {
+                    return plainText(property.path("title"));
+                }
+            }
+            return "";
+        }
+
+        private static String plainText(JsonNode runs) {
+            StringBuilder text = new StringBuilder();
+            for (JsonNode run : runs) {
+                text.append(run.path("plain_text").asText(""));
+            }
+            return text.toString();
+        }
     }
 }

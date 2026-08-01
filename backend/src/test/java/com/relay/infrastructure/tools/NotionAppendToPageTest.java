@@ -22,11 +22,11 @@ import org.junit.jupiter.api.Test;
  * no request in it that could retitle the page, edit a property or touch an existing block.
  * A month of decisions above the cursor stays exactly as it was written.
  *
- * <p>TWO — the destination is the user's, never the model's. Notion has no reading tool
- * here (a deliberate cost decision, recorded on {@code NotionTool}), so a model asked to
- * "add this to the log" has no honest way to produce a page id. It comes from the goal,
- * from the connection's {@code defaultPageId}, or from the human at the editable gate —
- * and a pasted URL is read as the id it carries rather than bounced.
+ * <p>TWO — the destination is the user's, never the model's. A page id comes from the
+ * goal, from the connection's {@code defaultPageId}, from a {@code notion.search} step's
+ * result, or from the human at the editable gate — and a pasted URL is read as the id it
+ * carries rather than bounced. An id from none of those places fails as ungrounded and
+ * earns a lookup step (see NotionLookupRepairTest), never a silent send.
  *
  * <p>THREE — the first-run failure stays fixed. {@code object_not_found} still means "the
  * page is not shared with the integration" far more often than "the id is wrong", and this

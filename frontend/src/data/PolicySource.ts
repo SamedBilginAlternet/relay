@@ -133,6 +133,7 @@ class MockPolicySource implements PolicySource {
       ['jira', 'jira.updateIssue', 'write'],
       ['notion', 'notion.appendToPage', 'write'],
       ['notion', 'notion.createPage', 'write'],
+      ['notion', 'notion.search', 'read'],
       ['google', 'sheets.appendRow', 'write'],
       ['google', 'sheets.readRange', 'read'],
       ['slack', 'slack.listChannels', 'read'],

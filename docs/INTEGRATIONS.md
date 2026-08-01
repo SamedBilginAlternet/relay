@@ -123,11 +123,15 @@ Sonra **Reinstall to Workspace** → yeni `xoxb-...` token. Kanal tarafında bir
 
 ## 4. Notion (integration token — OAuth yok)
 
-Yalnız yazan sağlayıcı — iki aracı da yazar: `notion.createPage` (yeni sayfa) ve
-`notion.appendToPage` (var olan sayfanın sonuna not). Okuma aracı **yok** ve bilerek yok —
-okuyan bir araç her sabah briefte iki model turu daha demektir, yazan bir araç ise yalnız
-kullanıldığı akışta ~100 token. Notion'dan okuma isteniyorsa bu bir ürün kararıdır, eksik
-değil.
+Üç araç: `notion.createPage` (yeni sayfa), `notion.appendToPage` (var olan sayfanın sonuna
+not) ve tek okuma olarak `notion.search` (başlığa göre sayfa/veritabanı bulur — hedefi
+kayıttan gelmeyen bir Notion yazması artık başarısız olmak yerine önüne bu arama adımını
+alır). `notion.search` brife **girmez** ve bilerek girmez — briften okuyan bir araç her
+yenilemede iki model turu demektir; plancıya açık bir READ ise yalnız planında geçtiği
+koşuda ~60–130 token. Brife Notion bölümü eklemek hâlâ bir ürün kararıdır, eksik değil.
+Boş arama sonucu da kendini teşhis eder: hiç sonuç dönmezse cevap, aşağıdaki paylaşım
+adımını (••• → Connections) hatırlatan bir not taşır — boş liste Notion'da çoğu zaman
+"paylaşılmamış" demektir.
 
 **`notion.appendToPage` için kurulumda yeni hiçbir şey yok:** aynı `ntn_...` token, aynı
 *Insert content* yetkisi. Tek opsiyonel yenilik aşağıdaki `defaultPageId` ayarı — "karar

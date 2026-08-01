@@ -49,6 +49,7 @@ const LABELS: Record<string, string> = {
   // Notion
   'notion.createPage': 'Notion’a not aç',
   'notion.appendToPage': 'Notion sayfasına ekle',
+  'notion.search': 'Notion’da ara',
 
   // Confluence
   'confluence.createPage': 'Confluence sayfası aç',
