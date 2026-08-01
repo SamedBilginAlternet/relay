@@ -114,6 +114,16 @@ Bitirirken tamamlayıcı ol, jüri bunu sever: *"n8n kullanan bir ekip Relay'i o
 **"Token'larımız güvende mi?"**
 > Evet, üç katman: token'lar veritabanında **AES-GCM ile şifreli** durur, anahtar ortam değişkeninde; **log'a asla yazılmaz**; API yanıtlarında ve arayüzde **maskeli** döner — `xoxb-****1234` gibi. Düz metin token yalnızca araç çağrısının kendisinde, bellek içinde var olur.
 
+**"Biz de deneyebilir miyiz? Bir hesap verir misiniz?"** — **karar verildi, ezberle**
+> Şu an veremem, ve nedeni ürünün kendi kısıtı: Relay bugün **tek bir ortak çalışma alanı** — giriş yapan herkes aynı bağlantıları ve aynı koşuları görür. Yani size vereceğim hesap, benim gerçek gelen kutumu ve dört bağlantımı açar. Kullanıcı başına izolasyonu bilerek sonraya bıraktık (48 saatte yarım yapılırsa izolasyonsuzluktan tehlikeli olur). Ekranda merak ettiğiniz **her şeyi buradan, benim ekranımdan** açarım — hangi ekranı isterseniz. Değerlendirme için hesap gerekiyorsa, boş bağlantılarla ve kayıtlı yanıtlarla koşan ayrı bir adres kurarız.
+
+**Bu cevabın kuralı:** jüriye giriş bilgisi **verilmez** — Slack'ten, e-postadan, sunum sonrası
+sohbetten de verilmez. "Bir bakayım" diyen değerlendirici, senin makinende bakar. Bu bir
+güvenlik tercihi değil, bir **veri sızıntısının** kapatılması: `qa+relay@` hesabı ile girildiğinde
+`GET /api/connections` dört sağlayıcıyı, `GET /api/brief` kurucunun gerçek gelen kutusunu
+döndürüyor (#53). Ayrı bir değerlendirme ortamı isteniyorsa `deploy/DEPLOY.md` §13'teki
+`TOOLS_MODE=replay` taslağı izlenir — sunumdan sonra, sunumdan önce değil.
+
 **"Maliyet kontrolü nasıl?"**
 > Her adım token ve tahmini USD döndürür, akışın toplamı maliyet şeridinde canlı sayar — demoda gördünüz. Akışa bütçe sınırı koyarsınız; ajan sınırı aşarsa **durur ve sorar**, sessizce harcamaz. Adım bazlı kırılım denetim izinde kalır — hangi adım kaça mal oldu, sonradan da görürsünüz.
 
@@ -178,10 +188,17 @@ Tam prova en az **3 kez**: bir kez canlı modda, bir kez `TOOLS_MODE=replay` ile
 
 ---
 
-## 5. Demo öncesi kontrol listesi (15 madde)
+## 5. Demo öncesi kontrol listesi
 
 Demodan **30 dakika önce** başla; her maddeyi sırayla işaretle.
 
+0. ☐ **Jüriye giriş bilgisi verilmeyecek** — karar verildi (#53), tartışmaya açık değil.
+   Slaytta, README'de, teslim formunda, Slack mesajında **hiçbir hesap ve parola geçmiyor**;
+   `qa+relay@samedbilgin.com` dahil. Kontrol: teslim metnini aç, `@` ve "parola/password"
+   ara, çıkan her satırı sil. Gerekçe: Relay tek ortak çalışma alanı — verilen her hesap
+   kurucunun gerçek gelen kutusunu, Jira'sını, Slack'ini ve GitHub'ını açar
+   (`GET /api/connections` dört sağlayıcı döner). "Biz deneyebilir miyiz" cevabı §3'te
+   yazılı ve ezberde. Değerlendirme ortamı istenirse `deploy/DEPLOY.md` §13.
 1. ☐ Backend ayakta: `GET /api/health` → `{status: ok}` dönüyor; sağlayıcı için oturumlu `GET /api/health/details` → `llm.provider: groq`.
 2. ☐ **Bağlantılar** ekranında Jira ve Slack token'ları girili; her ikisinde **Bağlantıyı Test Et** yeşil.
 3. ☐ Politikalar doğru: `jira.search/get` → otomatik; `jira.updateIssue`, `jira.addComment`, `slack.postMessage` → **onay iste**. (ALTIN KURAL — §4.)
