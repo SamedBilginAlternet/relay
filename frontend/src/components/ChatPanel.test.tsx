@@ -243,6 +243,20 @@ it('a_payload_long_enough_to_be_a_document_leaves_the_sentence', () => {
   expect(inline).toContain('{}');
 });
 
+it('a_payload_the_preview_cut_before_its_brace_is_still_one_machine_block', () => {
+  // Json.preview clips tool params at 240 characters, so the live trail's big
+  // payloads arrive with no closing brace — and the object rule, requiring
+  // one, left six lines of cargo interleaved with the sentence (run d80fadfc).
+  const cut =
+    'slack.postMessage çağrılıyor: {"text":"Günaydın! Bugünkü durumum:\\n• Jira: KAN-32 — Ödeme adımında işlem tamamlanamadı (Devam Ediyor, High)\\n• Review bekleyen 2 PR…';
+  const { container } = show([message({ content: cut })]);
+
+  const block = container.querySelector('code.worklog__fact--block');
+  expect(block).not.toBeNull();
+  expect(block!.textContent!.startsWith('{"text"')).toBe(true);
+  expect(block!.textContent).toContain('Review bekleyen 2 PR');
+});
+
 it('splitting_a_line_never_loses_a_character_of_it', () => {
   const line =
     'jira.createIssue çağrılıyor: {"projectKey":"KAN"} — onaylayan samed.bilgin@alternet.com.tr';

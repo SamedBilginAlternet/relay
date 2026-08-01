@@ -59,6 +59,7 @@ const MACHINE = new RegExp(
   [
     '`[^`]+`', //                                          fenced span (the fence is dropped)
     '\\{[^{}]{0,400}\\}', //                               a parameter object as one span
+    '\\{"[^{}]{8,400}$', //                                …and one Json.preview cut before its brace
     'https?://\\S+', //                                    a link is never a sentence
     '[\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+', //                 the address that approved a step
     '"[^"\\n]{1,80}"', //                                  a straight-quoted value
