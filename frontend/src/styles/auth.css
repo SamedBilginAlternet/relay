@@ -607,8 +607,14 @@
 .account__chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  min-height: 36px;
+  /* 44px both ways, like every other target in the product — including the menu
+     this button opens, which has been 44 since issue #59. Below 640px the name
+     is hidden and the chip is only the 28px avatar, so the width needs saying
+     out loud or the target is 34px across. */
+  min-height: 44px;
+  min-width: 44px;
   padding: 3px 12px 3px 3px;
   font: inherit;
   font-size: 13px;
