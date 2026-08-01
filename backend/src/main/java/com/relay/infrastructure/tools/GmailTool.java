@@ -326,6 +326,10 @@ public abstract class GmailTool extends GoogleTool {
             ObjectNode out = Json.object();
             out.put("id", message.path("id").asText(""));
             out.put("threadId", message.path("threadId").asText(""));
+            // The RFC 2822 identity of this mail, which is not Gmail's id for it. Without
+            // it here the reply step had nothing to put in In-Reply-To but the Gmail id,
+            // and that is not what the header means (#49).
+            out.put("rfcMessageId", header(message, "Message-ID"));
             out.put("from", header(message, "From"));
             out.put("to", header(message, "To"));
             out.put("subject", header(message, "Subject"));
@@ -383,9 +387,9 @@ public abstract class GmailTool extends GoogleTool {
         @Override
         public String description() {
             return "Write a reply into the user's Gmail drafts folder — it is NEVER sent, the "
-                    + "user opens Gmail and presses send. Pass threadId (and inReplyTo when the "
-                    + "message id is known) so the draft hangs under the conversation it answers. "
-                    + "Use it whenever a mail is waiting for an answer.";
+                    + "user opens Gmail and presses send. Pass threadId (and inReplyTo, the "
+                    + "rfcMessageId of the mail being answered) so the draft hangs under the "
+                    + "conversation it answers. Use it whenever a mail is waiting for an answer.";
         }
 
         @Override
@@ -417,8 +421,10 @@ public abstract class GmailTool extends GoogleTool {
                     + "omit for a brand-new mail");
             ObjectNode inReplyTo = props.putObject("inReplyTo");
             inReplyTo.put("type", "string");
-            inReplyTo.put("description", "RFC 2822 Message-ID of the mail being answered, "
-                    + "e.g. \"<CAB1@mail.gmail.com>\"");
+            inReplyTo.put("description", "RFC 2822 Message-ID of the mail being answered — "
+                    + "the rfcMessageId field of gmail.getMessage, e.g. "
+                    + "\"<CAB1@mail.gmail.com>\". Not the Gmail message id; omit when the "
+                    + "mail being answered has no Message-ID header");
             return schema;
         }
 
@@ -623,12 +629,28 @@ public abstract class GmailTool extends GoogleTool {
             return value == null ? "" : value.replaceAll("[\\r\\n]+", " ").trim();
         }
 
-        /** {@code CAB1@mail.gmail.com} → {@code <CAB1@mail.gmail.com>}; already-angled ids pass. */
+        /**
+         * {@code CAB1@mail.gmail.com} → {@code <CAB1@mail.gmail.com>}; already-angled ids
+         * pass; anything that is not an RFC 2822 Message-ID comes back empty.
+         *
+         * <p>Gmail's own id for a message ({@code 19fbb2c9e643f6f6}) is what the reply step
+         * had to hand, and it went into {@code In-Reply-To} wrapped in angle brackets as if
+         * it belonged there. Gmail hides the mistake — the draft also carries {@code
+         * threadId}, so the conversation looks right in Gmail's own interface — but the
+         * header is what every other client threads on, and in Outlook or Apple Mail the
+         * reply falls out of the conversation. An id-left@id-right with no whitespace is
+         * the shape the RFC describes; a bare hex handle is not one, and writing nothing is
+         * better than writing something false. {@code threadId} still threads it in Gmail.
+         */
         static String messageId(String id) {
-            if (id.isBlank()) {
+            String trimmed = id.startsWith("<") && id.endsWith(">")
+                    ? id.substring(1, id.length() - 1).trim()
+                    : id.trim();
+            if (trimmed.isEmpty() || !trimmed.contains("@")
+                    || trimmed.chars().anyMatch(Character::isWhitespace)) {
                 return "";
             }
-            return id.startsWith("<") && id.endsWith(">") ? id : "<" + id + ">";
+            return "<" + trimmed + ">";
         }
     }
 }

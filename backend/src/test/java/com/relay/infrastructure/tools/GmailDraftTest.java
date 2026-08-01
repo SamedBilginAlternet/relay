@@ -66,6 +66,53 @@ class GmailDraftTest {
         assertThat(result.path("threadId").asText()).isEqualTo("18f2c9a10b3d4e01");
     }
 
+    /**
+     * {@code In-Reply-To} names the mail being answered by its RFC 2822 Message-ID. Gmail's
+     * own handle for that mail — {@code 19fbb2c9e643f6f6} — is a different thing, and it is
+     * what the reply step had to hand: {@code gmail.getMessage} returned the Gmail id and
+     * never the header. It went out as {@code In-Reply-To: <19fbb2c9e643f6f6>}.
+     *
+     * <p>Gmail itself hid the mistake, because the draft also carries {@code threadId} and
+     * Gmail threads on that. Opened in Outlook, Apple Mail or a list archive, the reply
+     * falls out of the conversation it answers. A header that is wrong is worse than one
+     * that is absent, so an id that is not a Message-ID is left out and {@code threadId}
+     * carries the reply on its own.
+     */
+    @Test
+    void a_gmail_id_is_not_a_message_id_and_never_goes_in_the_header() throws Exception {
+        Recording tool = new Recording();
+
+        tool.call(params(p -> {
+            p.put("to", "ayse@alterteam.dev");
+            p.put("subject", "Re: 502");
+            p.put("body", "Bakıyorum.");
+            p.put("threadId", "18f2c9a10b3d4e01");
+            p.put("inReplyTo", "19fbb2c9e643f6f6");
+        }), google(GoogleOAuth.SCOPES));
+
+        String mime = mime(tool.body);
+        assertThat(mime).doesNotContain("In-Reply-To").doesNotContain("References");
+        assertThat(mime).doesNotContain("19fbb2c9e643f6f6");
+        // The conversation still holds in Gmail, which is where the draft is read.
+        assertThat(tool.body.path("message").path("threadId").asText()).isEqualTo("18f2c9a10b3d4e01");
+    }
+
+    /** The read step now carries the header, so the reply step has something true to use. */
+    @Test
+    void the_read_step_hands_over_the_rfc_message_id() {
+        ObjectNode message = Json.object();
+        message.put("id", "19fbb2c9e643f6f6");
+        message.put("threadId", "19fbb2c9e643f6f6");
+        message.putArray("headers");
+        ObjectNode payload = message.putObject("payload");
+        payload.putArray("headers")
+                .addObject().put("name", "Message-ID").put("value", "<CAB1x9@mail.gmail.com>");
+
+        assertThat(GmailTool.header(message, "Message-ID")).isEqualTo("<CAB1x9@mail.gmail.com>");
+        // Case is not guaranteed on the wire; Gmail sends Message-ID, others send Message-Id.
+        assertThat(GmailTool.header(message, "message-id")).isEqualTo("<CAB1x9@mail.gmail.com>");
+    }
+
     /** A brand-new mail has no conversation, and must not invent one. */
     @Test
     void a_mail_that_answers_nothing_carries_no_thread() throws Exception {

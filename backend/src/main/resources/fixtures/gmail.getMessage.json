@@ -1,6 +1,7 @@
 {
   "id": "{{messageId}}",
   "threadId": "{{messageId}}",
+  "rfcMessageId": "<CAB1x9k7Qa8@mail.gmail.com>",
   "from": "Ayşe Yıldız <ayse@alterteam.dev>",
   "to": "Samed Bilgin <samed@alterteam.dev>",
   "subject": "Ödeme servisi staging'de patlıyor",
