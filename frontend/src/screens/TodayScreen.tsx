@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ClipboardList,
+  ExternalLink,
   GitPullRequest,
   Inbox,
   Plug,
@@ -24,8 +25,15 @@ import type { Playbook } from '../data/PlaybookSource';
 import { formatDayMonth } from '../lib/format';
 import { dedupeStrips, dropCommonOwner, factStrip, rationReasons } from '../lib/insight';
 import { enterProps, expandProps } from '../lib/motion';
+import { arrivalLink } from '../lib/sourceLinks';
 import { EMPTY_SECTION } from '../types/brief';
-import type { Brief, BriefSectionKey, InsightCard, SuggestedAction } from '../types/brief';
+import type {
+  Brief,
+  BriefHighlightSource,
+  BriefSectionKey,
+  InsightCard,
+  SuggestedAction,
+} from '../types/brief';
 
 type Props = { onNavigate: (hash: string) => void };
 
@@ -410,6 +418,33 @@ export function TodayScreen({ onNavigate }: Props) {
      disagreeing with each other. */
   const dayLines = brief?.today?.lines ?? [];
   const advice = (brief?.digest?.advice ?? '').trim();
+
+  /*
+    One real deep link per provider, taken from the section that provider's line
+    was counted from.
+
+    It is the only evidence the client has about *which* Jira and *which*
+    mailbox — the site is the customer's own and nothing else in the payload
+    names it. `arrivalLink` decides what to do with it, including deciding to do
+    nothing; see the comment there about what is derived and what is constant.
+  */
+  const itemUrlBySource = useMemo(() => {
+    const bySource: Record<BriefHighlightSource, BriefSectionKey> = {
+      gmail: 'inbox',
+      jira: 'work',
+      github: 'code',
+      calendar: 'calendar',
+    };
+    const out = {} as Record<BriefHighlightSource, string | null>;
+    for (const source of Object.keys(bySource) as BriefHighlightSource[]) {
+      const section = brief?.[bySource[source]];
+      out[source] =
+        section?.status === 'ok'
+          ? (section.items.find((item) => (item.url ?? '').trim())?.url ?? null)
+          : null;
+    }
+    return out;
+  }, [brief]);
 
   /*
     Which row gets the screen's one filled button (issue #78).
@@ -850,23 +885,44 @@ export function TodayScreen({ onNavigate }: Props) {
                          server sent bare strings — draws no mark at all, rather
                          than one guessed from the sentence. */
                       const provider = providerOf(line.source);
+                      const out = arrivalLink(
+                        line.source,
+                        line.source ? itemUrlBySource[line.source] : null,
+                      );
+                      const mark = provider && (
+                        <span className="day-rail__mark">
+                          <BrandMark
+                            provider={provider}
+                            size={13}
+                            /* Named, not decorative — the sentence says "mail"
+                               and "PR", never "Gmail" or "GitHub". Inside a
+                               link the name is already in the link's own text
+                               ("Gmail'de aç"), and saying it twice is worse
+                               than saying it once. */
+                            title={out ? undefined : providerTitle(provider)}
+                          />
+                        </span>
+                      );
                       return (
                         <li key={line.text} className="day-rail__stat">
-                          {provider && (
-                            /* Named, not decorative: the sentence says "mail"
-                               and "PR", never "Gmail" or "GitHub", so the mark
-                               is the only thing on the line carrying the
-                               product it came from. Colour alone would leave a
-                               screen reader with nothing. */
-                            <span className="day-rail__mark">
-                              <BrandMark
-                                provider={provider}
-                                size={13}
-                                title={providerTitle(provider)}
-                              />
-                            </span>
+                          {out ? (
+                            <a
+                              className="day-rail__stat-link"
+                              href={out.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {mark}
+                              <span className="day-rail__stat-text">{line.text}</span>
+                              <ExternalLink size={12} aria-hidden />
+                              <span className="sr-only"> — {out.openLabel} (yeni sekmede)</span>
+                            </a>
+                          ) : (
+                            <>
+                              {mark}
+                              <span className="day-rail__stat-text">{line.text}</span>
+                            </>
                           )}
-                          <span className="day-rail__stat-text">{line.text}</span>
                         </li>
                       );
                     })}

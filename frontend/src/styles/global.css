@@ -3585,6 +3585,35 @@ a.btn {
 .day-rail__stat-text {
   min-width: 0;
 }
+/*
+  The way out to the app the line was counted from.
+
+  Quiet on purpose: this is the margin, not the list, and a row of coloured
+  links beside the work would compete with the one filled button the screen
+  spends its emphasis on. So the line keeps the rail's own muted colour and
+  carries a hairline underline — enough to say "this is pressable" without
+  becoming the loudest thing in the column. `--accent` is not spent here: violet
+  means STATE in this product, and a link is not a state.
+*/
+.day-rail__stat-link {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+}
+.day-rail__stat-link:hover {
+  color: var(--fg);
+  text-decoration-color: currentColor;
+}
+.day-rail__stat-link > svg {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  opacity: 0.55;
+}
 .day-rail__note {
   margin: 0;
   font-size: 13px;

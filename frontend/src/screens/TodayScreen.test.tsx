@@ -267,15 +267,17 @@ it('each_arrival_wears_the_mark_of_the_app_the_server_counted_it_from', async ()
   await screen.findByText('6 mail bir kişiden geldi');
 
   const stats = [...document.querySelectorAll('.day-rail__stat')];
+  // The mark is identified by the provider's own colour, which is the one thing
+  // about these logos BrandMark promises never to restyle.
   expect(
     stats.map((li) => [
-      li.querySelector('.day-rail__mark [aria-label]')?.getAttribute('aria-label'),
+      li.querySelector('.day-rail__mark svg')?.getAttribute('fill'),
       li.querySelector('.day-rail__stat-text')?.textContent,
     ]),
   ).toEqual([
-    ['Gmail', '6 mail bir kişiden geldi'],
-    ['GitHub', '3 PR ve issue sende'],
-    ['Google Calendar', '1 toplantı — ilki 05:00'],
+    ['#EA4335', '6 mail bir kişiden geldi'],
+    ['#181717', '3 PR ve issue sende'],
+    ['#4285F4', '1 toplantı — ilki 05:00'],
   ]);
 });
 
@@ -329,6 +331,83 @@ it('a_line_with_no_source_is_drawn_without_a_mark_rather_than_a_guessed_one', as
 
   expect(await screen.findByText('6 mail bir kişiden geldi')).toBeTruthy();
   expect(document.querySelector('.day-rail__mark')).toBeNull();
+});
+
+/**
+ * The counts are of things that live somewhere else, so each line is the way to
+ * them. The Jira address is the interesting one: it is the customer's own site
+ * and the client can only learn it from a real issue URL the same section
+ * already carries — which is why a work line without one draws no link at all
+ * rather than a plausible guess.
+ */
+it('each_arrival_opens_the_app_it_counted_at_an_address_read_from_real_data', async () => {
+  getBrief.mockResolvedValue(
+    briefWith({
+      today: {
+        headline: '—',
+        lines: [
+          { source: 'gmail', text: '6 mail bir kişiden geldi' },
+          { source: 'jira', text: '3 kayıt üstünde' },
+        ],
+        highlights: [],
+        counts: {
+          inbox: 6, inboxPersonal: 6, inboxBulk: 0,
+          work: 3, code: 0, calendar: 0, urgent: 0,
+        },
+      },
+      inbox: {
+        status: 'ok',
+        items: [{ id: 'gmail:1', title: 'Konu', url: 'https://mail.google.com/mail/u/2/#inbox/18f' }],
+      },
+      work: {
+        status: 'ok',
+        items: [{ id: 'jira:KAN-4', title: 'KAN-4', url: 'https://acme.atlassian.net/browse/KAN-4' }],
+      },
+    }),
+  );
+
+  render(<TodayScreen onNavigate={() => {}} />);
+
+  const mailbox = await screen.findByRole('link', { name: /Gmail’de aç/ });
+  // The account the mail actually arrived in, not u/0.
+  expect(mailbox.getAttribute('href')).toBe('https://mail.google.com/mail/u/2/#inbox');
+  // Leaving the product: a new tab, and no window handle back into it.
+  expect(mailbox.getAttribute('target')).toBe('_blank');
+  expect(mailbox.getAttribute('rel')).toBe('noopener noreferrer');
+  expect(mailbox.textContent).toContain('6 mail bir kişiden geldi');
+
+  const jira = screen.getByRole('link', { name: /Jira’da aç/ });
+  expect(jira.getAttribute('href')).toContain('https://acme.atlassian.net/issues/?jql=');
+});
+
+/**
+ * There is no such thing as "the" Jira. With no issue in the section the site is
+ * unknown, and a link that looks right and 404s on the reader's own company is
+ * worse than a line that stays a line.
+ */
+it('a_destination_that_cannot_be_derived_is_left_undrawn_rather_than_guessed', async () => {
+  getBrief.mockResolvedValue(
+    briefWith({
+      today: {
+        headline: '—',
+        lines: [{ source: 'jira', text: '3 kayıt üstünde' }],
+        highlights: [],
+        counts: {
+          inbox: 0, inboxPersonal: 0, inboxBulk: 0,
+          work: 3, code: 0, calendar: 0, urgent: 0,
+        },
+      },
+      // The section errored, so it carries no issue URL to read the site from.
+      work: { status: 'error', reason: 'Jira yanıt vermedi.', items: [] },
+    }),
+  );
+
+  render(<TodayScreen onNavigate={() => {}} />);
+
+  expect(await screen.findByText('3 kayıt üstünde')).toBeTruthy();
+  expect(document.querySelector('.day-rail__stat-link')).toBeNull();
+  // And the mark still says which app the line is about, since no link text does.
+  expect(screen.getByRole('img', { name: 'Jira' })).toBeTruthy();
 });
 
 /** A day the server counted nothing for draws no empty label and no stray dot. */
