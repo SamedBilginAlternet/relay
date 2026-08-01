@@ -9,6 +9,13 @@
 
 Okuma sırası: §1 (sınır) → §5 (tek öneri) → gerekirse §2 (tüm fikirler).
 
+> **Durum defteri (1 Ağustos 2026):** bu doküman yazıldığından beri fikirlerin yarısı
+> gemiye bindi. Yapılanlar başlıklarının altında `✅` ile, hâlâ açık olanlar `◻` ile
+> işaretli. Kısa bilanço: **F-1, F-2, F-3, F-6, F-9, F-10, F-12 yapıldı**; §1'deki on
+> iki sınırdan yedisi artık doğru değil. Açık kalanlar: F-4 (Slack'ten onay), F-5
+> (zamanlanmış playbook), F-7 (red hafızası), F-8 (hesap bütçesi), F-11 (prova modu),
+> F-13, F-14 — ve güven skoru (#145), bu doküman yazılırken henüz fikir bile değildi.
+
 ---
 
 ## 1. Ürünün şu anki sınırı
@@ -17,6 +24,8 @@ Kod okumasından çıkan somut boşluklar. Her biri "kullanıcı şunu yapmak is
 şeklinde yazıldı; hiçbiri tahmin değil.
 
 ### 1.1 Yönetişim yarısı ekranda yok
+
+> ✅ **Artık doğru değil.** `#/politikalar` var; bugün sağlayıcı sekmeleriyle yeniden kuruldu (#154), 28 kural tek ekranda, kaydırmasız.
 
 `api/PolicyController.java` `GET`/`PUT /api/policies` sunuyor, `PolicyEngine.effectivePolicies()`
 her araç için risk + mod + "override edilmiş mi" bilgisini veriyor. **Frontend'de bu ucu tüketen
@@ -30,6 +39,8 @@ yorumunda geçiyor). Yani:
 
 ### 1.2 Onay kapısı ikili: onayla ya da reddet
 
+> ✅ **Artık doğru değil.** Onayla-ve-düzelt yaşıyor: kapıda alan düzenlenir, düzenleme şemadan geçer, insanın değeri `paramsLocked` ile kilitlenir (`RunService.applyEdit`).
+
 `RunController.approve` gövde almıyor, `StepRow.tsx` parametreleri `ParamBlock` ile yalnızca
 **gösteriyor**. Kullanıcı ekranda `channel: "#random"` görüyor ve yapabileceği tek şey reddedip
 gerekçe yazmak. Gerekçe `Coordinator.retryWithProviderFeedback()` üzerinden modele dönüyor,
@@ -38,12 +49,16 @@ gerekçe yazmak. Gerekçe `Coordinator.retryWithProviderFeedback()` üzerinden m
 
 ### 1.3 Bekleyen onay sessiz
 
+> ✅ **Artık doğru değil.** Kenar çubuğunda amber "Açık işler" grubu + Akışlar'da `Onay bekleyen N` sekmesi; nav rozeti ise sahibin isteğiyle bilinçli kaldırıldı (#150).
+
 Akış arka planda koşuyor (`RunService.start` → `orchestratorExecutor`), olaylar yalnızca açık
 sekmedeki `EventSource`'a akıyor. `EventPublisher` portunun tek uygulaması
 `infrastructure/sse/SseEventPublisher`. Sekmeyi kapatan kullanıcı `awaiting_approval`'da asılı
 kalan akıştan **hiçbir şekilde haberdar olmuyor**. Onay kapısı ürünün kalbi; kapıyı çalan bir zil yok.
 
 ### 1.4 Akışı durdurmanın yolu yok
+
+> ✅ **Artık doğru değil.** `POST /api/runs/{id}/cancel` var; koşan adım biter, akış `cancelled` kapanır — bugünkü testlerde defalarca kullanıldı.
 
 `RunStatus.CANCELLED` tanımlı (`domain/RunStatus.java:10`) ve `terminal()` içinde sayılıyor —
 ama **hiçbir kod bu durumu set etmiyor**, `RunController`'da iptal ucu yok. Yanlış giden 6 adımlık
@@ -56,6 +71,8 @@ adı "Günün özeti" ama sabah kendiliğinden koşmuyor; kullanıcı uygulamay�
 `BriefService` de yalnız istek geldiğinde çalışıyor (60 sn cache).
 
 ### 1.6 Hazır akışlar tek kullanımlık bir yere gömülü
+
+> ✅ **Artık doğru değil.** Raf Bugün'ün kenarında (`PlaybookShelf`), 8 akış, sağlayıcı işaretleriyle; raf `gunu-kapat` sahne akışıyla açılıyor (#172).
 
 `PlaybookService` + `PlaybookController` tam, dört playbook yazılı, "runnable/missing" hesabı
 bağlantılara göre yapılıyor. Ama `getPlaybookSource()` frontend'de **yalnız `OnboardingScreen.tsx`**
@@ -77,12 +94,16 @@ sorusuna verilen cevap koşu düzeyinde doğru, hesap düzeyinde boş.
 
 ### 1.9 Denetim izi "kim onayladı" demiyor
 
+> ✅ **Artık doğru değil.** Jurnal aktörü yazıyor: `Onaylandı (samed.bilgin@alternet.com.tr) — devam et.`
+
 `AgentJournal.say(run, stepId, AgentRole.USER, ...)` — onaylayan **"USER"**. Oturumda kimin
 olduğunu `AuthFilter` biliyor, `users` tablosu var, ama karar satırında kimlik yok. "Yarın müdürün
 kim, neyi, neden değiştirdi derse cevap bir tık uzakta" cümlesi (DEMO §1, 2:40) bugün **"neyi" ve
 "neden"i** karşılıyor, **"kim"i** karşılamıyor.
 
 ### 1.10 Yazma yüzeyi dar, okuma yüzeyi geniş
+
+> ✅ **Büyük ölçüde kapandı.** 14 okuma / 14 yazma: `gmail.createDraft`, `calendar.createEvent`, `sheets.appendRow`, `notion.createPage/appendToPage`, `github.createIssue`, `confluence.createPage`, `docs.createDocument`, `hr.logLeave`.
 
 15 kayıtlı aracın yalnız 5'i WRITE: `jira.updateIssue`, `jira.addComment`, `jira.createIssue`,
 `slack.postMessage`, `github.addComment`. Google tarafı **salt okunur** scope'la bağlı
@@ -91,6 +112,8 @@ kim, neyi, neden değiştirdi derse cevap bir tık uzakta" cümlesi (DEMO §1, 2
 az yazıyor — ve ürünün vaadi yazmak.
 
 ### 1.11 "Sor" yalnızca posta kutusuna soruyor
+
+> ✅ **Artık doğru değil.** `SourceRouter` soruyu cevabı olan kaynağa yönlendiriyor ("Ask the source that has the answer, not always the mailbox").
 
 `AskService.SEARCH_TOOL = "gmail.search"` sabit. "KAN-42 nerede kalmıştı", "bu PR'ı kim bekletiyor"
 soruları cevapsız — oysa aynı veri `jira.*` ve `github.*` araçlarında hazır duruyor.
@@ -112,6 +135,8 @@ katkı · risk.**
 
 ### F-1 · Politika ekranı (`#/politikalar`)
 
+> ✅ **Yapıldı** — üstüne bugün sağlayıcı sekmeleri ve mod filtresi geldi (#154).
+
 - **Ne:** `GET /api/policies` sonucunu sağlayıcıya göre gruplanmış bir tabloya döken ekran; her
   satırda araç adı, risk rozeti (OKUMA/YAZMA/SİLME), üç durumlu seçici (otomatik · onay iste ·
   yasak) ve "varsayılan mı, elle değiştirilmiş mi" işareti.
@@ -132,6 +157,8 @@ katkı · risk.**
 ---
 
 ### F-2 · Onayla-ve-düzelt: parametreyi ekranda değiştirerek onaylama
+
+> ✅ **Yapıldı** — `applyEdit` + `paramsLocked`; üstüne "bir onay bir deneme alır" kuralı eklendi (#146).
 
 - **Ne:** Onay kapısındaki adımın parametreleri salt okunur JSON olmaktan çıkıp düzenlenebilir
   alanlar olur. Kullanıcı `channel`'ı `#random`'dan `#genel`'e çevirir, **Onayla**'ya basar; giden
@@ -162,6 +189,8 @@ katkı · risk.**
 
 ### F-3 · Denetim izinde kimlik: "kim onayladı"
 
+> ✅ **Yapıldı** — onay/red jurnalde aktör adıyla.
+
 - **Ne:** Her onay/red kararı, kararı veren kullanıcıyla birlikte kaydedilir. Adım satırında
   "Onaylandı · Samed Bilgin · 14:32", geçmişte de aynısı.
 - **Kimin anını kurtarır:** Üç ay sonra "bu Slack mesajını kim onaylattı" diye soran kişinin anını.
@@ -179,6 +208,8 @@ katkı · risk.**
 ---
 
 ### F-4 · Bekleyen onayı Slack'ten sor, Slack'ten cevapla
+
+> ◻ Açık. Ön koşulu F-3 tamamlandı.
 
 - **Ne:** Bir adım onaya düştüğünde Relay, ilgili kişiye Slack'ten mesaj atar: hedef, araç,
   parametre önizlemesi ve iki buton — **Onayla** / **Reddet**. Cevap Slack'ten gelir, akış devam eder.
@@ -202,6 +233,8 @@ katkı · risk.**
 
 ### F-5 · Zamanlanmış playbook (sabah brifingi kendi koşsun)
 
+> ◻ Açık. (Boot'ta brifing ısıtma var — `BriefWarmup` — ama akış zamanlaması yok.)
+
 - **Ne:** Bir playbook'a takvim verilir: "hafta içi 08:30, `gunun-ozeti`". Relay sabah kendi koşar,
   okuma adımları akar, **yazma adımı onayda bekler** ve F-4 üzerinden haber verir.
 - **Kimin anını kurtarır:** Güne başlama anını. Bugün Bugün ekranı "sistem işi getiriyor" diyor ama
@@ -222,6 +255,8 @@ katkı · risk.**
 
 ### F-6 · Hazır akış rafı (playbook'lara kalıcı giriş)
 
+> ✅ **Yapıldı** — Bugün'ün kenarında, 8 akış.
+
 - **Ne:** Bugün ekranının altına ve boş Sohbet ekranına dört playbook kartı: başlık, tek satır
   açıklama, "çalıştır". Bağlantısı eksik olan kart soluk ve "Jira bağla" der (`describeAll()` zaten
   `runnable` + `missing` döndürüyor).
@@ -238,6 +273,8 @@ katkı · risk.**
 ---
 
 ### F-7 · Reddetme hafızası (öğrenen davranış)
+
+> ◻ Açık.
 
 - **Ne:** Kullanıcının reddettiği şeyler kalıcı bir tercih defterine yazılır: hangi araç, hangi
   parametre, hangi gerekçe. Sonraki koşularda planlayıcı ve uzman ajan bu defteri görür; ilgili
@@ -261,6 +298,8 @@ katkı · risk.**
 
 ### F-8 · Hesap düzeyinde bütçe ve harcama ekranı
 
+> ◻ Açık. (Panel harcamayı gösteriyor; tavan hâlâ koşu başına.)
+
 - **Ne:** Koşu bütçesinin üstünde günlük/aylık tavan. Ayrı bir küçük ekran: bugün/bu hafta ne kadar
   harcandı, hangi playbook pahalı, hangi model çağrısı hangi adımda.
 - **Kimin anını kurtarır:** Aracı kendi kartıyla çalıştıran kişinin ay sonu anını; ve satın alma
@@ -279,6 +318,8 @@ katkı · risk.**
 ---
 
 ### F-9 · Gmail taslak cevabı (`gmail.createDraft`)
+
+> ✅ **Yapıldı** (`0bd7b2e`) — taslak, asla gönderim değil; mail önce okunur.
 
 - **Ne:** Bugün ekranındaki "yanıt bekliyor" kartı tek tıkla **taslak** cevaba dönüşür. Gönderme yok:
   Relay taslağı yazar, kullanıcı Gmail'de okur ve gönderir.
@@ -299,6 +340,8 @@ katkı · risk.**
 
 ### F-10 · Akışı iptal et
 
+> ✅ **Yapıldı** — iptal ucu + Durdur; koşan adım kayda geçer, akış dürüstçe kapanır.
+
 - **Ne:** `POST /api/runs/{id}/cancel`. Koşan adım biter, sıradaki tüm adımlar `rejected` olur,
   koşu `cancelled` kapanır ve neden iptal edildiği iz kaydına yazılır.
 - **Kimin anını kurtarır:** "Yanlış anlamış, hepsini durdurayım" anını. Bugün bu ancak 6 kez
@@ -315,6 +358,8 @@ katkı · risk.**
 ---
 
 ### F-11 · Prova modu (dry-run)
+
+> ◻ Açık. (`TOOLS_MODE=replay` altyapısı var, kullanıcıya açılmadı.)
 
 - **Ne:** Koşuyu "hiçbir şey yazma" kipinde başlat. Plan çıkar, okumalar koşar, yazma adımlarının
   **kesinleşmiş parametreleri** üretilir ve gösterilir — ama sağlayıcıya gitmez. Beğenirsen aynı
@@ -335,6 +380,8 @@ katkı · risk.**
 
 ### F-12 · "Sor"u tüm kaynaklara aç
 
+> ✅ **Yapıldı** — `SourceRouter` + `ASK_ROUTE` amacı.
+
 - **Ne:** `/api/ask` yalnız Gmail'e değil, bağlı tüm READ araçlarına sorar. "KAN-42 nerede kalmıştı",
   "bu hafta hangi PR'lar bende" cevaplanır; kaynaklar yine listelenir.
 - **Kimin anını kurtarır:** "Nerede kalmıştık" anını — koşu başlatmaya değmeyen, ama dört sekme
@@ -353,6 +400,8 @@ katkı · risk.**
 
 ### F-13 · Ekip akışı görünümü
 
+> ◻ Açık. (Ekip ekranı ve ajan jurnali var; F-13'ün kastettiği akış görünümü yok.)
+
 - **Ne:** "Ekip" sekmesi: kimin hangi işi verdiği, hangi adımın kimde onay beklediği, günün toplam
   yazma sayısı. Tek çalışma alanı kararını (`V2__auth.sql`) gizlemek yerine **özellik** haline getirir.
 - **Kimin anını kurtarır:** Takım liderinin "ajanlar bugün ne yaptı" anını; ve nöbetteki kişinin
@@ -369,6 +418,8 @@ katkı · risk.**
 ---
 
 ### F-14 · Mobil: PWA + bekleyen onay bildirimi
+
+> ◻ Açık.
 
 - **Ne:** Uygulamayı yüklenebilir hale getirmek, bekleyen onay için cihaz bildirimi.
 - **Kimin anını kurtarır:** Masasında olmayan kullanıcının anını — F-4 ile aynı sorun.
@@ -402,6 +453,11 @@ katkı · risk.**
 
 ### (a) Demoya kadar — 2-3 iş, toplam ~9 saat
 
+> ✅ **Üçü de yapıldı** — ve "orkestratöre dokunma" öğüdü tutmadı: demo gününde
+> `Coordinator`/`ToolAgent` altı kez değişti (#146, #155, #168, #174…), her seferinde
+> canlıda ölçülen bir kusur için ve her biri testiyle. Öğüdün doğru hâli "dokunma"
+> değil, "kanıtsız dokunma"ymış.
+
 | Sıra | İş | Saat | Neden bu |
 |---|---|---|---|
 | 1 | **F-6 · Hazır akış rafı** | 2 | En ucuz demo kazancı; açılışın ilk 12 saniyesini doldurur, backend'i hiç riske atmaz |
@@ -415,6 +471,8 @@ F-2 (onayla-ve-düzelt) demo değeri en yüksek iş ama 5–6 saat ve `Step`/mig
 **Demoya 24 saatten fazla varsa** F-10 yerine F-2 alınmalı; azsa alınmamalı.
 
 ### (b) Hackathon sonrası ilk hafta
+
+> Durum: 1 (F-2) ✅ · 2 (F-3) ✅ · 5 (F-9) ✅ — kalan: **F-4 ve F-8**, sıraları geçerli.
 
 1. **F-2 · Onayla-ve-düzelt** (5–6 s) — kapıyı ikili olmaktan çıkarır, ürünün en çok kullanılan anı.
 2. **F-3 · Denetim izinde kimlik** (3–4 s) — F-4 ve F-13'ün ön koşulu, tek başına da satış argümanı.
