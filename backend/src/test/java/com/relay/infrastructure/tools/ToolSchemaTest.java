@@ -40,6 +40,7 @@ class ToolSchemaTest {
                 new CalendarCreateEventTool("replay", FIXTURES, null, "Europe/Istanbul"),
                 new SheetsTool.AppendRow("replay", FIXTURES, null),
                 new SheetsTool.ReadRange("replay", FIXTURES, null),
+                new HrLogLeaveTool("replay", FIXTURES, null),
                 new DocsCreateDocumentTool("replay", FIXTURES, null),
                 new NotionTool.CreatePage("replay", FIXTURES),
                 new NotionTool.AppendToPage("replay", FIXTURES),
@@ -87,6 +88,11 @@ class ToolSchemaTest {
         Tool range = new SheetsTool.ReadRange("replay", FIXTURES, null);
         assertThat(range.risk()).isEqualTo(RiskLevel.READ);
         assertThat(range.risk().defaultMode().wire()).isEqualTo("auto");
+        // A leave record is a WRITE and nothing more: it appends one row, and the
+        // approval gate opens for it by default like every other write.
+        Tool leave = new HrLogLeaveTool("replay", FIXTURES, null);
+        assertThat(leave.risk()).isEqualTo(RiskLevel.WRITE);
+        assertThat(leave.risk().defaultMode().wire()).isEqualTo("ask");
     }
 
     @Test
@@ -97,6 +103,9 @@ class ToolSchemaTest {
         assertThat(new SheetsTool.AppendRow("replay", FIXTURES, null).provider()).isEqualTo("google");
         // …and docs.* is the fourth namespace on the same connection.
         assertThat(new DocsCreateDocumentTool("replay", FIXTURES, null).provider()).isEqualTo("google");
+        // …and hr.* is the fifth: the leave ledger is a Google sheet, so İK holds no
+        // credential of its own — exactly the confluence→jira pattern below.
+        assertThat(new HrLogLeaveTool("replay", FIXTURES, null).provider()).isEqualTo("google");
         assertThat(new GitHubTool.AddComment("replay", FIXTURES).provider()).isEqualTo("github");
         // …and confluence.* is the same pattern on the Atlassian side: one jira connection,
         // a second product's tool namespace riding its credentials.

@@ -1,4 +1,4 @@
-import { NotebookText, Slack } from 'lucide-react';
+import { HeartHandshake, NotebookText, Slack } from 'lucide-react';
 
 /**
  * The providers' own marks, so a tool call is recognised before it is read.
@@ -30,6 +30,14 @@ import { NotebookText, Slack } from 'lucide-react';
  * the assumption they say what the others say. `NotebookText` in Notion's own
  * near-black says "the notes app" without borrowing anybody's mark, and the day
  * the guidelines can be read this is a five-line change.
+ *
+ * <p>İK (`hr.*`) is a line glyph for the inverse reason: there is no brand mark
+ * to check, because there is no brand. `hr.logLeave` is Relay's own namespace
+ * over the user's own leave ledger — a Google sheet reached through the google
+ * connection — not a product Relay connects to. Drawing any company's mark
+ * there would claim an integration that does not exist, which is the exact
+ * costume the crew page forbids. So a neutral glyph in the product's own ink,
+ * and no day on which this becomes somebody's trademark.
  */
 
 export type Provider =
@@ -41,12 +49,14 @@ export type Provider =
   | 'docs'
   | 'sheets'
   | 'slack'
-  | 'notion';
+  | 'notion'
+  | 'hr';
 
 /** The providers drawn with a line glyph instead of their own mark — see above. */
-const GLYPHS: Record<'slack' | 'notion', { icon: typeof Slack; color: string; title: string }> = {
+const GLYPHS: Record<'slack' | 'notion' | 'hr', { icon: typeof Slack; color: string; title: string }> = {
   slack: { icon: Slack, color: '#611f69', title: 'Slack' },
   notion: { icon: NotebookText, color: '#191919', title: 'Notion' },
+  hr: { icon: HeartHandshake, color: '#475569', title: 'İK' },
 };
 
 const MARKS: Record<Exclude<Provider, keyof typeof GLYPHS>, { d: string; color: string; title: string }> = {
@@ -114,6 +124,7 @@ export function providerOf(toolName: string | null | undefined): Provider | null
   const head = ((toolName ?? '').split('.')[0] ?? '').trim().toLowerCase();
   if (head === 'jira' || head === 'github' || head === 'gmail' || head === 'slack') return head;
   if (head === 'notion' || head === 'confluence' || head === 'docs' || head === 'sheets') return head;
+  if (head === 'hr') return head;
   if (head === 'calendar' || head === 'googlecalendar') return 'calendar';
   return null;
 }

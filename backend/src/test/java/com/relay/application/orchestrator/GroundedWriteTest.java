@@ -37,7 +37,8 @@ class GroundedWriteTest {
         tools = new ToolRegistryImpl(List.of(
                 new JiraTool.SearchIssues("replay", fixtures),
                 new JiraTool.UpdateIssue("replay", fixtures),
-                new JiraTool.CreateIssue("replay", fixtures)));
+                new JiraTool.CreateIssue("replay", fixtures),
+                new com.relay.infrastructure.tools.HrLogLeaveTool("replay", fixtures, null)));
         clock = new TestDoubles.FixedClock();
         llm = new StubLlmClient(tools);
         toolAgent = new ToolAgent(tools, llm, new TestDoubles.InMemoryConnectionRepository(),
@@ -88,6 +89,53 @@ class GroundedWriteTest {
         StepOutcome outcome = toolAgent.execute(run, update);
 
         assertThat(outcome.ok()).isTrue();
+    }
+
+    /**
+     * hr.logLeave's {@code person} is a name, and a name is exactly the kind of
+     * identifier this gate exists for: a leave record for somebody no mail, no earlier
+     * result and no goal ever named is a stranger's absence in a ledger other people
+     * trust. {@code person} is deliberately NOT filler-gated — it is a proper name, not
+     * prose, and the filler heuristic judges sentences — so this gate is the one that
+     * has to catch the invention instead (#171).
+     */
+    @Test
+    void an_invented_person_never_reaches_the_leave_ledger() {
+        Run run = runWith("Son haftanın izin taleplerini işle", leaveStep("Deniz Arslan"));
+
+        StepOutcome outcome = toolAgent.execute(run, run.steps().get(0));
+
+        assertThat(outcome.ok()).isFalse();
+        assertThat(outcome.error()).contains("uydurulmuş tanımlayıcı", "person=Deniz Arslan");
+    }
+
+    @Test
+    void the_person_the_mail_actually_named_is_allowed_through() {
+        Run run = Run.create("Son haftanın izin taleplerini işle",
+                java.time.Instant.parse("2026-07-31T09:00:00Z"), 1.0);
+        Step search = Step.create(run.id(), 1, "İzin taleplerini maillerde ara", AgentRole.COORDINATOR,
+                "gmail.search", Map.of("query", "subject:izin newer_than:7d"));
+        Step log = Step.create(run.id(), 2, "İzin tablosuna satır ekle", AgentRole.COORDINATOR,
+                "hr.logLeave", leaveParams("Deniz Arslan"));
+        run.replaceSteps(List.of(search, log));
+        search.result(Map.of("data", Map.of("messages", List.of(
+                Map.of("from", "Deniz Arslan", "subject", "İzin talebi 10-14 Ağustos")))));
+
+        assertThat(toolAgent.execute(run, log).ok()).isTrue();
+    }
+
+    private static Step leaveStep(String person) {
+        return Step.create(java.util.UUID.randomUUID(), 1, "İzin tablosuna satır ekle",
+                AgentRole.COORDINATOR, "hr.logLeave", leaveParams(person));
+    }
+
+    private static Map<String, Object> leaveParams(String person) {
+        return Map.of(
+                "spreadsheetId", "1LeAvE-LedGeR-Id-0123456789_abcdefghijklm",
+                "person", person,
+                "startDate", "2026-08-10",
+                "endDate", "2026-08-14",
+                "type", "yıllık");
     }
 
     /** Reading is exploration — a search may look for anything without prior grounding. */

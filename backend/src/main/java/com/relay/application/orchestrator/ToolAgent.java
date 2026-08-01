@@ -507,7 +507,14 @@ public class ToolAgent {
         if (CONTAINER_FIELDS.contains(name)) {
             return false;
         }
-        return name.endsWith("key") || name.endsWith("id") || name.endsWith("number");
+        // hr.logLeave's person is named here by hand because no suffix rule can see it:
+        // it is a NAME, and a name is a pointer at one existing human exactly as an
+        // issueKey is a pointer at one existing record. It is deliberately NOT in
+        // HUMAN_TEXT_FIELDS — the filler gate judges prose and would misjudge a proper
+        // name — so this is the gate that stops a leave record for somebody no mail,
+        // no earlier result and no goal ever named.
+        return name.equals("person")
+                || name.endsWith("key") || name.endsWith("id") || name.endsWith("number");
     }
 
     // ---- parameters -------------------------------------------------------

@@ -125,7 +125,9 @@ class MockPlaybookSource implements PlaybookSource {
       steps: [
         { title: 'İzin taleplerini maillerde ara', tool: 'gmail.search', optional: false },
         { title: 'İzin günlerini takvime işle', tool: 'calendar.createEvent', optional: true },
-        { title: 'İzin tablosuna satır ekle', tool: 'sheets.appendRow', optional: true },
+        // hr.logLeave since #171: same sheet, same append — but a leave record has a
+        // fixed shape (kişi · tarihler · tür), which a free values[] could not promise.
+        { title: 'İzin tablosuna satır ekle', tool: 'hr.logLeave', optional: true },
         { title: 'Onay cevabını taslakla', tool: 'gmail.createDraft', optional: true },
       ],
       runnable: true,

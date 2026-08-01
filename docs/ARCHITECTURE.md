@@ -434,12 +434,13 @@ karşılığı: sağlayıcı değiştirmek ortam değişkeni, araç eklemek tek 
 (`ToolRegistryImpl` sınıf yolundaki her `Tool`'u toplar,
 `infrastructure/tools/ToolRegistryImpl.java:17-25`).
 
-Kayıtlı araçlar: **26 araç — 13 READ (auto), 13 WRITE (ask), 0 DESTRUCTIVE.**
+Kayıtlı araçlar: **27 araç — 13 READ (auto), 14 WRITE (ask), 0 DESTRUCTIVE.**
 `jira.*` 7 (4R+3W) · `gmail.*` 4 (3R+1W: yalnız taslak) · `github.*` 4 (2R+2W) ·
 `calendar.*` 3 (2R+1W) · `slack.*` 2 (1R+1W) · `sheets.*` 2 (1R+1W) ·
 `notion.*` 2 (2W) · `confluence.*` 1 (1W, jira bağlantısına biner) ·
-`docs.*` 1 (1W, google bağlantısına biner). Politika satırı araç başına türetilir —
-`GET /api/policies` 26 satır döner (`PolicyEngine.effectivePolicies:100-112`).
+`docs.*` 1 (1W, google bağlantısına biner) · `hr.*` 1 (1W, google bağlantısına biner:
+izin defteri bir Google tablosudur). Politika satırı araç başına türetilir —
+`GET /api/policies` 27 satır döner (`PolicyEngine.effectivePolicies:100-112`).
 
 ### Nereye bakmalı
 

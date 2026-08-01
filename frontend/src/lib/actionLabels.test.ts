@@ -58,6 +58,7 @@ describe('actionLabel', () => {
       'calendar.createEvent',
       'sheets.appendRow',
       'sheets.readRange',
+      'hr.logLeave',
       'docs.createDocument',
     ];
     for (const tool of registered) {

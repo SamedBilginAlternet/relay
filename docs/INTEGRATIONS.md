@@ -369,6 +369,39 @@ darlık kodun sözü: araç create + kendi açtığı dokümana tek insert'e ula
 > İzin ekranında "Google bu uygulamayı doğrulamadı" uyarısı normaldir — test kullanıcısı olduğun
 > için *Advanced → Go to Relay (unsafe)* ile devam edilir.
 
+### 5.5 İK — `hr.logLeave`: izin kaydını deftere işlemek
+
+**Kurulumda yeni hiçbir şey yok.** İK ayrı bir sağlayıcı değildir ve olmayacaktır: bağlanacak
+bir "HR sistemi" yok (#169) — küçük bir şirketin izin defteri bir Google tablosudur. Bu
+yüzden `hr.logLeave`, `sheets.appendRow`'un kullandığı aynı values-append ucuna
+amaç-şekilli bir sarmalayıcıdır: aynı `https://www.googleapis.com/auth/spreadsheets`
+scope'u (appendRow için verildiyse bu da hazır), aynı Google bağlantısı, aynı onay kapısı.
+Ekip ekranındaki **İK Uzmanı** bu araçtan türer — arkasında kayıtlı araç olmayan üye
+olamaz, İK da istisna değildir.
+
+`sheets.appendRow` dururken neden ikinci bir yazma aracı: serbest `values[]` ile yazılan
+izin satırının sütun düzeni koşudan koşuya modelin insafına kalıyordu. `hr.logLeave` satırın
+şeklini sabitler — **kişi · başlangıç · bitiş · tür** — ve `endDate < startDate` olan kaydı
+Türkçe cümleyle reddeder. Kişi adı okunan mailden gelmek zorundadır; hiçbir mailde geçmeyen
+bir isim kayda giremez (`ToolAgent`'ın uydurulmuş-tanımlayıcı kapısı `person` alanını da
+sayar).
+
+**Bir opsiyonel bağlantı ayarı (Bağlantılar → Google → form):**
+
+| Anahtar | Zorunlu | Değer |
+|---|---|---|
+| `leaveSpreadsheetId` | hayır | İzin defterinin kimliği ya da adresi. Boşsa `defaultSpreadsheetId`'ye düşer — izin defteri genellikle genel takip tablosundan ayrı bir dosya olduğu için kendi anahtarı vardır; tek dosyayla yaşayan çalışma alanı aynı kimliği ikinci kez girmez |
+
+Bilmen gereken üç davranış:
+
+- **Yalnız ekler.** appendRow ile aynı tek uç: `values.append` + `RAW` + `INSERT_ROWS`.
+  Hücre okuyamaz, hücrenin üstüne yazamaz; bir test bunu kilitler.
+- **Sekme dosyayı izler.** `leaveSpreadsheetId` doluysa satır o dosyanın `Sayfa1`'ine gider
+  (genel dosya için ayarlanmış `defaultSheetName` başka bir dosyaya taşınmaz); genel
+  tabloya düşüldüyse `defaultSheetName` geçerlidir.
+- **WRITE → onay kapısı** kendiliğinden açılır; `izin-talepleri` akışının üçüncü adımı
+  artık bu araçtır ve kapıda kişi, tarih aralığı ve tür okunarak onaylanır.
+
 ---
 
 ### 6.1 Groq kotası: neden beş anahtar bir anahtar kadar

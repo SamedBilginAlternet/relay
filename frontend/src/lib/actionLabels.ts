@@ -62,6 +62,9 @@ const LABELS: Record<string, string> = {
   'sheets.appendRow': 'Tabloya satır ekle',
   'sheets.readRange': 'Tablodan satırları oku',
 
+  // İK
+  'hr.logLeave': 'İzin kaydı işle',
+
   // Docs
   'docs.createDocument': 'Yeni doküman oluştur',
 };

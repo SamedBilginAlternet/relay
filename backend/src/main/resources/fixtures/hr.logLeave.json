@@ -1,0 +1,8 @@
+{
+  "person": "{{person}}",
+  "startsAt": "{{startDate}}",
+  "endsAt": "{{endDate}}",
+  "type": "{{type}}",
+  "updatedRange": "Sayfa1!A7:D7",
+  "url": "https://docs.google.com/spreadsheets/d/{{spreadsheetId}}/edit"
+}

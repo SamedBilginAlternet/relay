@@ -288,6 +288,38 @@ it('a_sheets_member_wears_its_own_mark_and_the_products_turkish_word', async () 
  * provider deep and never the whole column. This test holds the removal the way
  * the governance test below holds its paragraph's.
  */
+/**
+ * İK enters the crew the only way the screen allows: a registered tool
+ * (hr.logLeave) produced the member, and everything on the row is derived from
+ * it. hr.* is Relay's own namespace, not a brand, so the tab wears a neutral
+ * glyph — a borrowed product mark there would claim an integration that does
+ * not exist (#171).
+ */
+it('the_hr_member_derives_from_its_tool_and_wears_a_glyph_not_a_borrowed_mark', async () => {
+  crew = {
+    core: [],
+    members: [
+      member({
+        id: 'hr-agent',
+        provider: 'hr',
+        connectionProvider: 'google',
+        toolCount: 1,
+        auto: 0,
+        ask: 1,
+        tools: [{ name: 'hr.logLeave', risk: 'write', mode: 'ask', overridden: false }],
+      }),
+    ],
+  };
+
+  render(<CrewScreen />);
+
+  expect(await screen.findByText('İK Uzmanı')).toBeTruthy();
+  const row = await rowOf('İK Uzmanı');
+  expect(within(row).getByText('hr.logLeave')).toBeTruthy();
+  expect(within(row).getByText(/1 onay ister/)).toBeTruthy();
+  expect(screen.getByRole('tab', { name: /İK/ }).querySelector('svg')).toBeTruthy();
+});
+
 it('the_default_tab_is_the_first_provider_with_members_and_tumu_stays_gone', async () => {
   crew = {
     core: CORE,

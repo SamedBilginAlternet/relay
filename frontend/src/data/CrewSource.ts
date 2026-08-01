@@ -162,6 +162,7 @@ const MOCK_TOOLS: [string, RiskLevel][] = [
   ['gmail.getMessage', 'read'],
   ['gmail.listToday', 'read'],
   ['gmail.search', 'read'],
+  ['hr.logLeave', 'write'],
   ['jira.addComment', 'write'],
   ['jira.createIssue', 'write'],
   ['jira.getComments', 'read'],
@@ -185,6 +186,10 @@ const MOCK_CONNECTION_OF: Record<string, string> = {
   gmail: 'google',
   calendar: 'google',
   docs: 'google',
+  sheets: 'google',
+  // İK holds no credential of its own: hr.logLeave writes the leave ledger — a
+  // Google sheet — so the member rides the google connection like the four above.
+  hr: 'google',
   // Confluence rides the jira connection the same way — one Atlassian account.
   confluence: 'jira',
 };

@@ -81,6 +81,13 @@ export const PROVIDERS: ProviderDef[] = [
         placeholder: 'Sayfa1',
         hint: 'Boş bırakılırsa Sayfa1. İngilizce Sheets’te ilk sayfanın adı Sheet1.',
       },
+      {
+        key: 'leaveSpreadsheetId',
+        label: 'İzin tablosu (opsiyonel)',
+        placeholder: 'docs.google.com/spreadsheets/d/… ya da yalnız kimlik',
+        hint:
+          'hr.logLeave izin kaydını buraya işler. Boş bırakılırsa varsayılan tabloya düşer — izin defteri genellikle ayrı bir dosyadır, o yüzden kendi anahtarı var.',
+      },
     ],
   },
   {

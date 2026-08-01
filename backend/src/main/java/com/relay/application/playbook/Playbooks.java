@@ -140,6 +140,12 @@ public final class Playbooks {
      * and a goal that says "gelenler için" with nothing arrived is the empty-precondition
      * case — the writing steps skip with their reason instead of inventing an absence
      * (#168), and the run closes honestly.
+     *
+     * <p>The ledger row is {@code hr.logLeave} now, not a free {@code sheets.appendRow}
+     * (#171): same sheet, same connection, same single append endpoint — but a leave
+     * record has a shape (person · dates · type), and a ledger whose column order was
+     * whatever the model felt like that morning is a ledger nobody can read back. The
+     * tool is also what makes İK a member of the crew instead of a costume.
      */
     public static final Playbook LEAVE_REQUESTS = new Playbook(
             "izin-talepleri",
@@ -155,7 +161,7 @@ public final class Playbooks {
                             Map.of("query", "subject:(izin OR \"annual leave\" OR rapor) newer_than:7d",
                                     "maxResults", 15)),
                     Move.optional("İzin günlerini takvime işle", "calendar.createEvent", Map.of()),
-                    Move.optional("İzin tablosuna satır ekle", "sheets.appendRow", Map.of()),
+                    Move.optional("İzin tablosuna satır ekle", "hr.logLeave", Map.of()),
                     Move.optional("Onay cevabını taslakla", "gmail.createDraft", Map.of())));
 
     /**

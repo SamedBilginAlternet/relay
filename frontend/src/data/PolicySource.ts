@@ -123,6 +123,7 @@ class MockPolicySource implements PolicySource {
       ['google', 'gmail.getMessage', 'read'],
       ['google', 'gmail.listToday', 'read'],
       ['google', 'gmail.search', 'read'],
+      ['google', 'hr.logLeave', 'write'],
       ['jira', 'jira.addComment', 'write'],
       ['jira', 'jira.createIssue', 'write'],
       ['jira', 'jira.getComments', 'read'],

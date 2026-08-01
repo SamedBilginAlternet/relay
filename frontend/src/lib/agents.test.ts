@@ -29,6 +29,9 @@ describe('agentLabel', () => {
     expect(agentLabel('slack-agent')).toBe('Slack Uzmanı');
     expect(agentLabel('gmail-agent')).toBe('Gmail Uzmanı');
     expect(agentLabel('github-agent')).toBe('GitHub Uzmanı');
+    // hr-agent exists because hr.logLeave does — a name here without that tool
+    // behind it would be the costume the Ekip screen forbids (#171).
+    expect(agentLabel('hr-agent')).toBe('İK Uzmanı');
     expect(agentLabel('generalist-agent')).toBe('Genel Uzman');
   });
 

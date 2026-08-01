@@ -47,6 +47,9 @@ const TOOL_AGENTS: Record<string, string> = {
   // Same shape on the Atlassian side: confluence.* rides the jira connection, and the
   // brand carries the recognition the way Notion's does — hence not "Doküman Uzmanı".
   confluence: 'Confluence Uzmanı',
+  // hr.* is Relay's own namespace (hr.logLeave rides the google connection into the
+  // leave ledger) — no product name to borrow, so the job's own Turkish name.
+  hr: 'İK Uzmanı',
   generalist: 'Genel Uzman',
 };
 

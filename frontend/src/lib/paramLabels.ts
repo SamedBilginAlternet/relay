@@ -73,6 +73,12 @@ const LABELS: Record<string, string> = {
   values: 'Satır',
   range: 'Aralık',
 
+  // İK (hr.logLeave)
+  person: 'Kişi',
+  startdate: 'Başlangıç',
+  enddate: 'Bitiş',
+  type: 'İzin türü',
+
   // GitHub
   repo: 'Depo',
   number: 'Numara',

@@ -134,6 +134,7 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   github: 'GitHub',
   slack: 'Slack',
   notion: 'Notion',
+  hr: 'İK',
 };
 
 /**
@@ -161,6 +162,7 @@ const PROVIDER_ORDER: Provider[] = [
   'github',
   'slack',
   'notion',
+  'hr',
 ];
 
 function providerRank(provider: string): number {

@@ -54,6 +54,7 @@ class PlaybookServiceTest {
                 new SlackTool.PostMessage("replay", FIXTURES),
                 new com.relay.infrastructure.tools.SheetsTool.AppendRow("replay", FIXTURES, null),
                 new com.relay.infrastructure.tools.SheetsTool.ReadRange("replay", FIXTURES, null),
+                new com.relay.infrastructure.tools.HrLogLeaveTool("replay", FIXTURES, null),
                 new com.relay.infrastructure.tools.DocsCreateDocumentTool("replay", FIXTURES, null)));
         TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
         TestDoubles.InMemoryConnectionRepository connections = new TestDoubles.InMemoryConnectionRepository();
@@ -205,6 +206,10 @@ class PlaybookServiceTest {
      * provider (#169). Everything it needs is one Google connection plus the mailbox, so a
      * workspace with Google alone gets the whole flow — and every write in it is a step
      * that stops at its own gate, which the awaiting status at the end asserts.
+     *
+     * <p>The ledger row is {@code hr.logLeave} since #171 — the purpose-shaped wrapper
+     * over the same append endpoint, riding the same google connection, which is why the
+     * flow still runs on Google alone.
      */
     @Test
     void the_leave_flow_runs_on_google_alone_and_stops_on_its_writes() {
@@ -212,7 +217,7 @@ class PlaybookServiceTest {
 
         assertThat(run.steps()).extracting(step -> step.toolName())
                 .containsExactly("gmail.search", "calendar.createEvent",
-                        "sheets.appendRow", "gmail.createDraft");
+                        "hr.logLeave", "gmail.createDraft");
         assertThat(run.status().wire()).isEqualTo("awaiting_approval");
     }
 }
