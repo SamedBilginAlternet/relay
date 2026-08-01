@@ -67,6 +67,10 @@ app:
     # Every miss costs one classification call; on a free-tier key that budget is the
     # scarcest thing we have. Refresh is always available on the screen.
     cache-seconds: ${BRIEF_CACHE_SECONDS:180}
+    # Build the first brief at boot instead of making the first visitor pay for it. Every
+    # deploy is a restart, and a cold build measured 28.6s on the live box the moment all
+    # seven Groq keys hit their daily wall. Same single build, moved off the critical path.
+    warm-on-start: ${BRIEF_WARM_ON_START:true}
     timezone: ${BRIEF_TIMEZONE:Europe/Istanbul}
     # Fallback project for a jira.createIssue suggestion when no Jira issue is in the brief.
     default-project-key: ${BRIEF_DEFAULT_PROJECT_KEY:RELAY}
