@@ -147,15 +147,23 @@ function runToRail(run: Run): RailRun {
  * gate was answered or raised — when the tab comes back, and on a slow timer that ticks only
  * while the tab is visible.
  *
+ * <p>WHY IT CAN BE SWITCHED OFF. The list it feeds is a disclosure and it is closed by
+ * default (#132), so on most visits these three requests fetched six hundred run
+ * summaries to render nothing. The section's own header count does not come from here —
+ * it is counted in SQL by `GET /api/panel`, which the sidebar already asks for — so
+ * nothing on screen goes missing while this is asleep. It wakes on the press that opens
+ * the list (#139).
+ *
  * <p>It is a hook rather than state inside the rail because the screen has to know whether
  * there is a rail before it lays itself out: no live runs means no column at all, and the
  * conversation keeps the full width.
  */
-export function useLiveRuns(current: Run | null): RailRun[] {
+export function useLiveRuns(current: Run | null, enabled = true): RailRun[] {
   const [rows, setRows] = useState<RailRun[]>([]);
   const inFlight = useRef(false);
 
   const refresh = useCallback(async () => {
+    if (!enabled) return;
     if (inFlight.current) return;
     inFlight.current = true;
     try {
@@ -174,7 +182,7 @@ export function useLiveRuns(current: Run | null): RailRun[] {
     } finally {
       inFlight.current = false;
     }
-  }, []);
+  }, [enabled]);
 
   const currentId = current?.id ?? null;
   const currentStatus = current?.status ?? null;
@@ -184,6 +192,7 @@ export function useLiveRuns(current: Run | null): RailRun[] {
   }, [refresh, currentId, currentStatus]);
 
   useEffect(() => {
+    if (!enabled) return;
     const onVisible = () => {
       if (document.visibilityState === 'visible') void refresh();
     };
@@ -193,7 +202,7 @@ export function useLiveRuns(current: Run | null): RailRun[] {
       document.removeEventListener('visibilitychange', onVisible);
       clearInterval(timer);
     };
-  }, [refresh]);
+  }, [refresh, enabled]);
 
   /*
     The open run is appended last so it wins the deduplication. It has to be here at all
@@ -201,8 +210,8 @@ export function useLiveRuns(current: Run | null): RailRun[] {
     every flow except the one the user is looking at, and mark none of them current.
   */
   return useMemo(
-    () => orderLiveRuns(current ? [...rows, runToRail(current)] : rows),
-    [rows, current],
+    () => (enabled ? orderLiveRuns(current ? [...rows, runToRail(current)] : rows) : []),
+    [rows, current, enabled],
   );
 }
 

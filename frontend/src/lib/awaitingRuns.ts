@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getPanelSource } from '../data/PanelSource';
+import type { PanelReport } from '../types/panel';
 import { useRunStore } from '../store/runStore';
 
 /**
@@ -26,6 +27,24 @@ function windowStart(now: number): string {
 }
 
 /**
+ * The two numbers the sidebar prints, from the one request that counts them.
+ *
+ * <p>`awaiting` is the flows stopped on a person — the badge. `live` is every flow that
+ * is not over, which is the same three statuses the rail lists: planning, awaiting and
+ * running. They were counted in two different places and by two different means; the
+ * second one asked `GET /api/runs` three times with `size=200` and measured the length of
+ * what came back, which is six hundred rows of JSON fetched on every navigation and every
+ * sixty seconds to print one integer.
+ */
+export type RunCounts = { awaiting: number; live: number };
+
+const LIVE: (keyof PanelReport['runs']['byStatus'])[] = [
+  'planning',
+  'awaiting_approval',
+  'running',
+];
+
+/**
  * `null` until the first answer arrives, so nothing renders "0 waiting" over a number
  * nobody has counted yet. A failed read leaves the previous count rather than dropping to
  * zero: a request that did not happen is not evidence that the queue emptied.
@@ -33,8 +52,8 @@ function windowStart(now: number): string {
  * @param key changes whenever the screen changed — a navigation is the cheapest honest
  *            moment to re-count, and it is why this needs no fast timer
  */
-export function useAwaitingRuns(key: string): number | null {
-  const [count, setCount] = useState<number | null>(null);
+export function useRunCounts(key: string): RunCounts | null {
+  const [count, setCount] = useState<RunCounts | null>(null);
   const inFlight = useRef(false);
   // The chat screen decides on gates too. Its run's status is the one signal in the app
   // that a gate was just answered or just raised, and it costs nothing to watch.
@@ -45,7 +64,11 @@ export function useAwaitingRuns(key: string): number | null {
     inFlight.current = true;
     try {
       const report = await getPanelSource().report({ from: windowStart(Date.now()) });
-      setCount(report.runs.byStatus.awaiting_approval ?? 0);
+      const byStatus = report.runs.byStatus;
+      setCount({
+        awaiting: byStatus.awaiting_approval ?? 0,
+        live: LIVE.reduce((sum, status) => sum + (byStatus[status] ?? 0), 0),
+      });
     } catch {
       /* keep the last known count; the next trigger will correct it */
     } finally {
@@ -72,4 +95,9 @@ export function useAwaitingRuns(key: string): number | null {
   }, [refresh]);
 
   return count;
+}
+
+/** The badge's number on its own, for the surfaces that print only that one. */
+export function useAwaitingRuns(key: string): number | null {
+  return useRunCounts(key)?.awaiting ?? null;
 }

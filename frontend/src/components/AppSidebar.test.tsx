@@ -315,11 +315,14 @@ it('with_nothing_alive_the_column_carries_no_empty_section', async () => {
 
   show();
 
-  await waitFor(() => expect(listRuns).toHaveBeenCalled());
+  await waitFor(() => expect(report).toHaveBeenCalled());
   // An empty list under a heading says exactly what no section says, and costs a rule and
   // a line to say it.
   expect(document.querySelector('.rail')).toBeNull();
   expect(document.querySelector('.sb__live')).toBeNull();
+  // And whether there is anything alive is answered by the count, not by fetching the
+  // rows to see how many came back (#139).
+  expect(listRuns).not.toHaveBeenCalled();
 });
 
 it('the_row_marked_open_is_the_one_the_address_names', async () => {
@@ -399,7 +402,7 @@ it('the_live_list_starts_closed_and_still_says_how_many_are_running', async () =
     the column stops reading as navigation and starts reading as a wall. Closing it keeps
     the news and drops the detail: the section's own row carries the count at every state.
   */
-  report.mockResolvedValue(panel(1));
+  report.mockResolvedValue(panel(2));
   listRuns.mockImplementation(async (options) =>
     options?.status === 'awaiting_approval'
       ? [parked('r-a', 'Kararını bekleyen iş'), parked('r-b', 'Öteki iş')]
@@ -410,7 +413,10 @@ it('the_live_list_starts_closed_and_still_says_how_many_are_running', async () =
 
   const head = await screen.findByRole('button', { name: /Açık işler/ });
   expect(head.getAttribute('aria-expanded')).toBe('false');
+  // The count is the panel's SQL count, not the length of a list nobody fetched: closed,
+  // the rows are never asked for at all (#139).
   expect(head.textContent).toContain('2');
+  expect(listRuns).not.toHaveBeenCalled();
   // Closed means closed: no rows in the document, not rows hidden with CSS this
   // environment cannot see.
   expect(document.querySelectorAll('.rail__row')).toHaveLength(0);

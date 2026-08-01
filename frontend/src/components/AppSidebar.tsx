@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAwaitingRuns } from '../lib/awaitingRuns';
+import { useRunCounts } from '../lib/awaitingRuns';
 import type { Route } from '../lib/router';
 import { useRunStore } from '../store/runStore';
 import { TaskRail, useLiveRuns } from './TaskRail';
@@ -178,7 +178,8 @@ export function AppSidebar({
   onToggleCollapse,
   onClose,
 }: Props) {
-  const awaiting = useAwaitingRuns(route.name);
+  const counts = useRunCounts(route.name);
+  const awaiting = counts?.awaiting ?? null;
   /*
     The live runs, on every screen (#130). The rail used to be part of Sohbet, which meant
     the flows stopped on a decision were visible from the one screen you had to already be
@@ -186,8 +187,15 @@ export function AppSidebar({
     it just belongs to the app now rather than to one of its screens.
   */
   const openRun = useRunStore((s) => s.run);
-  const liveRuns = useLiveRuns(openRun);
   const [liveOpen, setLiveOpen] = useState(readLiveOpen);
+  /*
+    The rows are fetched only when the list is open. Closed — which is how it starts —
+    the section prints one integer, and that integer is counted in SQL by the same
+    `/api/panel` request the badge above already makes. Fetching three pages of two
+    hundred run summaries to render it was six hundred rows of JSON per navigation and
+    per minute, for a number that was already in the response (#139).
+  */
+  const liveRuns = useLiveRuns(openRun, liveOpen);
   const drawer = variant === 'drawer';
   // Icon-only is a rail affordance. A drawer that opened icon-only would be a drawer
   // holding a rail, which is nothing anybody asked to see.
@@ -387,7 +395,7 @@ export function AppSidebar({
         Two different questions, so two numbers that are allowed to differ — the group
         heads inside the list name the split.
       */}
-      {liveRuns.length > 0 && (
+      {(counts?.live ?? 0) > 0 && (
         <div className={`sb__live${liveOpen ? ' sb__live--open' : ''}`}>
           <hr className="sb__rule" />
           <button
@@ -409,8 +417,11 @@ export function AppSidebar({
                 was a subset of the other. Different noun, different colour, different
                 type layer (#136). */}
             <span className="sb__label">Açık işler</span>
+            {/* One number from one place. Counting the rows here instead would be a
+                second definition of "live", and two definitions is how the badge and
+                this count started telling two stories in #100. */}
             <span className={tight ? 'sb__badge sb__badge--live' : 'sb__count t-mono'}>
-              {liveRuns.length}
+              {counts?.live ?? 0}
             </span>
           </button>
           {liveOpen && (
@@ -432,7 +443,7 @@ export function AppSidebar({
         section's own top edge does not move between the two, so nothing jumps when it
         opens.
       */}
-      {!(liveOpen && liveRuns.length > 0) && <div className="sb__spacer" />}
+      {!(liveOpen && (counts?.live ?? 0) > 0) && <div className="sb__spacer" />}
 
       {/*
         Who is signed in sits at the bottom, and it is AccountMenu that draws it — a
