@@ -36,6 +36,18 @@ export type Step = {
   error: string | null;
   tokens: number;
   costUsd: number;
+  /**
+   * Which model answered this step, provider-qualified — `groq:llama-3.1-8b-instant`.
+   *
+   * <p>A step is rarely one call, and the tier is chosen per job, so the calls do not all
+   * land on the same model. The backend sends the model of the call that did the most
+   * tokens: what answered here, not what the whole step ran on.
+   *
+   * <p>Optional twice over. It is `null` on a step that made no model call, and absent
+   * altogether from a server that predates the field. Both mean unknown, and unknown is
+   * drawn as nothing — never as a placeholder, never as the cheap one.
+   */
+  model?: string | null;
   startedAt: string | null;
   finishedAt: string | null;
 };

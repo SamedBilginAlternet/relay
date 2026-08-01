@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { formatUsd } from './format';
+import { formatUsd, modelLabel } from './format';
 
 /**
  * Why this file exists.
@@ -50,4 +50,27 @@ it('a_missing_price_is_a_dash_not_a_zero', () => {
 
 it('a_negative_amount_keeps_its_sign_outside_the_currency', () => {
   expect(formatUsd(-0.000113)).toBe('-$0.000113');
+});
+
+/**
+ * The model shorthand (#112). A step row has room for two characters, not for
+ * `groq:llama-3.3-70b-versatile`, and the comparison a reader is making is between sizes.
+ * The danger in shortening an id is inventing one, so the rules are narrow on purpose.
+ */
+
+it('the_two_models_relay_actually_routes_between_read_as_their_sizes', () => {
+  expect(modelLabel('groq:llama-3.1-8b-instant')).toBe('8B');
+  expect(modelLabel('groq:llama-3.3-70b-versatile')).toBe('70B');
+});
+
+it('a_version_number_is_not_mistaken_for_a_parameter_count', () => {
+  // llama-3.1-8b: the 3.1 comes first and only the 8 is followed by a "b".
+  expect(modelLabel('groq:llama-3.1-8b-instant')).not.toBe('3.1B');
+  expect(modelLabel('llama-4.0-405b')).toBe('405B');
+});
+
+it('an_id_with_no_size_in_it_keeps_its_own_name_instead_of_a_guess', () => {
+  expect(modelLabel('stub')).toBe('stub');
+  expect(modelLabel('openai:gpt-4o-mini')).toBe('gpt-4o-mini');
+  expect(modelLabel('groq:mixtral-8x7b-32768')).toBe('mixtral-8x7b-32768');
 });

@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ChevronDown, ShieldQuestion, TriangleAlert, Wallet } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { stepDuration, formatTokens, formatUsd } from '../lib/format';
+import { stepDuration, formatTokens, formatUsd, modelLabel } from '../lib/format';
 import { paramLabel } from '../lib/paramLabels';
 import { DECISION_LABEL, stepStatusMeta } from '../lib/status';
 import type { Step } from '../types/api';
@@ -156,6 +156,17 @@ export function StepRow({
               {step.toolName ?? 'araç yok — akıl yürütme'}
             </span>
             <span className="step__role">{step.role}</span>
+            {/* Which model answered, where the row is read rather than opened: the point of
+                routing is that the cheap steps are visibly cheap. Absent on a step with no
+                model call, and absent is drawn as nothing at all. */}
+            {step.model && (
+              <span
+                className="tool-chip tool-chip--model"
+                title={`Bu adıma en çok token'ı ${step.model} yanıtladı`}
+              >
+                {modelLabel(step.model)}
+              </span>
+            )}
           </span>
         </span>
 
@@ -312,6 +323,9 @@ export function StepRow({
                 {step.decision && <span>Karar: {DECISION_LABEL[step.decision] ?? step.decision}</span>}
                 <span>{formatTokens(step.tokens)} token</span>
                 <span>{formatUsd(step.costUsd)}</span>
+                {/* The full id, spelled out, next to the price it produced. The chip on the
+                    row is a shorthand; this is the line someone checks it against. */}
+                {step.model && <span>Yanıtlayan model: {step.model}</span>}
               </div>
 
               <ParamBlock title="Parametreler" value={step.params} />

@@ -28,6 +28,20 @@ export function formatUsd(usd: number): string {
   return `${sign}$${digits}`;
 }
 
+/**
+ * A model id cut down to the one thing being compared on a step row: how big it is.
+ *
+ * <p>`groq:llama-3.1-8b-instant` → `8B`, `groq:llama-3.3-70b-versatile` → `70B`. Nothing is
+ * invented: an id with no size in it keeps its own name, minus the provider prefix, rather
+ * than being replaced by a guess. The full id is never further away than the step's body,
+ * so this is a shorthand, not the record.
+ */
+export function modelLabel(model: string): string {
+  const name = model.slice(model.lastIndexOf(':') + 1).trim();
+  const size = name.match(/(?:^|[-_ ])(\d+(?:\.\d+)?)b(?=$|[-_ ])/i);
+  return size ? `${size[1]}B` : name || model.trim();
+}
+
 export function formatDurationMs(ms: number): string {
   if (ms < 1000) return `${Math.max(ms, 0).toFixed(0)} ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)} sn`;

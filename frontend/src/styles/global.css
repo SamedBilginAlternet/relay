@@ -1218,6 +1218,15 @@ a.btn {
   font-family: var(--font-sans);
   font-style: italic;
 }
+/* The model chip sits beside the tool chip and must not be mistaken for one: no border,
+   no ground, just the size of the thing that answered. */
+.tool-chip--model {
+  border: 0;
+  background: none;
+  padding: 1px 0;
+  letter-spacing: 0.04em;
+  max-width: 140px;
+}
 .step--active .tool-chip {
   background: var(--bg);
 }
