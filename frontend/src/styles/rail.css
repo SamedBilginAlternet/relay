@@ -59,10 +59,11 @@
 }
 
 /*
-  The one place two numbers in this column had to be reconciled: the nav badge
-  counts the flows stopped on YOU, this group is those same flows. Same amber,
-  so the two 8s are visibly one 8 and the grey total below is self-evidently
-  the superset. Drawn instead of explained (#136).
+  Two numbers stand in this column and they are not the same number: this group
+  is the flows stopped on YOU, the section head above counts every flow that is
+  alive. Amber here and grey there, so the group is self-evidently a subset of
+  the total rather than a second opinion about it. Drawn instead of explained
+  (#136).
 */
 .rail__group--waiting .rail__grouphead,
 .rail__group--waiting .rail__count {

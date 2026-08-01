@@ -255,24 +255,20 @@ html[data-sidebar='tight'] {
 }
 
 /* ------------------------------------------------------------------ */
-/* The waiting count                                                   */
+/* The count chip                                                      */
 /*                                                                     */
-/* Amber, like every other "stopped on a person" surface in the app —   */
-/* the violet in this column already means "where you are".            */
+/* One wearer left: `Açık işler`, and only while the rail is collapsed  */
+/* — see `.sb--tight .sb__badge--live` at the bottom of this file.      */
+/* Akışlar wore this class too, in amber, until the waiting badge was   */
+/* taken off the nav row; the shape survived the colour, so what is     */
+/* left here is the shape and nothing that paints.                      */
 /* ------------------------------------------------------------------ */
 
 .sb__badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-left: auto;
-  min-width: 22px;
-  height: 20px;
-  padding: 0 6px;
   border-radius: var(--r-pill);
-  background: rgba(180, 83, 9, 0.12);
-  color: var(--warn);
-  font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -281,10 +277,9 @@ html[data-sidebar='tight'] {
 /* Collapsed — icon only, and still usable                             */
 /*                                                                     */
 /* `nav-label-icon`: an icon-only nav costs discoverability, so it only */
-/* ships with the two things that pay that back — a tooltip on every    */
-/* control, and the badge still on screen. A count that disappears when */
-/* the rail narrows is the pile-up this product exists to prevent,      */
-/* hidden by a preference.                                             */
+/* ships with the thing that pays that back — a tooltip on every        */
+/* control, drawn below. The labels are clipped, never removed, so the  */
+/* accessible name of a row is the same at 68px as at 260px.            */
 /* ------------------------------------------------------------------ */
 
 .sb--tight .sb__item {
@@ -307,6 +302,8 @@ html[data-sidebar='tight'] {
   white-space: nowrap;
 }
 
+/* 68px has no room beside an icon, so the count rides on its corner. The
+   colour is not here: the one wearer sets it (`.sb__badge--live`). */
 .sb--tight .sb__badge {
   position: absolute;
   top: 3px;
@@ -315,11 +312,10 @@ html[data-sidebar='tight'] {
   height: 16px;
   margin: 0;
   padding: 0 4px;
-  background: var(--warn);
   color: #fff;
   font-size: 10.5px;
-  /* On the tinted current row the amber-on-amber pill lost its edge; a solid
-     chip with a hairline of the column behind it survives every row state. */
+  /* A solid chip needs a hairline of the column behind it, or it loses its
+     edge the moment the row underneath it takes a tint. */
   box-shadow: 0 0 0 2px var(--bg-subtle);
 }
 
@@ -481,11 +477,12 @@ html[data-sidebar='tight'] {
 
 /*
   Collapsed, the section keeps the shape of every other icon row and its count becomes a
-  chip like the waiting badge — but grey, and that is the whole point of the rule. Amber
-  in this product means "stopped on you". Two amber chips reading 26 and 26 in one column
-  is the #100 confusion drawn instead of computed: these count different things, so they
-  cannot look like the same thing. Two class names deep, or `.sb--tight .sb__badge` wins
-  on specificity and paints it amber again.
+  chip — grey, and that is the whole point of the rule. Amber in this product means
+  "stopped on you", and this counts every flow that is alive. It stayed grey while the
+  amber waiting badge sat three rows above it, because two amber chips reading 26 and 26
+  in one column would have been the #100 confusion drawn instead of computed; the badge is
+  gone now and the reason has not moved — the amber is still spoken elsewhere, and this
+  number still is not it.
 */
 .sb--tight .sb__badge--live {
   background: var(--fg-faint);

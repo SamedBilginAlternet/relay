@@ -37,7 +37,7 @@ type Props<T extends string> = {
   label: string;
   /**
    * `gate` paints the counts amber, and is for a number that means "this is waiting on
-   * you" — the same amber as the sidebar badge, because it is the same set. Everything
+   * you" — the same amber as the top bar's badge, because it is the same set. Everything
    * else counts group sizes, which nobody is being asked to act on, and stays neutral:
    * an amber 12 would claim twelve tools were holding something up.
    */

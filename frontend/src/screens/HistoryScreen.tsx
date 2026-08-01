@@ -128,8 +128,8 @@ export function HistoryScreen({ onOpen }: Props) {
   /*
     Two requests, because they answer different questions.
 
-    The list is a page of history — newest first. The waiting set is a set: the sidebar
-    badge counts every run stopped on a person and sends the reader here, and live it said
+    The list is a page of history — newest first. The waiting set is a set: the waiting
+    badge counted every run stopped on a person and sent the reader here, and live it said
     29 while this screen showed the 3 that happened to fall on that page. The other 26 had
     no route in the product at all. Asking the server for the status is one request and
     cannot race with a run finishing between pages.

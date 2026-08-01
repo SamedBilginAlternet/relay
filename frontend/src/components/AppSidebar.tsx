@@ -108,17 +108,15 @@ type NavItem = {
   label: string;
   match: Route['name'][];
   Icon: LucideIcon;
-  /** Only Akışlar carries one: the number of flows stopped on a person. */
-  badge?: boolean;
 };
 
 /*
   The destinations, in the order the spec sets (scratchpad/sidebar-spec.md).
 
   Bugün is first because it is the screen the product opens on. Akışlar is the
-  runs list — it holds the waiting count, so the badge is on the destination
-  that can answer it. Ekip (#113) is a member list derived from the registered
-  tools; Panel counts what already happened.
+  runs list, and the screen that answers "what is waiting on me" once you are
+  there. Ekip (#113) is a member list derived from the registered tools; Panel
+  counts what already happened.
 
   Sohbet is deliberately NOT here. It is not a place, it is the flow you are in:
   `+ Yeni iş` starts one and the live rows below open the others. A tab for it
@@ -132,7 +130,6 @@ const PRIMARY: NavItem[] = [
     label: 'Akışlar',
     match: ['history', 'history-detail'],
     Icon: ListChecks,
-    badge: true,
   },
   { hash: '#/ekip', label: 'Ekip', match: ['crew'], Icon: Users },
   { hash: '#/panel', label: 'Panel', match: ['panel'], Icon: BarChart3 },
@@ -165,10 +162,16 @@ type Props = {
  * the half that had to go: it was already scrolling sideways at 390px (#71) and had no room
  * for the seventh destination Ekip needs.
  *
- * <p>WHY THE COUNT IS NOT A PROP. The badge here and the count in the top bar must never
- * disagree — that exact bug was #100. Both read `useAwaitingRuns`, which is one request to
- * `GET /api/panel` counted in SQL. A number passed in from a caller is a second place it
- * could be computed, and a second place is how two surfaces start telling two stories.
+ * <p>WHY NO DESTINATION CARRIES A COUNT. Akışlar wore an amber badge of the flows parked
+ * on a person, and it was read once and then stopped being read: a number that never
+ * leaves the corner of the eye is furniture, not news. What it counted is still counted —
+ * the top bar prints it below 1024px (`ApprovalBadge`) and the Akışlar screen names the
+ * same set on its `Onay bekleyen` tab. Only this row lost it.
+ *
+ * <p>WHY THE NUMBERS ARE NOT PROPS. Every surface that prints one reads it from the hook,
+ * which is one `GET /api/panel` counted in SQL. A number passed in from a caller is a
+ * second place it could be computed, and a second place is how two surfaces started
+ * telling two stories in #100.
  */
 export function AppSidebar({
   route,
@@ -179,7 +182,6 @@ export function AppSidebar({
   onClose,
 }: Props) {
   const counts = useRunCounts(route.name);
-  const awaiting = counts?.awaiting ?? null;
   /*
     The live runs, on every screen (#130). The rail used to be part of Sohbet, which meant
     the flows stopped on a decision were visible from the one screen you had to already be
@@ -190,8 +192,8 @@ export function AppSidebar({
   const [liveOpen, setLiveOpen] = useState(readLiveOpen);
   /*
     The rows are fetched only when the list is open. Closed — which is how it starts —
-    the section prints one integer, and that integer is counted in SQL by the same
-    `/api/panel` request the badge above already makes. Fetching three pages of two
+    the section prints one integer, and that integer is counted in SQL by the
+    `/api/panel` request this component already makes. Fetching three pages of two
     hundred run summaries to render it was six hundred rows of JSON per navigation and
     per minute, for a number that was already in the response (#139).
   */
@@ -267,7 +269,6 @@ export function AppSidebar({
 
   const item = (nav: NavItem) => {
     const current = nav.match.includes(route.name);
-    const count = nav.badge && awaiting != null && awaiting > 0 ? awaiting : null;
     return (
       <li className="sb__li" key={nav.hash}>
         <button
@@ -288,16 +289,6 @@ export function AppSidebar({
               accessible name at every width. `display: none` would take it out of the
               accessibility tree and leave a screen reader reading an icon. */}
           <span className="sb__label">{nav.label}</span>
-          {count != null && (
-            <span
-              className="sb__badge"
-              // Two digits on screen; the whole claim in the accessible name, the same
-              // trade the top bar's badge makes.
-              aria-label={`${count} akış onayını bekliyor`}
-            >
-              {count}
-            </span>
-          )}
         </button>
       </li>
     );
@@ -391,9 +382,10 @@ export function AppSidebar({
         header at every state, so the closed section still answers "is anything running";
         opening it answers "which ones", which is a question you ask on purpose.
 
-        The count here is every live flow. The badge upstairs is the ones stopped on YOU.
-        Two different questions, so two numbers that are allowed to differ — the group
-        heads inside the list name the split.
+        The count here is every live flow, not only the ones stopped on you — the group
+        heads inside the list name that split. It is the only number left in this column,
+        which is also why it is grey: amber in this product means "waiting on you", and
+        this is not that number.
       */}
       {(counts?.live ?? 0) > 0 && (
         <div className={`sb__live${liveOpen ? ' sb__live--open' : ''}`}>
@@ -412,14 +404,14 @@ export function AppSidebar({
               <ChevronRight size={14} aria-hidden className="sb__chev" />
             )}
             {/* "Açık işler", not "Canlı akışlar". `Akışlar` is a destination three rows
-                above with a count of its own, and two headings sharing a noun made the
-                two numbers unreadable as a pair: the reader could not tell whether one
-                was a subset of the other. Different noun, different colour, different
-                type layer (#136). */}
+                above, and when it carried a count of its own the shared noun made the two
+                numbers unreadable as a pair: the reader could not tell whether one was a
+                subset of the other. The badge is gone, the noun stays split — it is what
+                keeps this row a section head rather than a second Akışlar (#136). */}
             <span className="sb__label">Açık işler</span>
             {/* One number from one place. Counting the rows here instead would be a
-                second definition of "live", and two definitions is how the badge and
-                this count started telling two stories in #100. */}
+                second definition of "live", and two definitions of one word is how two
+                surfaces started telling two stories in #100. */}
             <span className={tight ? 'sb__badge sb__badge--live' : 'sb__count t-mono'}>
               {counts?.live ?? 0}
             </span>

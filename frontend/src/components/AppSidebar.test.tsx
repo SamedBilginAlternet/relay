@@ -15,15 +15,19 @@ import type { PanelRange, PanelReport } from '../types/panel';
  * centred strip of six tabs and, on one screen out of seven, a rail of live runs. The
  * refactor makes one, and three of its claims are the kind that rot quietly.
  *
- * <p>The first is the count. Two surfaces printing two different numbers for "how many
- * flows are waiting on you" is not a hypothetical: it was issue #100. So the badge here
- * and the badge on the top bar have to be the same number from the same request, and a
- * test says so with both of them on screen at once.
+ * <p>The first was the count, and it is now its absence. Akışlar carried an amber badge of
+ * the flows parked on a person until it was taken off as noise; the number itself did not
+ * go anywhere — the top bar prints it below 1024px and the Akışlar screen names the same
+ * set on its own tab. The test is still cross-surface, because the reason is: two surfaces
+ * printing two different numbers for "how many flows are waiting on you" was issue #100,
+ * so the one place that answers it and the row that no longer tries to are asserted with
+ * both on screen at once.
  *
  * <p>The second is the collapsed rail. Icon-only navigation costs discoverability, and
- * the deal that buys it back is a name on every control and a badge that does not
- * disappear. Both are asserted with the rail collapsed, because a count that hides when
- * the column narrows is the silent pile-up this product exists to prevent.
+ * what buys it back is a name and a tooltip on every control at 68px. Asserted with the
+ * rail collapsed — together with the one chip still drawn up there, which counts open
+ * work and is grey, because reading it as the waiting count is exactly the confusion
+ * #100 was.
  *
  * <p>The third is where you are. Colour alone is not a state marker for somebody who
  * cannot separate two hues, so the current item carries a class that also carries weight
@@ -178,12 +182,13 @@ it('a_run_detail_still_marks_the_list_it_was_opened_from', () => {
   expect(document.querySelector('.sb__item--current')?.textContent).toBe('Akışlar');
 });
 
-it('the_waiting_count_beside_akislar_is_the_number_the_top_bar_prints', async () => {
+it('no_destination_prints_the_waiting_count_the_top_bar_answers_for', async () => {
   report.mockResolvedValue(panel(32));
   const route: Route = { name: 'today' };
 
-  // Both surfaces on screen at once, which is exactly the situation that produced #100:
-  // a badge counted one way and a badge counted another disagreeing in public.
+  // Both surfaces on screen at once, which is the situation that produced #100: a badge
+  // counted one way and a badge counted another, disagreeing in public. There is one of
+  // them now, and this is the test that keeps it that way.
   render(
     <>
       <AppHeader route={route} onNavigate={vi.fn()} onOpenNav={vi.fn()} navOpen={false} />
@@ -191,41 +196,37 @@ it('the_waiting_count_beside_akislar_is_the_number_the_top_bar_prints', async ()
     </>,
   );
 
-  await waitFor(() => expect(document.querySelector('.sb__badge')).not.toBeNull());
-  const onTheBar = document.querySelector('.gate-badge__count')?.textContent;
-  const onTheRail = document.querySelector('.sb__badge')?.textContent;
-  expect(onTheRail).toBe('32');
-  expect(onTheRail).toBe(onTheBar);
+  // The count is not gone from the product, only from the nav row.
+  await waitFor(() => expect(document.querySelector('.gate-badge__count')?.textContent).toBe('32'));
+  // A number on a row you pass on the way to everywhere is read once and then becomes
+  // furniture. Akışlar is a destination and says only where it goes.
+  expect(screen.getByRole('button', { name: 'Akışlar' }).textContent).toBe('Akışlar');
+  expect(document.querySelectorAll('.sb__item .sb__badge')).toHaveLength(0);
 });
 
-it('an_empty_queue_puts_no_zero_beside_akislar', async () => {
-  report.mockResolvedValue(panel(0));
-
-  show();
-
-  await waitFor(() => expect(report).toHaveBeenCalled());
-  // A badge that is always there stops being read, and a zero is a claim that the app is
-  // idle made by the one thing whose job is to say when it is not.
-  expect(document.querySelector('.sb__badge')).toBeNull();
-});
-
-it('a_collapsed_rail_still_names_every_control_and_still_shows_the_count', async () => {
+it('a_collapsed_rail_still_names_every_control_and_keeps_the_two_counts_apart', async () => {
   report.mockResolvedValue(panel(7));
 
   show({ collapsed: true, onToggleCollapse: vi.fn() });
 
   await waitFor(() => expect(document.querySelector('.sb__badge')).not.toBeNull());
   // The label is clipped by CSS, never removed, so it still opens the accessible name of
-  // every control. Akışlar's name carries the count after it, which is the whole point:
-  // what a sighted user reads off the badge is what a screen reader hears.
+  // every control: a screen reader reads "Akışlar", not an unnamed button.
   for (const label of DESTINATIONS) {
     expect(screen.getByRole('button', { name: new RegExp(`^${label}`) })).not.toBeNull();
   }
-  expect(screen.getByRole('button', { name: /^Akışlar/ }).textContent).toBe('Akışlar7');
+  expect(screen.getByRole('button', { name: /^Akışlar/ }).textContent).toBe('Akışlar');
   // And a tooltip on every one of them, which is the price of dropping to icons.
   const items = [...document.querySelectorAll<HTMLElement>('.sb__item')];
   expect(items.map((el) => el.dataset.tip)).toEqual(DESTINATIONS);
-  expect(document.querySelector('.sb__badge')?.textContent).toBe('7');
+  // One chip survives at 68px and it belongs to Açık işler, not to a destination. It
+  // counts every flow that is alive; mistaking it for the waiting count is the #100
+  // confusion in a narrower column, so it is grey and it is nowhere near the nav rows.
+  const chips = [...document.querySelectorAll('.sb__badge')];
+  expect(chips).toHaveLength(1);
+  expect(chips[0]?.classList.contains('sb__badge--live')).toBe(true);
+  expect(chips[0]?.closest('.sb__item')).toBeNull();
+  expect(chips[0]?.textContent).toBe('7');
 });
 
 it('the_primary_action_starts_a_new_flow_rather_than_reopening_one', () => {

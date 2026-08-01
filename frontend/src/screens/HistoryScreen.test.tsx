@@ -166,7 +166,7 @@ it('a_failure_to_read_the_history_is_reported_in_turkish_with_a_way_back', async
 });
 
 /**
- * The sidebar badge counts every run stopped on a person; this screen used to show
+ * The waiting badge counts every run stopped on a person; this screen used to show
  * whichever of them fell on the first page of history — 29 counted, 3 shown, and no
  * route to the other 26 (#100). The queue asks for the status as a set, and it has to
  * keep saying only what the rows are: a server that ignores the filter must not turn
