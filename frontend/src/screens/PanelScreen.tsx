@@ -215,13 +215,44 @@ export function PanelScreen() {
   return (
     <div className="page">
       <div className="page__inner page__inner--app panel-shell">
-        <div className="page__head">
-          <div className="page__head-text">
+        {/*
+          Title, range and refresh on one row. They used to be two blocks stacked, which
+          cost ~120px of a 900px window before a single figure was drawn — and the range
+          switch is not a section, it is the argument every figure below takes.
+        */}
+        <div className="page__head panel-head">
+          <div className="page__head-text panel-head__text">
             <h1 className="t-title">Akış paneli</h1>
             <p className="t-caption">
-              Seçilen aralıkta kaç iş çalıştı, kaçı onaya düştü, ne reddedildi ve ne kadara mal
-              oldu. Tamamı veritabanından okunur — bu ekran hiçbir model çağrısı yapmaz.
+              Ne çalıştı, ne onaya düştü, ne kadara mal oldu. Tamamı veritabanından okunur —
+              bu ekran hiçbir model çağrısı yapmaz.
             </p>
+          </div>
+          <div className="panel-range">
+            <div className="panel-range__presets" role="group" aria-label="Hazır aralıklar">
+              {(
+                [
+                  ['7', 'Son 7 gün'],
+                  ['30', 'Son 30 gün'],
+                  ['today', 'Bugün'],
+                ] as [Preset, string][]
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className="panel-range__preset"
+                  aria-pressed={preset === key}
+                  onClick={() => chooseRange(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {report && (
+              <p className="t-caption panel-range__label">
+                {fromLabel} – {toLabel}
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -232,33 +263,6 @@ export function PanelScreen() {
             <RefreshCw size={14} aria-hidden className={loading ? 'spin' : undefined} />
             Yenile
           </button>
-        </div>
-
-        <div className="panel-range">
-          <div className="panel-range__presets" role="group" aria-label="Hazır aralıklar">
-            {(
-              [
-                ['7', 'Son 7 gün'],
-                ['30', 'Son 30 gün'],
-                ['today', 'Bugün'],
-              ] as [Preset, string][]
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className="panel-range__preset"
-                aria-pressed={preset === key}
-                onClick={() => chooseRange(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {report && (
-            <p className="t-caption panel-range__label">
-              {fromLabel} – {toLabel}
-            </p>
-          )}
         </div>
 
         {error != null && <LoadError error={error} onRetry={() => void load(range)} />}
