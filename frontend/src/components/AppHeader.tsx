@@ -2,6 +2,7 @@ import { BarChart3, History, MessageSquare, Plug, ShieldCheck, Sun } from 'lucid
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Route } from '../lib/router';
+import { ApprovalBadge } from './ApprovalBadge';
 import '../styles/screens.css';
 
 type Props = {
@@ -115,19 +116,33 @@ export function AppHeader({ route, onNavigate }: Props) {
 
   return (
     <header className="header" ref={ref}>
-      <button type="button" className="brand" onClick={() => onNavigate('#/')} aria-label="Relay ana ekran">
-        <span className="brand__mark" aria-hidden>
-          {/* bayrak devri: nokta -> cubuk -> nokta */}
-          <svg viewBox="0 0 64 64" width="15" height="15">
-            <circle cx="17" cy="38" r="7" fill="currentColor" />
-            <rect x="20" y="23.5" width="24" height="8" rx="4" fill="currentColor" transform="rotate(-14 32 27.5)" />
-            <circle cx="47" cy="20" r="7" fill="currentColor" />
-          </svg>
-        </span>
-        <span className="brand__word" aria-hidden>
-          <span className="brand__r">r</span>elay
-        </span>
-      </button>
+      {/*
+        The brand and the bar's one piece of news share the left cheek. The grid
+        centres the nav on the PAGE, so this side must not grow into a column of
+        its own — see styles/header-badge.css for why the badge is two digits and
+        not a sentence.
+      */}
+      <div className="header__left">
+        <button type="button" className="brand" onClick={() => onNavigate('#/')} aria-label="Relay ana ekran">
+          <span className="brand__mark" aria-hidden>
+            {/* bayrak devri: nokta -> cubuk -> nokta */}
+            <svg viewBox="0 0 64 64" width="15" height="15">
+              <circle cx="17" cy="38" r="7" fill="currentColor" />
+              <rect x="20" y="23.5" width="24" height="8" rx="4" fill="currentColor" transform="rotate(-14 32 27.5)" />
+              <circle cx="47" cy="20" r="7" fill="currentColor" />
+            </svg>
+          </span>
+          <span className="brand__word" aria-hidden>
+            <span className="brand__r">r</span>elay
+          </span>
+        </button>
+        {/*
+          A run parked on a person is the one thing in this product that costs
+          something to miss, and until now it was only visible from the screen it
+          started on (issue #72).
+        */}
+        <ApprovalBadge routeKey={route.name} onNavigate={onNavigate} />
+      </div>
 
       {/*
         Labels are ALWAYS rendered — an icon-only nav is an accessibility

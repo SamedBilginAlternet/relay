@@ -1,0 +1,88 @@
+/* ------------------------------------------------------------------ */
+/* "N onay bekliyor" — the top bar's one piece of news (issue #72)      */
+/*                                                                     */
+/* It sits at the inner edge of the left cheek, against the brand and   */
+/* beside the centred nav. NOT in the right cheek: the account chip is  */
+/* portalled into column 3 and owns it, and the grid the bar is built   */
+/* on centres the nav on the page, so the two cheeks have to stay the   */
+/* same order of width. This is why the badge is a count and an icon    */
+/* rather than a sentence — a 130px label here would have pushed the    */
+/* measured 960px breakpoint in global.css, and the sentence is in the  */
+/* accessible name where it costs no pixels.                           */
+/* ------------------------------------------------------------------ */
+
+.header__left {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  min-width: 0;
+}
+
+/* Same vocabulary as the status pills it is reporting on: hairline, pill
+   radius, the amber that means "waiting on a person" everywhere else. */
+.gate-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px 0 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--warn);
+  background: var(--surface);
+  /* Warm, not the nav's lilac: everything violet in this bar means "where you
+     are", and this is the one thing on it that is not about the current screen. */
+  border: 1px solid rgba(180, 83, 9, 0.28);
+  border-radius: var(--r-pill);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transition: background-color 160ms ease-out, box-shadow 160ms ease-out;
+}
+
+.gate-badge:hover {
+  background: #fffbeb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 1px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* Fixed width for up to two digits, so a count going 9 -> 10 does not shove
+   the brand or breathe against the nav. */
+.gate-badge__count {
+  min-width: 14px;
+  text-align: center;
+}
+
+/*
+  The bar's own breakpoint is 960px, measured in global.css from a left cheek
+  that held nothing but the brand. Adding the badge to that cheek costs it 65px,
+  and between 961 and 997 the centred track came within 18px of the badge and
+  then ran into it — the one width band where this file could have broken a
+  layout three issues went into getting right.
+
+  The icon is what goes, not the number: the number is the news and the icon is
+  decoration, which is the same trade the nav itself makes at 430px. The gap
+  goes with it — the brand button carries 8px of its own padding, so the two are
+  not touching. Measured at 961px afterwards: 12px of daylight at two digits,
+  4px at three, and the two-row layout takes over 1px below that.
+*/
+@media (max-width: 1000px) {
+  .header__left {
+    gap: 0;
+  }
+  .gate-badge {
+    padding: 0 8px;
+  }
+  .gate-badge > svg {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gate-badge {
+    transition: none;
+  }
+}
