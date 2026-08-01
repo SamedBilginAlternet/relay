@@ -129,16 +129,21 @@ class PanelReportTest {
         assertThat(approvals.approvedWithEdit()).isEqualTo(2);
     }
 
+    /** Every row fully priced — the simple case, and the arithmetic is visible. */
+    private static PanelStatsRepository.ModelUsage priced(String model, long calls, long tokens,
+                                                          double usd, double premiumUsd) {
+        return new PanelStatsRepository.ModelUsage(model, calls, tokens, usd,
+                calls, tokens, usd, premiumUsd);
+    }
+
     /**
      * The comparison line is the one number on this screen a buyer will repeat out loud,
      * so it may only ever be a subtraction between two sums of the same rows.
      */
     @Test
-    void the_routing_comparison_is_the_per_model_rows_added_up_and_nothing_else() {
-        stats.models.add(new PanelStatsRepository.ModelUsage(
-                "groq:llama-3.1-8b-instant", 180, 320_000, 0.045, 0.221));
-        stats.models.add(new PanelStatsRepository.ModelUsage(
-                "groq:llama-3.3-70b-versatile", 12, 40_000, 0.028, 0.028));
+    void the_routing_comparison_is_the_priced_rows_added_up_and_nothing_else() {
+        stats.models.add(priced("groq:llama-3.1-8b-instant", 180, 320_000, 0.045, 0.221));
+        stats.models.add(priced("groq:llama-3.3-70b-versatile", 12, 40_000, 0.028, 0.028));
 
         PanelReport.Routing routing = panel.report(null, null).routing();
 
@@ -149,6 +154,7 @@ class PanelReportTest {
         // The whole claim, and it is a subtraction: 0.249 - 0.073. Nothing is scaled up to
         // the steps that carry no model, and nothing is projected onto a month.
         assertThat(routing.differenceUsd()).isCloseTo(0.249 - 0.073, within(1e-9));
+        assertThat(routing.unpricedCalls()).isZero();
     }
 
     /**
@@ -157,30 +163,65 @@ class PanelReportTest {
      */
     @Test
     void a_step_the_strong_model_answered_contributes_no_difference() {
-        stats.models.add(new PanelStatsRepository.ModelUsage(
-                "groq:llama-3.3-70b-versatile", 5, 20_000, 0.019, 0.019));
+        stats.models.add(priced("groq:llama-3.3-70b-versatile", 5, 20_000, 0.019, 0.019));
 
         assertThat(panel.report(null, null).routing().differenceUsd()).isZero();
     }
 
     /**
-     * Half a comparison is worse than none. If some rows have a counterfactual and some do
-     * not, the subtraction stops being about the window printed on the header — so it is
-     * not printed at all.
+     * Issue #119, and the reason both halves of a row exist.
+     *
+     * <p>A step that touched the offline stub keeps its model — whichever call produced the
+     * most tokens wrote it — and loses its premium, because one unpriceable call makes the
+     * step's counterfactual unknown rather than smaller. Counting that step's dollars as
+     * "what we paid" with nothing opposite them made every such call look like a saving.
      */
     @Test
-    void a_window_where_only_some_rows_carry_a_premium_price_makes_no_claim() {
+    void a_call_with_no_counterfactual_leaves_both_sides_of_the_subtraction() {
+        // 10 calls on the model, only 6 of them priced: $0.030 of the $0.050 billed.
         stats.models.add(new PanelStatsRepository.ModelUsage(
-                "groq:llama-3.1-8b-instant", 180, 320_000, 0.045, 0.221));
+                "groq:llama-3.1-8b-instant", 10, 50_000, 0.050, 6, 30_000, 0.030, 0.180));
+
+        PanelReport.Routing routing = panel.report(null, null).routing();
+
+        // 0.180 - 0.030, not 0.180 - 0.050. The four unpriced calls are on neither side.
+        assertThat(routing.usd()).isCloseTo(0.030, within(1e-9));
+        assertThat(routing.differenceUsd()).isCloseTo(0.150, within(1e-9));
+        assertThat(routing.calls()).isEqualTo(6);
+        assertThat(routing.tokens()).isEqualTo(30_000);
+        // …and the reader is told how much of the window the comparison did not cover,
+        // because a line that covers 6 of 10 calls must not read like one that covers 10.
+        assertThat(routing.unpricedCalls()).isEqualTo(4);
+    }
+
+    /**
+     * A model nothing could be priced on drops out of the comparison and stays in the
+     * table. Which model carried the volume is knowable without a counterfactual, and
+     * hiding the row to protect the claim would lose a fact.
+     */
+    @Test
+    void a_model_with_no_priced_row_is_still_counted_but_makes_no_claim() {
+        stats.models.add(priced("groq:llama-3.1-8b-instant", 180, 320_000, 0.045, 0.221));
         stats.models.add(new PanelStatsRepository.ModelUsage(
-                "groq:llama-3.3-70b-versatile", 12, 40_000, 0.028, null));
+                "stub", 12, 40_000, 0.0, 0, 0, 0.0, null));
+
+        PanelReport report = panel.report(null, null);
+
+        assertThat(report.models()).hasSize(2);
+        assertThat(report.routing().calls()).isEqualTo(180);
+        assertThat(report.routing().unpricedCalls()).isEqualTo(12);
+    }
+
+    /** Nothing priced anywhere: no comparison, rather than zero against zero. */
+    @Test
+    void a_window_with_nothing_priced_makes_no_comparison_at_all() {
+        stats.models.add(new PanelStatsRepository.ModelUsage(
+                "stub", 12, 40_000, 0.0, 0, 0, 0.0, null));
 
         PanelReport report = panel.report(null, null);
 
         assertThat(report.routing()).isNull();
-        // The table still stands: which model carried the volume is knowable without the
-        // counterfactual, and dropping it would hide a fact to protect a claim.
-        assertThat(report.models()).hasSize(2);
+        assertThat(report.models()).hasSize(1);
     }
 
     @Test

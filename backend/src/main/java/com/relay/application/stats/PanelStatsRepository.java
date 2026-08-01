@@ -95,9 +95,9 @@ public interface PanelStatsRepository {
      * set — that column <em>is</em> the evidence a model answered, which is a narrower and
      * more direct test than the {@code status in ('done','failed')} that
      * {@link #toolUsage(Instant, Instant)} uses, so the call counts on the two tables are
-     * not meant to match. And {@code premiumUsd} is read over exactly the same rows, so
-     * the per-model column sums and the comparison line are arithmetic on one population
-     * rather than two.
+     * not meant to match. And the counterfactual is carried with the subset of rows it
+     * actually covers rather than averaged into the group, so the money the comparison
+     * subtracts is money from the same rows.
      *
      * <p>The list is empty when {@code steps.model} does not exist yet. That is not a
      * defensive habit, it is the deploy order: the column arrives in a migration, and a
@@ -150,18 +150,31 @@ public interface PanelStatsRepository {
     /**
      * One answering model, and what it actually cost.
      *
+     * <p>The row is split in two because a step can carry a model and still have no
+     * counterfactual. {@code Step.addCost} latches {@code premium_cost_usd} to null the
+     * moment one of the step's calls cannot be priced on the strong model — the offline
+     * stub counts characters, and no provider ever billed them — while {@code model} keeps
+     * whichever call produced the most tokens. So the two columns disagree on real rows,
+     * and summing the cost of all of them against the counterfactual of some of them is
+     * not a rounding error: it is the difference growing for the wrong reason.
+     *
      * @param model      whatever the orchestrator recorded, e.g. {@code groq:llama-3.1-8b-instant}.
      *                   Passed through untouched: prettifying it here would mean this file
      *                   holding an opinion about which model names exist
      * @param calls      steps whose answer came from this model
      * @param tokens     tokens those steps recorded
      * @param usd        what those tokens were billed at
-     * @param premiumUsd what the same tokens would have cost priced entirely on the strong
-     *                   model, summed from {@code steps.premium_cost_usd}. {@code null} —
-     *                   not zero — when that column does not exist yet. Zero is a claim
+     * @param pricedCalls of those steps, the ones that also carry a counterfactual
+     * @param pricedTokens tokens on that subset
+     * @param pricedUsd  what that subset was billed at — the only figure the premium below
+     *                   may be subtracted from, because it is the same rows
+     * @param premiumUsd what the priced subset's tokens would have cost on the strong
+     *                   model. {@code null} — not zero — when nothing in this group is
+     *                   priced, or when the column does not exist yet. Zero is a claim
      *                   ("the counterfactual is free"), null is the absence of one, and the
      *                   difference decides whether a comparison may be printed at all
      */
-    record ModelUsage(String model, long calls, long tokens, double usd, Double premiumUsd) {
+    record ModelUsage(String model, long calls, long tokens, double usd,
+                      long pricedCalls, long pricedTokens, double pricedUsd, Double premiumUsd) {
     }
 }

@@ -92,6 +92,11 @@ public class PanelController {
             item.put("calls", usage.calls());
             item.put("tokens", usage.tokens());
             item.put("costUsd", CostMeter.usd(usage.usd()));
+            // The counterfactual and the money it may be subtracted from travel together,
+            // and neither of them is `costUsd` above. Sending a premium next to a total
+            // that covers more rows would invite exactly the subtraction #119 was about.
+            item.put("pricedCalls", usage.pricedCalls());
+            item.put("pricedCostUsd", CostMeter.usd(usage.pricedUsd()));
             // Same money helper, same six decimals. A counterfactual that printed in a
             // second format would read as a second kind of number, and the whole point of
             // the line below is that the two are directly comparable.
@@ -113,6 +118,10 @@ public class PanelController {
             saved.put("costUsd", CostMeter.usd(routing.usd()));
             saved.put("premiumCostUsd", CostMeter.usd(routing.premiumUsd()));
             saved.put("differenceUsd", CostMeter.usd(routing.differenceUsd()));
+            // How much of the window the three figures above actually cover. Sent even
+            // when it is 0, so the screen never has to guess between "all of it" and
+            // "the server is an older build that did not say".
+            saved.put("unpricedCalls", routing.unpricedCalls());
             body.put("routing", saved);
         }
 

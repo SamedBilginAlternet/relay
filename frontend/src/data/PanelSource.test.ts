@@ -81,7 +81,14 @@ it('the_difference_is_the_two_printed_amounts_subtracted_not_a_third_number', as
   // A server that contradicts itself — the difference here is not premium minus cost.
   answers({
     models: [],
-    routing: { calls: 41, tokens: 23_800, costUsd: 0.01, premiumCostUsd: 0.03, differenceUsd: 0.09 },
+    routing: {
+      calls: 41,
+      tokens: 23_800,
+      costUsd: 0.01,
+      premiumCostUsd: 0.03,
+      differenceUsd: 0.09,
+      unpricedCalls: 2,
+    },
   });
 
   const report = await getPanelSource().report({});
@@ -91,4 +98,6 @@ it('the_difference_is_the_two_printed_amounts_subtracted_not_a_third_number', as
   // this block is allowed on the screen.
   expect(report.routing?.differenceUsd).toBeCloseTo(0.02, 10);
   expect(report.routing?.calls).toBe(41);
+  // Coverage travels with the line rather than being inferred from it.
+  expect(report.routing?.unpricedCalls).toBe(2);
 });

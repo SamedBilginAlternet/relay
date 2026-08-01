@@ -194,6 +194,8 @@ const CHEAP = {
   calls: 34,
   tokens: 18_900,
   costUsd: 0.0043,
+  pricedCalls: 34,
+  pricedCostUsd: 0.0043,
   premiumCostUsd: 0.0129,
 };
 const STRONG = {
@@ -201,7 +203,17 @@ const STRONG = {
   calls: 7,
   tokens: 4_900,
   costUsd: 0.0102,
+  pricedCalls: 7,
+  pricedCostUsd: 0.0102,
   premiumCostUsd: 0.0102,
+};
+const COVERED = {
+  calls: 41,
+  tokens: 23_800,
+  costUsd: 0.0145,
+  premiumCostUsd: 0.0231,
+  differenceUsd: 0.0086,
+  unpricedCalls: 0,
 };
 
 it('the_model_that_carried_the_volume_is_named_with_its_own_calls_and_cost', async () => {
@@ -220,13 +232,7 @@ it('the_comparison_prints_both_prices_beside_the_difference_it_came_from', async
   report.mockResolvedValue(
     panel({
       models: [CHEAP, STRONG],
-      routing: {
-        calls: 41,
-        tokens: 23_800,
-        costUsd: 0.0145,
-        premiumCostUsd: 0.0231,
-        differenceUsd: 0.0086,
-      },
+      routing: COVERED,
     }),
   );
 
@@ -248,13 +254,7 @@ it('nothing_on_this_block_claims_time_saved_or_a_productivity_multiplier', async
   report.mockResolvedValue(
     panel({
       models: [CHEAP, STRONG],
-      routing: {
-        calls: 41,
-        tokens: 23_800,
-        costUsd: 0.0145,
-        premiumCostUsd: 0.0231,
-        differenceUsd: 0.0086,
-      },
+      routing: COVERED,
     }),
   );
 
@@ -284,7 +284,10 @@ it('a_missing_counterfactual_drops_the_comparison_and_keeps_the_table', async ()
   // Which model carried the volume is knowable without a counterfactual. Hiding the table
   // to protect the claim would lose a fact; printing the claim anyway would invent one.
   report.mockResolvedValue(
-    panel({ models: [{ ...CHEAP, premiumCostUsd: null }], routing: null }),
+    panel({
+      models: [{ ...CHEAP, pricedCalls: 0, pricedCostUsd: 0, premiumCostUsd: null }],
+      routing: null,
+    }),
   );
 
   render(<PanelScreen />);
@@ -292,6 +295,29 @@ it('a_missing_counterfactual_drops_the_comparison_and_keeps_the_table', async ()
   const models = await screen.findByRole('region', { name: /Model başına çağrı ve maliyet/i });
   expect(within(models).getByLabelText(/^groq:llama-3\.1-8b-instant: 34 çağrı/)).toBeTruthy();
   expect(within(models).getByText(/güçlü model karşılaştırması kayıtlı değil/i)).toBeTruthy();
+});
+
+it('a_comparison_that_leaves_calls_out_says_how_many_it_left_out', async () => {
+  // A step that touched the offline stub keeps its model and loses its counterfactual, so
+  // it is on neither side of the subtraction (#119). Silence here would let a line that
+  // covers 38 of 41 calls read exactly like one that covers all of them.
+  report.mockResolvedValue(
+    panel({ models: [CHEAP, STRONG], routing: { ...COVERED, calls: 38, unpricedCalls: 3 } }),
+  );
+
+  render(<PanelScreen />);
+
+  const models = await screen.findByRole('region', { name: /Model başına çağrı ve maliyet/i });
+  expect(within(models).getByText(/3 çağrı fiyatlanamadığı için/)).toBeTruthy();
+});
+
+it('a_comparison_that_covers_every_call_adds_no_caveat_nobody_needs', async () => {
+  report.mockResolvedValue(panel({ models: [CHEAP, STRONG], routing: COVERED }));
+
+  render(<PanelScreen />);
+
+  const models = await screen.findByRole('region', { name: /Model başına çağrı ve maliyet/i });
+  expect(within(models).queryByText(/fiyatlanamadığı için/)).toBeNull();
 });
 
 it('an_empty_range_says_so_instead_of_drawing_a_chart_out_of_zeros', async () => {

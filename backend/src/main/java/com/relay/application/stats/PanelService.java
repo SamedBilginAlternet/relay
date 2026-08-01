@@ -106,34 +106,39 @@ public class PanelService {
     /**
      * Folds the per-model rows into the one comparison line, or refuses to.
      *
-     * <p>It is a sum of the same rows the table above it prints — not a second query with
-     * a second predicate — so the column adds up to the line and a reader can check it by
-     * eye. Nothing is scaled, extrapolated to the rows that carry no model, or projected
-     * onto a month.
+     * <p>Both sides are summed from the priced subset of each row — never the group total
+     * on one side and the subset on the other. That was the bug in the first version of
+     * this block (#119): a step whose premium could not be derived still had its dollars
+     * counted as "what we paid", with nothing opposite them, so every unpriceable call
+     * made the routing look better than it was.
      *
-     * <p>Returns {@code null} unless <em>every</em> row carries a premium price. A partial
-     * comparison is the failure worth guarding: sum the real cost of ten steps against the
-     * counterfactual of the three that happen to have one and the difference is not wrong
-     * by a rounding, it is about a different window than the one on the header.
+     * <p>Nothing is scaled, extrapolated onto the rows that have no counterfactual, or
+     * projected onto a month. The rows that are left out are counted and reported instead,
+     * because a comparison whose coverage is invisible is a comparison nobody can size.
+     *
+     * <p>{@code null} when nothing in the window is priced: no comparison, rather than a
+     * comparison between zero and zero.
      */
     private static PanelReport.Routing routing(List<PanelStatsRepository.ModelUsage> models) {
-        if (models.isEmpty()) {
-            return null;
-        }
         long calls = 0;
         long tokens = 0;
         double usd = 0;
         double premium = 0;
+        long unpriced = 0;
         for (PanelStatsRepository.ModelUsage model : models) {
+            unpriced += model.calls() - model.pricedCalls();
             if (model.premiumUsd() == null) {
-                return null;
+                continue;
             }
-            calls += model.calls();
-            tokens += model.tokens();
-            usd += model.usd();
+            calls += model.pricedCalls();
+            tokens += model.pricedTokens();
+            usd += model.pricedUsd();
             premium += model.premiumUsd();
         }
-        return new PanelReport.Routing(calls, tokens, usd, premium, premium - usd);
+        if (calls == 0) {
+            return null;
+        }
+        return new PanelReport.Routing(calls, tokens, usd, premium, premium - usd, unpriced);
     }
 
     /**

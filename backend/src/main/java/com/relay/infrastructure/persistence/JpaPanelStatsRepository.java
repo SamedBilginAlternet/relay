@@ -216,19 +216,29 @@ public class JpaPanelStatsRepository implements PanelStatsRepository {
             return List.of();
         }
         /*
-          `s.model is not null` is the whole predicate, and it is doing two jobs. It is the
-          most direct statement that a model answered this step — narrower than the
-          `status in ('done','failed')` toolUsage uses, which counts a step that reached a
-          provider whether or not a model was involved. And it is the same predicate the
-          premium column is summed under, so the money on the per-model rows and the money
-          on the comparison line are two views of one set of rows. A judge can add the
-          column up and get the total; that is the property this block is sold on.
+          `s.model is not null` is what makes a row a call: the column is set by whichever
+          call produced the most tokens on the step, so it is the direct statement that a
+          model answered. That is narrower than the `status in ('done','failed')` toolUsage
+          uses, which counts a step that reached a provider whether a model was involved or
+          not, and the two call counts are not meant to match.
 
-          Rows written before the migration carry no model and are therefore absent from
-          both sides at once. They are not silently priced at zero on one side.
+          The four `filter` columns are the correction issue #119 is about. `premium_cost_usd`
+          is latched to null by Step.addCost the moment one of a step's calls cannot be
+          priced on the strong model, while `model` survives — so `model is not null` and
+          `premium_cost_usd is not null` disagree on real rows. Summing every row's cost
+          against some rows' counterfactual would have quietly shrunk the premium side:
+          `sum` skips nulls, so that step's dollars land on one side of the subtraction and
+          nothing lands on the other. Reading the priced subset separately keeps both sides
+          of the comparison over the same rows, and leaves the group totals intact for the
+          table, which is a different question and answerable without a counterfactual.
         */
         boolean priced = hasStepColumn("premium_cost_usd");
-        String premium = priced ? ", coalesce(sum(s.premium_cost_usd), 0)" : "";
+        String premium = priced ? """
+                ,
+                       count(s.premium_cost_usd),
+                       coalesce(sum(s.tokens) filter (where s.premium_cost_usd is not null), 0),
+                       coalesce(sum(s.cost_usd) filter (where s.premium_cost_usd is not null), 0),
+                       coalesce(sum(s.premium_cost_usd), 0)""" : "";
         List<?> rows = window(em.createNativeQuery("""
                 select s.model, count(*), coalesce(sum(s.tokens), 0), coalesce(sum(s.cost_usd), 0)"""
                 + premium + """
@@ -242,8 +252,14 @@ public class JpaPanelStatsRepository implements PanelStatsRepository {
         List<ModelUsage> out = new ArrayList<>();
         for (Object row : rows) {
             Object[] cells = (Object[]) row;
+            long pricedCalls = priced ? number(cells[4]) : 0;
             out.add(new ModelUsage(text(cells[0]), number(cells[1]), number(cells[2]), money(cells[3]),
-                    priced ? money(cells[4]) : null));
+                    pricedCalls,
+                    pricedCalls == 0 ? 0 : number(cells[5]),
+                    pricedCalls == 0 ? 0 : money(cells[6]),
+                    // The sum is only a counterfactual if it covers something. A group where
+                    // nothing could be priced reports null, not a free strong model.
+                    pricedCalls == 0 ? null : money(cells[7])));
         }
         return out;
     }

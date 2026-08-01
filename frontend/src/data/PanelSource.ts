@@ -82,6 +82,8 @@ function normalizeModel(raw: unknown): PanelModelUsage {
     calls: num(r.calls),
     tokens: num(r.tokens),
     costUsd: num(r.costUsd),
+    pricedCalls: num(r.pricedCalls),
+    pricedCostUsd: num(r.pricedCostUsd),
     premiumCostUsd: optionalNum(r.premiumCostUsd),
   };
 }
@@ -107,6 +109,7 @@ function normalizeRouting(raw: unknown): PanelRouting | null {
     costUsd,
     premiumCostUsd,
     differenceUsd: premiumCostUsd - costUsd,
+    unpricedCalls: num(r.unpricedCalls),
   };
 }
 
@@ -253,6 +256,8 @@ class MockPanelSource implements PanelSource {
           calls: 34,
           tokens: 18_900,
           costUsd: 0.0043,
+          pricedCalls: 34,
+          pricedCostUsd: 0.0043,
           premiumCostUsd: 0.0129,
         },
         {
@@ -260,6 +265,8 @@ class MockPanelSource implements PanelSource {
           calls: 7,
           tokens: 4_900,
           costUsd: 0.0102,
+          pricedCalls: 7,
+          pricedCostUsd: 0.0102,
           premiumCostUsd: 0.0102,
         },
       ],
@@ -269,6 +276,7 @@ class MockPanelSource implements PanelSource {
         costUsd: 0.0145,
         premiumCostUsd: 0.0231,
         differenceUsd: 0.0086,
+        unpricedCalls: 0,
       },
       totals: { tokens: 24_800, costUsd: 0.0192 },
     };

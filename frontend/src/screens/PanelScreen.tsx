@@ -545,6 +545,19 @@ function Routing({ routing }: { routing: PanelRouting | null }) {
         Aynı {routing.calls} çağrının aynı {formatTokens(routing.tokens)} tokenı üzerinden, iki
         fiyat listesiyle. Kaydedilen token sayısı ve yapılandırılmış fiyat dışında bir şey
         hesaba girmez.
+        {/*
+          Coverage, printed only when there is any to report. A step that touched the
+          offline stub has no honest premium figure, and its cost is out of both sides
+          rather than sitting on one of them — #119. Saying how many were left out is
+          what keeps this line from reading like it covers the whole window.
+        */}
+        {routing.unpricedCalls > 0 && (
+          <>
+            {' '}
+            {routing.unpricedCalls} çağrı fiyatlanamadığı için karşılaştırmanın iki tarafında da
+            yok.
+          </>
+        )}
       </p>
     </div>
   );

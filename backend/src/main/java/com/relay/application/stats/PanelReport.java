@@ -80,8 +80,14 @@ public record PanelReport(
      *                   if the strong model answered everything the difference is 0, and
      *                   if it somehow came out negative the screen has to say so rather
      *                   than show an absolute value that reads as a win
+     * @param unpricedCalls steps that a model answered but that carry no counterfactual,
+     *                   so they are outside the three figures above. Reported rather than
+     *                   absorbed: a comparison that covers 38 of 41 calls is worth having,
+     *                   and a reader who is not told the coverage cannot tell it from one
+     *                   that covers all 41
      */
-    public record Routing(long calls, long tokens, double usd, double premiumUsd, double differenceUsd) {
+    public record Routing(long calls, long tokens, double usd, double premiumUsd,
+                          double differenceUsd, long unpricedCalls) {
     }
 
     public record Totals(long tokens, double usd) {

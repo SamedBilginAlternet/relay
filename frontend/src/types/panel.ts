@@ -95,8 +95,16 @@ export type PanelModelUsage = {
   tokens: number;
   costUsd: number;
   /**
-   * What the same tokens would have cost on the strong model. `null` when the server has
-   * no counterfactual for these rows — not 0, which would read as "it was free".
+   * Of those calls, the ones that also carry a counterfactual. A step keeps its model even
+   * when one of its calls could not be priced on the strong model, so this is regularly
+   * smaller than `calls`.
+   */
+  pricedCalls: number;
+  /** What that subset was billed — the only figure `premiumCostUsd` may be compared to. */
+  pricedCostUsd: number;
+  /**
+   * What the priced subset's tokens would have cost on the strong model. `null` when the
+   * server has no counterfactual for these rows — not 0, which would read as "it was free".
    */
   premiumCostUsd: number | null;
 };
@@ -105,9 +113,9 @@ export type PanelModelUsage = {
  * The single comparison the panel is allowed to draw: what the window cost, what the same
  * recorded tokens would have cost priced entirely on the strong model, and the gap.
  *
- * `null` when the counterfactual is not recorded for every row in the window. There is no
- * partial version of this line — a difference computed over some of the rows is a claim
- * about a window nobody asked for.
+ * Both sides are summed over the calls that carry a counterfactual, never the whole window
+ * on one side and a subset on the other. `null` when nothing in the window is priced —
+ * there is no comparison to draw, and zero against zero is not one.
  */
 export type PanelRouting = {
   /** Steps behind both sides. The same rows, so the two sums are comparable. */
@@ -117,6 +125,12 @@ export type PanelRouting = {
   premiumCostUsd: number;
   /** `premiumCostUsd - costUsd`, signed. Never an absolute value. */
   differenceUsd: number;
+  /**
+   * Calls a model answered that carry no counterfactual, and so are outside the three
+   * figures above. Shown rather than absorbed: a comparison covering 38 of 41 calls is
+   * worth having, and must not read like one that covers all 41.
+   */
+  unpricedCalls: number;
 };
 
 export type PanelReport = {
