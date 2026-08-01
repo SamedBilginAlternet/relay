@@ -89,6 +89,10 @@ app:
     # when the big model is spent — rate limits are counted per model.
     small-model: ${GROQ_SMALL_MODEL:llama-3.1-8b-instant}
     base-url: ${GROQ_BASE_URL:https://api.groq.com/openai/v1}
+    # The name that reaches the screen next to every price. This client speaks the
+    # OpenAI chat-completions shape, so the primary tier can be pointed at any provider
+    # that does — and the label has to follow, or a step reads `groq:deepseek-v4-flash`.
+    provider: ${LLM_PRIMARY_PROVIDER:groq}
     cooldown-seconds: 60
     price:
       input-usd-per-million: ${GROQ_PRICE_INPUT:0.59}

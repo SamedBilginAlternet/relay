@@ -88,11 +88,21 @@ public class LlmConfig {
                                        @Value("${app.groq.price.output-usd-per-million:0.79}") double output,
                                        @Value("${app.groq.small-price.input-usd-per-million:0.05}") double smallInput,
                                        @Value("${app.groq.small-price.output-usd-per-million:0.08}") double smallOutput,
+                                       @Value("${app.groq.provider:groq}") String provider,
                                        @Value("${app.llm.small-purposes:}") String smallPurposes) {
         Collection<String> purposes = parsePurposes(smallPurposes);
-        LOG.log(Level.INFO, "small model {0} handles: {1}", smallModel, purposes);
+        LOG.log(Level.INFO, "primary LLM: {0} ({1}); small model {2} handles: {3}",
+                provider, model, smallModel, purposes);
+        /*
+          The label is configurable because this client is not Groq-specific — it speaks
+          OpenAI's chat-completions shape and the fallback tier already points the same
+          class at DeepSeek. Pointing the PRIMARY tier elsewhere used to leave the name
+          behind: every step would have read `groq:deepseek-v4-flash` on screen, which is
+          a provider that does not exist. The name of who answered is the one thing the
+          cost columns rest on.
+        */
         return new GroqLlmClient(pool, transport, baseUrl, model, input, output, smallModel, groqSmallKeyPool,
-                "groq", smallInput, smallOutput, purposes);
+                provider, smallInput, smallOutput, purposes);
     }
 
     /**
