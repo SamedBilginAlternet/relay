@@ -137,7 +137,7 @@ public class ToolAgent {
                 LlmPurpose.SUMMARIZE,
                 "You are a Relay agent. Answer the step using the goal and the previous results. Be brief.",
                 "GOAL:\n" + run.goal() + "\n\nSTEP: " + step.title()
-                        + "\n\nPREVIOUS RESULTS:\n" + Json.preview(previousResults(run, step), 2000),
+                        + "\n\nPREVIOUS RESULTS:\n" + Json.preview(previousResults(run, step), 6000),
                 null,
                 Map.of("goal", run.goal(), "step", step.title()));
         LlmResponse response = llm.complete(request);
@@ -280,7 +280,7 @@ public class ToolAgent {
         if (tool.risk() == com.relay.domain.RiskLevel.READ) {
             return null;
         }
-        String haystack = (run.goal() + " " + Json.preview(previousResults(run, step), 4000)
+        String haystack = (run.goal() + " " + Json.preview(previousResults(run, step), 6000)
                 + " " + (connection == null ? "" : String.join(" ", connection.config().values())))
                 .toLowerCase(Locale.ROOT);
 
@@ -349,7 +349,7 @@ public class ToolAgent {
         if (!params.isObject()) {
             return null;
         }
-        String haystack = (run.goal() + " " + Json.preview(previousResults(run, step), 4000)
+        String haystack = (run.goal() + " " + Json.preview(previousResults(run, step), 6000)
                 + " " + (connection == null ? "" : String.join(" ", connection.config().values())))
                 .toLowerCase(Locale.ROOT);
 
@@ -831,7 +831,7 @@ public class ToolAgent {
                             + "\n\nPARAM SCHEMA:\n" + tool.schema().toString()
                             + settings(connections.findByProvider(tool.provider()).orElse(null))
                             + "\n\nDRAFT PARAMS:\n" + draft
-                            + "\n\nPREVIOUS RESULTS:\n" + Json.preview(previous, 2000)
+                            + "\n\nPREVIOUS RESULTS:\n" + Json.preview(previous, 6000)
                             + (step.lastProviderError() == null ? ""
                                     : "\n\nThe last attempt was rejected by the provider: " + step.lastProviderError()
                                             + "\nFix the parameters accordingly — the provider's message"
@@ -921,6 +921,28 @@ public class ToolAgent {
         return merged;
     }
 
+    /**
+     * How much of any ONE prior step's result reaches a prompt.
+     *
+     * <p>Per item, not only in total — and that distinction was a live incident
+     * (2026-08-01, run f51067e7, #174). The Günü kapat flow read ten mails (≈2.9k chars of
+     * result), then opened KAN-31. The Slack step's PREVIOUS RESULTS block was previewed
+     * with one overall 2000-char cap, which ended mid-mail: the Jira result — carrying the
+     * one fact the step existed to announce, {@code issueKey: KAN-31} — never reached the
+     * model. It answered, honestly on what it saw, "Jira kaydı anahtarı bulunamadı" and
+     * skipped; Sheets followed for the same reason. The oldest step's bulk had crowded out
+     * the newest step's result, and the newest result is precisely what a chain needs.
+     *
+     * <p>An item that FITS keeps its structure — the stub's parameter synthesis and any
+     * schema-shaped reading depend on real JSON, and flattening a small result to an
+     * escaped string broke both for 8 characters' difference. Only an oversized item is
+     * clipped to text, head kept, because a read's first rows are its most relevant ones.
+     * 900 covers every single-record projection in the fixture set (largest: a read mail
+     * at 608 chars) with room; bulk reads (a mailbox page is 1.3–3k) are the ones meant
+     * to be clipped.
+     */
+    private static final int RESULT_PREVIEW = 900;
+
     private List<Map<String, Object>> previousResults(Run run, Step step) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Step other : run.steps()) {
@@ -931,7 +953,10 @@ public class ToolAgent {
             item.put("step", other.ordinal());
             item.put("title", other.title());
             item.put("tool", other.toolName());
-            item.put("result", other.result());
+            String raw = Json.write(other.result());
+            item.put("result", raw.length() <= RESULT_PREVIEW
+                    ? other.result()
+                    : raw.substring(0, RESULT_PREVIEW) + "…");
             out.add(item);
         }
         return out;
