@@ -1,4 +1,4 @@
-import { History, MessageSquare, Plug, Search, ShieldCheck, Sun } from 'lucide-react';
+import { BarChart3, History, MessageSquare, Plug, Search, ShieldCheck, Sun } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
 import type { Route } from '../lib/router';
@@ -15,6 +15,7 @@ const ITEMS: { hash: string; label: string; match: Route['name'][]; Icon: Lucide
   { hash: '#/history', label: 'Geçmiş', match: ['history', 'history-detail'], Icon: History },
   { hash: '#/connections', label: 'Bağlantılar', match: ['connections'], Icon: Plug },
   { hash: '#/politikalar', label: 'Politikalar', match: ['policies'], Icon: ShieldCheck },
+  { hash: '#/panel', label: 'Panel', match: ['panel'], Icon: BarChart3 },
 ];
 
 export function AppHeader({ route, onNavigate }: Props) {

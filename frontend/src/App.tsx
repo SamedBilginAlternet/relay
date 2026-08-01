@@ -6,6 +6,7 @@ import { AuthGate } from './screens/AuthGate';
 import { ChatScreen } from './screens/ChatScreen';
 import { ConnectionsScreen } from './screens/ConnectionsScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
+import { PanelScreen } from './screens/PanelScreen';
 import { PolicyScreen } from './screens/PolicyScreen';
 import { RunDetailScreen } from './screens/RunDetailScreen';
 import { TodayScreen } from './screens/TodayScreen';
@@ -47,6 +48,7 @@ export default function App() {
           )}
           {route.name === 'connections' && <ConnectionsScreen />}
           {route.name === 'policies' && <PolicyScreen />}
+          {route.name === 'panel' && <PanelScreen />}
         </main>
       </div>
     </AuthGate>

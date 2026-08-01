@@ -1,0 +1,364 @@
+/* ------------------------------------------------------------------ */
+/* Akış paneli (#/panel)                                               */
+/*                                                                     */
+/* Imported by PanelScreen.tsx, not by global.css: the panel is one     */
+/* screen among many and its rules have no business loading for the    */
+/* others. Every token below comes from global.css — DESIGN.md §1.     */
+/*                                                                     */
+/* Motion: transform and opacity only, and every animation is switched */
+/* for a short fade under `prefers-reduced-motion` (DESIGN.md §4).     */
+/* ------------------------------------------------------------------ */
+
+.panel-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-12);
+  padding: var(--s-12);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-subtle);
+}
+.panel-range__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+}
+/* 44px minimum target — the range switch is the control this screen is driven by. */
+.panel-range__preset {
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 160ms ease-out, background-color 160ms ease-out, transform 160ms ease-out;
+}
+.panel-range__preset:hover {
+  border-color: var(--accent-line);
+}
+.panel-range__preset:active {
+  transform: scale(0.97);
+}
+.panel-range__preset[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+.panel-range__custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+  margin-left: auto;
+}
+.panel-range__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.panel-range__field input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+}
+.panel-range__field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.panel-skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+
+/* --- summary tiles ------------------------------------------------- */
+
+.panel-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-12);
+}
+.panel-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: var(--s-16);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.panel-kpi__value {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.panel-kpi__hint {
+  font-size: 12px;
+  color: var(--fg-muted);
+  /* long ranges wrap instead of pushing the card wider — no horizontal scroll */
+  overflow-wrap: anywhere;
+}
+
+.panel-two {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--s-12);
+  align-items: start;
+}
+.panel-card {
+  gap: var(--s-12);
+  min-width: 0;
+}
+.panel-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+}
+
+/* --- hand-drawn bars ----------------------------------------------- */
+
+.panel-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  min-width: 0;
+}
+.panel-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-12);
+  min-height: 28px;
+}
+.panel-bar__label {
+  font-size: 13px;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-bar__track {
+  width: 100%;
+  height: 8px;
+  display: block;
+}
+.panel-bar__value {
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+.panel-bars__caption {
+  margin-top: var(--s-4);
+}
+/* fill-box keeps the origin on the bar itself, not on the whole viewBox */
+.panel-bar__fill {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: panel-grow 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--panel-delay, 0ms);
+}
+
+@keyframes panel-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* --- hand-drawn ring ----------------------------------------------- */
+
+.panel-donut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-12);
+}
+.panel-donut__ring {
+  position: relative;
+  width: 168px;
+  max-width: 100%;
+}
+.panel-donut__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  /* the first slice starts at 12 o'clock, like a clock face */
+  transform: rotate(0deg);
+}
+.panel-donut__arc {
+  animation: panel-fade 260ms ease-out both;
+  animation-delay: var(--panel-delay, 0ms);
+}
+.panel-donut__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  pointer-events: none;
+}
+.panel-donut__center strong {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.panel-donut__center span {
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.panel-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.panel-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  font-size: 13px;
+}
+.panel-legend__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.panel-legend__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--fg-muted);
+}
+.panel-legend__value {
+  font-weight: 600;
+}
+
+@keyframes panel-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* --- reject reasons ------------------------------------------------ */
+
+.panel-rejects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+/*
+  Every reason is a door back to the run it came from. That is the whole point
+  of the list: a sentence nobody can check is an anecdote, and the audit trail
+  is one click away.
+*/
+.panel-reject {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 44px;
+  padding: var(--s-12);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--r-btn);
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 160ms ease-out, transform 160ms ease-out;
+}
+.panel-reject:hover {
+  background: var(--bg-subtle);
+}
+.panel-reject:active {
+  transform: scale(0.995);
+}
+.panel-reject__reason {
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.panel-reject__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-12);
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.panel-reject__step {
+  font-weight: 600;
+  color: var(--fg);
+}
+.panel-reject__goal {
+  font-size: 12px;
+  color: var(--fg-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- narrow viewports ---------------------------------------------- */
+
+@media (max-width: 860px) {
+  .panel-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .panel-two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .panel-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .panel-range__custom {
+    margin-left: 0;
+  }
+  .panel-bar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .panel-bar__value {
+    justify-self: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-bar__fill,
+  .panel-donut__arc {
+    animation: panel-fade 120ms ease-out both;
+    animation-delay: 0ms;
+  }
+  .panel-range__preset:active,
+  .panel-reject:active {
+    transform: none;
+  }
+}

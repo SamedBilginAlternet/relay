@@ -8,6 +8,7 @@ export type Route =
   | { name: 'history-detail'; runId: string }
   | { name: 'connections' }
   | { name: 'policies' }
+  | { name: 'panel' }
   | { name: 'login' }
   | { name: 'register' }
   | { name: 'onboarding' };
@@ -21,6 +22,8 @@ export function parseHash(hash: string): Route {
   if (parts[0] === 'connections') return { name: 'connections' };
   // `#/politikalar` is the per-tool rule table: auto / ask / forbidden.
   if (parts[0] === 'politikalar') return { name: 'policies' };
+  // `#/panel` counts what already happened; it never starts anything.
+  if (parts[0] === 'panel') return { name: 'panel' };
   // `#/sor` reads the mailbox and answers; it never runs a tool, so it is not `#/sohbet`.
   if (parts[0] === 'sor') return { name: 'ask' };
   if (parts[0] === 'giris') return { name: 'login' };
