@@ -267,3 +267,21 @@ Demodan **30 dakika önce** başla; her maddeyi sırayla işaretle.
 ---
 
 *İlgili dokümanlar: [PRD](PRD.md) · [Mimari](ARCHITECTURE.md) · [Tasarım](DESIGN.md)*
+
+## 6. Canlı kanıt — 1 Ağustos uçtan uca koşusu
+
+Demo anlatısı slayta değil, o gün gerçekten koşmuş akışa dayanır. "Günü kapat"
+(`gunu-kapat`, #172) canlıda uçtan uca geçti; izler sahnede "daha önce yapılmış işin
+kanıtı" olarak açılabilir:
+
+| yüzey | iz |
+|---|---|
+| Jira | `KAN-32` — "Ödeme adımında 'işlem tamamlanamadı' hatası — Sipariş R-44W-VG2" |
+| Slack | `#all-samed`: "Müşteri şikayeti için Jira kaydı açıldı: KAN-32 (…R-44W-VG2)" |
+| Notion | Relay Kayıtlar → "Karar: Ödeme hatası şikayeti için Jira kaydı açıldı (KAN-32)" |
+| Sheets | Relay Rapor `Sayfa1!A1:D1`: `2026-08-01 · konu · KAN-32 · Açık` |
+
+Bir okuma, dört kapı, dört onay — **23.166 token, $0,0041**. Ardından "Tablo özeti"
+akışı aynı satırı geri okuyup Slack'e doğru özetledi (3.743 token, $0,0008): yazdığını
+okuyabilen sistem. İzin akışı da aynı akşam boş ön koşulu üç gerekçeli atlamayla,
+hiçbir şey yazmadan kapattı ($0,0012) — "boş gün" sorusunun canlı cevabı.

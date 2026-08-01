@@ -130,3 +130,31 @@ mod üründe fiilen çalışmıyor. İkincisi: kayıtlı olsaydı bile varsayıl
 `forbidden` olurdu ve `PolicyEngine` yıkıcı bir aracın `auto` yapılmasını API
 seviyesinde reddeder; gevşetmenin sınırı `ask`tır, yani araya her zaman bir insan girer.
 Kayıtlı olmayan araç adları da (halüsinasyon dahil) otomatik `forbidden` döner.
+
+**16. "Bunu uçtan uca gerçekten çalıştırdınız mı, yoksa slayt mı?"**
+
+Çalıştırdık ve izleri duruyor: 1 Ağustos akşamı "Günü kapat" akışı gerçek bir müşteri
+şikayeti mailini okudu, KAN-32'yi açtı, Slack kanalına kayıt anahtarıyla bildirdi,
+Notion karar kütüğüne gerekçeli sayfayı yazdı ve günlük rapor tablosuna satırı ekledi —
+bir okuma, dört ayrı onay kapısı, 23.166 token, $0,0041. Sonra "Tablo özeti" akışı aynı
+satırı `sheets.readRange` ile geri okuyup doğru özetledi: sistem yazdığını okuyabiliyor.
+Jüri isterse Jira/Slack/Notion/Sheets'te dört izi de canlı gösteririz.
+
+**17. "İnsan yanlış bir şeyi onaylarsa ne olur?"**
+
+Oldu, ve tam da tasarımın öngördüğü gibi: bir test sırasında planlayıcı "Notion'a not
+ekle" hedefinden yanlış aracı türetti (`jira.updateIssue` — nottaki "KAN-32" ve
+"tamamlandı" kelimelerini eşleştirdi), kapı bunu **dosdoğru gösterdi** ve onaylayan
+taraf okumadan geçtiği için KAN-32 kapandı. Ders: kapı asla yalan söylemedi — gösterdiği
+şey birebir gönderilen şeydi; sorumluluğu okuyana bırakmak ürünün bilinçli sözleşmesi.
+Geri alma da aynı yoldan oldu: yeni bir akış, yeni bir kapı, durum tekrar Yapılacaklar.
+Yıkıcı işlemler bu senaryoda bile imkânsız: o risk seviyesinde kayıtlı araç yok.
+
+**18. "Hiç iş yoksa ne oluyor — yine de bir şeyler mi uyduruyor?"**
+
+Hayır, ve bunun canlı kanıtı var: izin akışı, son haftada izin maili yokken üç yazma
+adımının üçünü de kendi Türkçe gerekçesiyle atladı ("Son bir hafta içinde ekipten gelen
+izin talebi maili bulunamadı"), sıfır kapı açtı, hiçbir şey yazmadı ve dürüstçe
+Tamamlandı kapandı — $0,0012. Boş ön koşul bir hata değil, gerçek bir cevaptır; atlama
+gerekçesi ekranda yüksek sesle durur ki yanlış bir atlama asla saklanamasın
+(ARCHITECTURE.md §4/15).

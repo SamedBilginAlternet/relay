@@ -18,8 +18,8 @@
 --accent-soft  #F3EEFD   seçili satır, rozet zemini
 --accent-line  #DDD0F7   vurgu kenarlığı
 
---info         #2563EB   okuma adımı
---warn         #B45309   onay bekleyen (amber-700, beyaz üstünde AA)
+--info         #2563EB   okuma adımı · seçim (seçili sekme çizgisi/etiketi, sekme sayaçları — #151)
+--warn         #B45309   sana takılan iş: onay bekleyen durum, kapı, bekleyen kart (amber-700, beyaz üstünde AA)
 --success      #15803D   tamamlanan
 --danger       #DC2626   hata / red
 ```

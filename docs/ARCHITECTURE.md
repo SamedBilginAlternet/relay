@@ -141,7 +141,7 @@ JSON şeması, kendi model katmanı ve kendi çıktı-token tavanı var. Tek dev
 | Amaç (`LlmPurpose`) | İstemin yeri | Ne soruyor | Şema | Katman | Tavan |
 |---|---|---|---|---|---|
 | `PLAN` | `Planner.systemPrompt()` `Planner.java:199` (çağrı `:76`) | Hedef → sıralı adımlar, araç + parametre taslağı | var (`:235`) | güçlü | **3600** |
-| `TOOL_PARAMS` | `ToolAgent.finaliseParams` `ToolAgent.java:720` (çağrı `:762`) | Aracın şemasına uyan kesin parametreler | aracın şeması | güçlü | 1400 |
+| `TOOL_PARAMS` | `ToolAgent.finaliseParams` `ToolAgent.java:775` (model çağrısı `:845`) | Aracın şemasına uyan kesin parametreler — ya da ön koşul boşsa `{skip, reason}` alternatifi (§4/15) | aracın şeması (`anyOf` ile skip) | güçlü | 1400 |
 | `VERIFY` | `Verifier.verify` `Verifier.java:64-71` (çağrı `:80`) | Sonuç adımın hedefini karşıladı mı | `{pass, reason}` (`:112`) | küçük | 1400 |
 | `SUMMARIZE` | `Summarizer.java:50-64` (çağrı `:77`; araçsız adım için ikinci çağıran `ToolAgent.reason` `ToolAgent.java:135`) | Akış bitti, ne oldu — en fazla üç cümle | yok | küçük | 1400 |
 | `INSIGHT` | `InsightService.java:261` (çağrı `:132`) | Bir mail/kayıt ne, ne kadar acil, ne yapılabilir | var | güçlü | **3600** |
@@ -242,33 +242,37 @@ düzeltilmez — düşürülür, durdurulur ya da insana geri götürülür.**
 Araç şemasına uymayan parametre sağlayıcıya hiç gitmez; boş string "required" alanı
 karşılamaz. `minItems` sonradan eklendi (`:96-98`): boş bir dizi "required"ı
 tatmin eder — canlıda hücresiz bir Sheets satırı *hiçbir şey yazmayan bir yazma* olarak
-başarıyla dönmüştü (`SheetsTool.java:115` bunu ilan eden tek şema).
+başarıyla dönmüştü (`SheetsTool.java:115` bunu ilan eden tek şema). `maxLength` de aynı
+yoldan geldi (`SchemaValidator.java:127`): sağlayıcının kendi tavanını şema söylemeyince
+kapı, Jira'nın 255'te keseceği bir başlığı insana **üç kez** onaylattı ve Jira üç kez
+HTTP 400 dedi. Kapının sözleşmesi gösterdiğinin gönderilebilir olmasıdır; Jira'nın
+sınırı artık şemada beyan (`jira.createIssue`, 255).
 
-**2 · Uydurulmuş kimlik — `ToolAgent.ungroundedIdentifier`** (`ToolAgent.java:271`).
+**2 · Uydurulmuş kimlik — `ToolAgent.ungroundedIdentifier`** (`ToolAgent.java:286`).
 "Bunu kapat" denince planlayıcı `issueKey: RELAY-1` uydurdu; Jira 404 verdi — şanslı
 sonuç, o anahtar dolu bir tenant'ta yabancının kaydıydı. Yazma adımındaki
 `*key/*id/*number` alanı hedefte, önceki adım sonuçlarında veya bağlantı ayarlarında
-kelime sınırıyla geçmiyorsa (`mentions`, `:480` — `KAN-1`, `KAN-10`'un içinde saymaz)
+kelime sınırıyla geçmiyorsa (`mentions`, `:511` — `KAN-1`, `KAN-10`'un içinde saymaz)
 adım durur. Koordinatör bunu ölüm değil onarım sayar: `insertLookupBefore`
 (`Coordinator.java:516`) aynı sağlayıcının en ucuz arama adımını plana **görünür
 şekilde** ekler, uydurulan anahtarı siler (`withoutIdentifiers`, `ToolAgent.java:168`)
 ve yazma onaylıysa onayı da temizler.
 
-**3 · Kap doğrulama — `ToolAgent.groundContainers`** (`ToolAgent.java:340`).
+**3 · Kap doğrulama — `ToolAgent.groundContainers`** (`ToolAgent.java:356`).
 Bir akış sırayla `#genel`, `C046F7R6UE9`, `#general` kanallarına yazmayı denedi — üç
 makul uydurma, üç `channel_not_found` — bağlantıda `defaultChannel=#all-samed` dururken.
 Kayıt anahtarının aksine kabın güvenli cevabı var: doğrulanamayan `projectKey/channel/
-repo/parentDatabaseId/spreadsheetId/sheetName` (`CONTAINER_FIELDS`, `:459`)
+repo/parentDatabaseId/spreadsheetId/sheetName` (`CONTAINER_FIELDS`, `:490`)
 bağlantıdaki varsayılana çevrilir ve bu **onaydan önce** olur — onaylanan parametre
 gönderilen parametredir.
 
-**4 · Eksik zorunlu kap — `ToolAgent.withConfiguredContainers`** (`ToolAgent.java:407`).
+**4 · Eksik zorunlu kap — `ToolAgent.withConfiguredContainers`** (`ToolAgent.java:423`).
 Üçüncü kapı yalnız *yanlış* kabı düzeltiyordu; alan hiç yoksa kimse bakmıyordu. Canlıda
 (2026-08-01) bağlantıda `projectKey=KAN` yazarken koşu `$.projectKey is required` ile
 öldü — ve bir insana, bu hatayla ölecek taslak onaylatılmıştı. Artık şemanın **required**
 saydığı boş kap bağlantıdan doldurulur; isteğe bağlı kap doldurulmaz (yokluğu "her yerde
 ara" demektir) ve içerik alanları asla doldurulmaz — `summary` üretilemediyse bu bir
-başarısızlıktır, hedef metni başlık diye ödünç alınmaz (`:389-405`).
+başarısızlıktır, hedef metni başlık diye ödünç alınmaz (`:405-421`).
 
 **5 · Çözülmemiş yer tutucu — `ToolAgent.unresolvedPlaceholder`** (`ToolAgent.java:210`,
 işaretler `application/text/Placeholder.java:20`). Slack'e kanal olarak
@@ -280,14 +284,18 @@ Kapıda insanın yazdığı değer için de aynısı geçerli (`RunService.apply
 `RunService.java:373-377`).
 
 **6 · Şablon/boş içerik — `Filler.looksLikeFiller` + `ToolAgent.emptyContent`**
-(`application/text/Filler.java:39-50`, `ToolAgent.java:241`). Canlıda Slack'e şu
+(`application/text/Filler.java:39-50`, `ToolAgent.java:256`). Canlıda Slack'e şu
 düştü: *"Relay özeti — … Adımlar Relay tarafından yürütüldü; ayrıntılar zaman
 çizelgesinde."* Okuyan hiçbir şey öğrenmedi. İnsan okuyacak alanlar
-(`text/message/body/comment/description`) bilinen kalıplara taranır; eşleşen mesaj
-gönderilmez. Kapı kasıtlı aptal: kaliteyi yargılamaz, kalıp eşler.
+(`text/message/body/comment/description/content/summary/title` — `HUMAN_TEXT_FIELDS`,
+`ToolAgent.java:242`) bilinen kalıplara taranır; eşleşen mesaj gönderilmez. Kapı kasıtlı
+aptal: kaliteyi yargılamaz, kalıp eşler. Liste iki kez olaydan sonra büyüdü: `content`
+Notion/Confluence/Docs gövdesiyle geldi, `summary`/`title` ise stub'ın "Sonuç
+bulunamadı: <hedef>" işaretini bir Jira **başlığına** yazmasıyla — kapının zaten
+tanıdığı kalıp, kapının okumadığı tek alanda duruyordu ve üç kez onaya çıktı.
 
 **7 · Gönderilemez taslak kapıya gelmez — `Coordinator.rewriteBeforeAsking`**
-(`Coordinator.java:270-283, 486`; `ToolAgent.unpresentable` `ToolAgent.java:580`). Canlı ölçüm
+(`Coordinator.java:270-283, 486`; `ToolAgent.unpresentable` `ToolAgent.java:635`). Canlı ölçüm
 (2026-08-01 16:18, "Maili işe çevir" playbook'u): `projectKey`'siz ve `summary`'siz bir
 `jira.createIssue` onaya sunuldu, isimle onaylandı, araç tam o eksik alanlar için
 reddetti ve **aynı gönderilemez taslak aynı insana geri geldi** — onay kartında
@@ -356,6 +364,35 @@ alıntılanmaz — sağlayıcılar reddettikleri kimliği oraya yankılar (`:77-
 token o şekliyle veritabanında *var olabildiği anda* eklenir, ilk sızıntıda değil:
 `ntn_` Notion aracından önce, sağlayıcıyla birlikte girdi.
 
+**15 · Boş ön koşul atlanır, uydurulmaz — skip sözleşmesi** (#168;
+`SKIP_INSTRUCTION` `ToolAgent.java:693`, gerekçe şekli `presentableSkipReason` `:713`,
+`Coordinator.skipStep` `Coordinator.java:631`). Canlı transkript (17:36): hedef
+"iş talebi ya da hata bildirimi **olanlar için** kayıt aç" diyordu, doğrulayıcı 1.
+adımda hiçbirinin olmadığını yazdı — ve 2. adım yine de Jira parametresi üretmeye
+çalışıp öldü. Artık parametreleri önceki sonuçlardan türeyen adıma açık bir kaçış
+kapısı verilir: koşulu sağlayan hiçbir şey yoksa model parametre yerine
+`{"skip": true, "reason": "<neyin arandığı ve bulunamadığı>"}` cevaplar; adım
+`SKIPPED` kapanır, gerekçe jurnale ve ekrana **yüksek sesle** yazılır (yanlış atlama
+saklanamaz), bağımlı adımlar aynı mekanizmayla doğal kaskad yapar (atlama kaydı bir
+sonraki adımın ÖNCEKİ SONUÇLAR'ına girer) ve koşu dürüstçe `DONE` kapanır. İki fren:
+şekli tutmayan gerekçe (#155 yoluna düşer) ve önceki sonucu olmayan adımda skip kabul
+edilmez — atlamak, içerik yazmaktan kaçmanın yolu değildir. Canlı kanıt: izin akışı,
+talep yokken üç yazma adımını üç ayrı Türkçe gerekçeyle atlayıp 0 kapı açtı.
+
+**16 · Zincir görüşü — kalem başına önceki-sonuç bütçesi** (#174;
+`RESULT_PREVIEW`/`clipped` `ToolAgent.java:940-993`). Kapı değil, kapılara giden gözün
+bütünlüğü. Canlı koşu `f51067e7`: 10 mail (~2,9k karakter) okundu, KAN-31 açıldı — ve
+Slack adımı "Jira kaydı anahtarı bulunamadı" diye kendini atladı, çünkü ÖNCEKİ
+SONUÇLAR tek bir genel 2000 karakter kesitiyle kırpılıyordu ve kesit maillerin
+ortasında bitmişti: KAN-31'i taşıyan sonuç isteme hiç ulaşmamıştı. Model, gördüğü
+üzerinden dürüsttü; girdisi sakattı. Artık her önceki adımın sonucu kendi bütçesine
+tabidir: sığan kalem **yapısını korur** (stub'ın sentezi ve dayanak taraması gerçek
+JSON okur — metne düzleştirilen küçük sonuç ikisini de kırdı ve testte yakalandı),
+taşan kalem yapısal kırpılır: uzun metin alanı 240'ta kesilir, kalabalık dizi 5
+öğede "… +N öğe daha" notuyla başlanır. En eski adımın hacmi, zincirin tam da
+ihtiyaç duyduğu en yeni sonucu bir daha dışarı itemez. Canlı kanıt: aynı akışın
+sonraki koşusunda Slack/Notion/Sheets üçü de KAN-32'yi taşıdı.
+
 Katalog dışında aynı ailedendir: erken reddin yazma kaskadı (`rejectedEarlier`,
 `Coordinator.java:608` — reddedilen adımın sonucunu duyuracak yazma çalışmaz), hiçbir
 şey koşmadan reddedilen koşunun `DONE` kapanamaması (`Coordinator.java:319-327`),
@@ -377,6 +414,8 @@ stateDiagram-v2
     RUNNING --> DONE: sonuç + denetçi geçti / denetlenemedi
     RUNNING --> FAILED: kapı ihlali · sağlayıcı hatası (denemeler bitti)
     RUNNING --> PENDING: sendBack — yazmada karar temizlenir, kapıya döner
+    PENDING --> SKIPPED: ön koşul boş — parametre turu gerekçeli vazgeçti (§4/15)
+    SKIPPED --> [*]
     PENDING --> REJECTED: erken red kaskadı / politika YASAK
     DONE --> [*]
     FAILED --> [*]
@@ -397,7 +436,7 @@ Kapının değişmezleri:
 2. **Onaylanan parametre == gönderilen parametre.** Kap düzeltmeleri onaydan *önce*
    yapılır (§4/3-4); kapıda insanın düzelttiği alanlar `paramsLocked` ile kilitlenir —
    ne model ne varsayılan doldurma üzerine yazar (`Step.java:43`,
-   `ToolAgent.java:725`); düzenleme şemadan geçmezse **400 + alan bazlı hata** ve adım
+   `ToolAgent.java:780`); düzenleme şemadan geçmezse **400 + alan bazlı hata** ve adım
    onayda kalır (`RunService.applyEdit:354-383`).
 3. **Bir onay bir deneme alır.** Adım kapı arkasına hangi yoldan dönerse dönsün
    (denetçi reddi, sağlayıcı hatası, plan onarımı) yazma adımının kararı temizlenir ve
@@ -464,7 +503,7 @@ izin defteri bir Google tablosudur). Politika satırı araç başına türetilir
 | İz kaydının tek yazarı? | `application/orchestrator/AgentJournal.java:25-30` |
 | Fixture/replay modu? | `infrastructure/tools/ToolsMode.java:6-19` · `FixtureStore.java:22` |
 | Kapanış özetinin kanıt kuralı? | `Summarizer.evidence` `Summarizer.java:145` |
-| Hazır akışlar (playbook)? | `application/playbook/Playbooks.java:14-110` |
+| Hazır akışlar (playbook)? | `application/playbook/Playbooks.java:14-205` — 8 akış; raf `gunu-kapat` (sahne akışı, #172) ile açılır, `izin-talepleri` (#169) İK hikâyesi |
 | Panel istatistikleri (premium karşılaştırma)? | `application/stats/PanelStatsRepository.java:169-178` · `infrastructure/persistence/JpaPanelStatsRepository.java:239-243` |
 
 ---
