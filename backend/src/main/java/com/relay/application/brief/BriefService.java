@@ -410,6 +410,9 @@ public class BriefService {
             boolean unread = message.path("unread").asBoolean(false);
             Map<String, Object> ref = new LinkedHashMap<>();
             ref.put("messageId", id);
+            // The handle a reply draft hangs on — without it gmail.createDraft can only
+            // start a new conversation next to the one it is answering.
+            ref.put("threadId", message.path("threadId").asText(id));
             ref.put("from", from);
             ref.put("subject", message.path("subject").asText(""));
             ref.put("snippet", message.path("snippet").asText(""));
@@ -543,10 +546,26 @@ public class BriefService {
     }
 
     /** {@code 2026-07-31T14:00:00+03:00} → {@code 14:00}. */
-    static String clockLabel(String isoStart) {
-        int t = isoStart == null ? -1 : isoStart.indexOf('T');
-        return t > 0 && isoStart.length() >= t + 6 ? isoStart.substring(t + 1, t + 6)
-                : (isoStart == null ? "" : isoStart);
+    /**
+     * The clock the user reads, in the user's own zone.
+     *
+     * <p>This used to slice the characters after the {@code T} straight out of the ISO
+     * string, which is the instant's UTC clock: a 05:00 Istanbul meeting was shown as
+     * "02:00". Google returns whatever offset the event carries, so the string can never be
+     * read as a local time — it has to be converted.
+     */
+    String clockLabel(String isoStart) {
+        if (isoStart == null || isoStart.isBlank()) {
+            return "";
+        }
+        try {
+            return java.time.OffsetDateTime.parse(isoStart).atZoneSameInstant(zone)
+                    .toLocalTime().toString().substring(0, 5);
+        } catch (RuntimeException e) {
+            // An all-day event is a plain date with no clock at all — nothing to show.
+            int t = isoStart.indexOf('T');
+            return t > 0 && isoStart.length() >= t + 6 ? isoStart.substring(t + 1, t + 6) : "";
+        }
     }
 
     /** Turkish relative time for the right-aligned meta text. */
