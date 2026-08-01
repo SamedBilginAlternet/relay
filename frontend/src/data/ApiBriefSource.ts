@@ -4,6 +4,8 @@ import type {
   BriefItem,
   BriefSection,
   BriefSectionStatus,
+  BriefHighlight,
+  BriefHighlightSource,
   BriefToday,
   InsightCard,
   InsightSource,
@@ -16,6 +18,7 @@ import type { BriefSource } from './BriefSource';
 const SOURCES: InsightSource[] = ['gmail', 'github', 'jira'];
 const URGENCIES: InsightUrgency[] = ['high', 'normal', 'low'];
 const STATUSES: BriefSectionStatus[] = ['ok', 'unavailable', 'error'];
+const HIGHLIGHT_SOURCES: BriefHighlightSource[] = ['gmail', 'jira', 'github', 'calendar'];
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -122,6 +125,22 @@ function asCount(value: unknown): number {
  * renders exactly what it rendered before. A headline is the one part that
  * cannot be reconstructed, so without it there is nothing to show.
  */
+/** A named item with no id could not be pointed at, and one with no label has
+ *  nothing to say — either way it is dropped rather than rendered half-blank. */
+function normalizeHighlight(raw: unknown): BriefHighlight | null {
+  const r = asRecord(raw);
+  const itemId = asString(r.itemId).trim();
+  const label = asString(r.label).trim();
+  if (!itemId || !label) return null;
+  const source = asString(r.source) as BriefHighlightSource;
+  return {
+    itemId,
+    label,
+    source: HIGHLIGHT_SOURCES.includes(source) ? source : 'gmail',
+    detail: asString(r.detail).trim(),
+  };
+}
+
 function normalizeToday(raw: unknown): BriefToday | null {
   const r = asRecord(raw);
   const headline = asString(r.headline).trim();
@@ -131,6 +150,11 @@ function normalizeToday(raw: unknown): BriefToday | null {
     headline,
     lines: Array.isArray(r.lines)
       ? r.lines.map((line) => asString(line).trim()).filter(Boolean)
+      : [],
+    highlights: Array.isArray(r.highlights)
+      ? r.highlights
+          .map(normalizeHighlight)
+          .filter((h): h is BriefHighlight => h != null)
       : [],
     counts: {
       inbox: asCount(c.inbox),

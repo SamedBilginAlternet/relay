@@ -73,6 +73,26 @@ export type BriefTodayCounts = {
   urgent: number;
 };
 
+/** Where a named item came from. Wider than `InsightSource`: a meeting can be named. */
+export type BriefHighlightSource = 'gmail' | 'jira' | 'github' | 'calendar';
+
+/**
+ * One item the day summary names instead of only counting.
+ *
+ * "1 mail bir kişiden geldi" says something is waiting without saying what, so
+ * the reader still has to go and look. Mailings are never named — they are not
+ * work — which is also why this list can be empty on a busy-looking inbox.
+ */
+export type BriefHighlight = {
+  /** The brief item this points at, so the screen can go to that row. */
+  itemId: string;
+  source: BriefHighlightSource;
+  /** What it is, in one phrase — a subject, an issue title, a meeting name. */
+  label: string;
+  /** Who it is from / what state it is in. May be empty. */
+  detail: string;
+};
+
 /**
  * The day in counted facts: arithmetic over what the providers already returned,
  * with no model involved.
@@ -87,6 +107,8 @@ export type BriefToday = {
   headline: string;
   /** Short counted phrases; empty on a quiet day. */
   lines: string[];
+  /** A few of the day's items by name. Empty when only mailings arrived. */
+  highlights: BriefHighlight[];
   counts: BriefTodayCounts;
 };
 

@@ -29,6 +29,39 @@ function buildBrief(): Brief {
         '4 kayıt üstünde',
         '3 PR ve issue sende',
       ],
+      /* The same rule the server follows: the first two mails from a person,
+         then the top record and the top pull request. `mail-4` is the automatic
+         cost report and never appears — a mailing is not work. Calendar is the
+         deliberately `unavailable` section below, so it contributes nothing,
+         which is exactly what a missing provider should look like here.
+         Every `itemId` is a row id from the sections further down: clicking one
+         has to land somewhere real. */
+      highlights: [
+        {
+          itemId: 'mail-1',
+          source: 'gmail',
+          label: 'Ödeme servisi staging’de patlıyor',
+          detail: `Ayşe Demir · ${at(9, 12)}`,
+        },
+        {
+          itemId: 'mail-2',
+          source: 'gmail',
+          label: 'Sprint demo kaydı ve notlar',
+          detail: `Deniz Aksoy · ${at(8, 40)}`,
+        },
+        {
+          itemId: 'KAN-42',
+          source: 'jira',
+          label: 'Ödeme retry politikası',
+          detail: 'KAN-42 · Blocked',
+        },
+        {
+          itemId: 'pr-128',
+          source: 'github',
+          label: 'retry/backoff for payment client',
+          detail: 'acme/payment-svc #128 · review istendi',
+        },
+      ],
       counts: {
         inbox: 4,
         inboxPersonal: 3,

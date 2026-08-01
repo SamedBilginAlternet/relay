@@ -13,7 +13,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PlaybookShelf, SectionPanel, SectionTile } from '../components/BriefSections';
 import type { SectionMeta } from '../components/BriefSections';
-import { InsightCardView } from '../components/InsightCardView';
+import { InsightCardView, SOURCE_META } from '../components/InsightCardView';
 import { PriorityRow } from '../components/PriorityRow';
 import { getBriefSource, RUN_SOURCE_KIND } from '../data';
 import { getPlaybookSource } from '../data/PlaybookSource';
@@ -22,7 +22,14 @@ import { formatDayMonth } from '../lib/format';
 import { enterProps, expandProps } from '../lib/motion';
 import { useRunStore } from '../store/runStore';
 import { EMPTY_SECTION } from '../types/brief';
-import type { Brief, BriefSectionKey, InsightCard, SuggestedAction } from '../types/brief';
+import type {
+  Brief,
+  BriefHighlight,
+  BriefHighlightSource,
+  BriefSectionKey,
+  InsightCard,
+  SuggestedAction,
+} from '../types/brief';
 
 type Props = { onNavigate: (hash: string) => void };
 
@@ -61,6 +68,22 @@ const SECTIONS: SectionMeta[] = [
 
 const EMPTY = EMPTY_SECTION;
 
+/* Same icons the cards use, so one thing never wears two faces on one screen.
+   `calendar` is the one the insight cards have no equivalent for — a meeting is
+   never an insight — and it borrows the tile's icon rather than inventing one. */
+const HIGHLIGHT_META: Record<BriefHighlightSource, { Icon: typeof Inbox; label: string }> = {
+  ...SOURCE_META,
+  calendar: { Icon: CalendarDays, label: 'Takvim' },
+};
+
+/** Which section owns a named item, so clicking it can open the right list. */
+const HIGHLIGHT_SECTION: Record<BriefHighlightSource, BriefSectionKey> = {
+  gmail: 'inbox',
+  jira: 'work',
+  github: 'code',
+  calendar: 'calendar',
+};
+
 /** Where the header badge went (issue: "canlı api yazısını sil"): the data
  *  source is a property of *the brief*, not of the whole product chrome. */
 const SOURCE_NOTE =
@@ -73,6 +96,7 @@ export function TodayScreen({ onNavigate }: Props) {
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [busy, setBusy] = useState<{ cardId: string; tool: string } | null>(null);
   const [openKey, setOpenKey] = useState<BriefSectionKey | null>(null);
+  const [focusItemId, setFocusItemId] = useState<string | null>(null);
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
   const [playbookPhase, setPlaybookPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   const [playbookError, setPlaybookError] = useState<string | null>(null);
@@ -201,6 +225,27 @@ export function TodayScreen({ onNavigate }: Props) {
     }
   };
 
+  /*
+    Where a named item takes you: its section panel, with the row marked.
+
+    The alternative was the priority list above, and it loses. The tally names
+    what ARRIVED; the priority list holds what the model chose to act on, and
+    the two are not the same set — a meeting is never in it, and neither is the
+    second mail on a busy morning. Sending half the chips to a row that is not
+    there is worse than sending all of them to the list that, by construction,
+    contains every one of them and links out to the real thing.
+  */
+  const openHighlight = (highlight: BriefHighlight) => {
+    setOpenKey(HIGHLIGHT_SECTION[highlight.source] ?? 'inbox');
+    setFocusItemId(highlight.itemId);
+  };
+
+  const toggleSection = (key: BriefSectionKey) => {
+    setOpenKey((cur) => (cur === key ? null : key));
+    // Opening a section by hand is a different intent — drop the old mark.
+    setFocusItemId(null);
+  };
+
   const loading = phase === 'loading';
   const refreshing = phase === 'refreshing';
   const showBody = brief != null || loading;
@@ -249,6 +294,41 @@ export function TodayScreen({ onNavigate }: Props) {
                       </span>
                     ))}
                   </p>
+                )}
+
+                {/*
+                  The counts say how much; these say what. Empty whenever only
+                  mailings arrived — a list of nothing named is not worth a row,
+                  and the count above already told that story honestly.
+                */}
+                {brief.today.highlights.length > 0 && (
+                  <ul className="tally__named">
+                    {brief.today.highlights.map((highlight) => {
+                      const meta = HIGHLIGHT_META[highlight.source] ?? HIGHLIGHT_META.gmail;
+                      return (
+                        <li key={`${highlight.source}:${highlight.itemId}`}>
+                          <button
+                            type="button"
+                            className="tally__item"
+                            onClick={() => openHighlight(highlight)}
+                          >
+                            <span className="tally__item-icon" aria-hidden>
+                              <meta.Icon size={13} />
+                            </span>
+                            <span className="tally__item-text">
+                              <span className="tally__item-label">{highlight.label}</span>
+                              {highlight.detail ? (
+                                <span className="tally__item-detail">{highlight.detail}</span>
+                              ) : null}
+                            </span>
+                            <span className="sr-only">
+                              {meta.label} — bölüm listesinde göster
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 )}
               </div>
             ) : null}
@@ -416,7 +496,7 @@ export function TodayScreen({ onNavigate }: Props) {
                     open={openKey === meta.key}
                     tileId={`tile-${meta.key}`}
                     panelId={`panel-${meta.key}`}
-                    onToggle={() => setOpenKey((cur) => (cur === meta.key ? null : meta.key))}
+                    onToggle={() => toggleSection(meta.key)}
                   />
                 ))}
               </div>
@@ -429,7 +509,11 @@ export function TodayScreen({ onNavigate }: Props) {
                       section={brief?.[openMeta.key] ?? EMPTY}
                       tileId={`tile-${openMeta.key}`}
                       panelId={`panel-${openMeta.key}`}
-                      onClose={() => setOpenKey(null)}
+                      focusItemId={focusItemId}
+                      onClose={() => {
+                        setOpenKey(null);
+                        setFocusItemId(null);
+                      }}
                       onGoToConnections={() => onNavigate('#/connections')}
                       onRetry={() => void load('refresh')}
                     />
