@@ -778,11 +778,18 @@ a.btn {
   transition: transform 160ms ease-out, border-color 160ms ease-out, background-color 160ms ease-out;
 }
 .suggestion:hover {
-  border-color: #d1d5db;
+  border-color: var(--accent-line);
   background: var(--bg-subtle);
+  box-shadow: 0 4px 16px rgba(17, 17, 17, 0.06);
+  transform: translateY(-1px);
 }
 .suggestion:active {
   transform: scale(0.99);
+}
+@media (prefers-reduced-motion: reduce) {
+  .suggestion:hover {
+    transform: none;
+  }
 }
 /* The tool call chain is a receipt, not a headline. At 12px muted it still read
    as the card's second line of copy — same rhythm, same importance — so the

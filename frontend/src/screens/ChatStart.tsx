@@ -19,10 +19,13 @@ type Props = {
   screens on the same nav are 1040px, so walking the nav slid the content column
   sideways.
 
-  So it is an application screen now, shaped like the other six: `page__inner
-  --app`, a 20px title, and the composer as the first thing under it. The
-  suggestions stay — they are how someone learns what to ask for — and the
-  56px `.t-display` scale belongs to whoever is not signed in yet.
+  Then it became an application screen shaped like the other six: composer at
+  top, examples under it. That fixed the marketing problem but traded away the
+  one thing this particular screen is for — it is where a person meets the
+  team before they have asked it anything. A form field at the top of a plain
+  page does not say that; a mark that is visibly alive, centred, with the
+  question underneath it and the keyboard already at the bottom where a hand
+  is about to be, does.
 */
 
 /*
@@ -61,41 +64,63 @@ const SUGGESTIONS: { text: string; tools: string }[] = [
 export function ChatStart({ onSubmit, busy = false, sourceKind }: Props) {
   return (
     <div className="page">
-      <div className="page__inner page__inner--app">
-        <div className="page__head">
-          <div className="page__head-text">
-            <h1 className="t-title">Sohbet</h1>
-            {/*
-              The heading, the box, the examples. What used to sit here was a paragraph
-              explaining what the product would do and promising that every write waits
-              for approval — copy that is read once, on the screen where there is nothing
-              yet to approve. The composer's placeholder says what to type; the gate says
-              what it costs, at the moment it costs it.
-            */}
-            {sourceKind === 'mock' && (
-              <p className="t-caption">Demo modu — senaryo canlı oynatılır, backend gerekmez.</p>
-            )}
+      <div className="chat-landing">
+        <div className="chat-landing__hero">
+          {/* aria-hidden: decorative — "Sohbet" and the question below already
+              name the screen for a screen reader. */}
+          <div className="chat-landing__mark-wrap" aria-hidden>
+            <span className="chat-landing__ring" />
+            <span className="chat-landing__ring chat-landing__ring--2" />
+            <span className="chat-landing__mark">
+              <svg viewBox="0 0 64 64" width="40" height="40">
+                <circle cx="17" cy="38" r="7" fill="currentColor" />
+                <rect
+                  x="20"
+                  y="23.5"
+                  width="24"
+                  height="8"
+                  rx="4"
+                  fill="currentColor"
+                  transform="rotate(-14 32 27.5)"
+                />
+                <circle cx="47" cy="20" r="7" fill="currentColor" />
+              </svg>
+            </span>
+          </div>
+
+          <h1 className="chat-landing__title">Ne yapmamı istersin?</h1>
+          {/*
+            What used to sit here was a paragraph explaining what the product would do
+            and promising that every write waits for approval — copy that is read once,
+            on the screen where there is nothing yet to approve. The composer's
+            placeholder says what to type; the gate says what it costs, at the moment
+            it costs it.
+          */}
+          {sourceKind === 'mock' && (
+            <p className="t-caption">Demo modu — senaryo canlı oynatılır, backend gerekmez.</p>
+          )}
+
+          <div className="chat-landing__suggestions">
+            <span className="t-label">Hazır örnekler</span>
+            <div className="suggestions">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s.text}
+                  type="button"
+                  className="suggestion"
+                  onClick={() => onSubmit(s.text)}
+                  disabled={busy}
+                >
+                  {s.text}
+                  <span className="suggestion__tools t-mono">{s.tools}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <Composer onSubmit={onSubmit} busy={busy} variant="landing" autoFocus />
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <span className="t-label">Hazır örnekler</span>
-          <div className="suggestions">
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s.text}
-                type="button"
-                className="suggestion"
-                onClick={() => onSubmit(s.text)}
-                disabled={busy}
-              >
-                {s.text}
-                <span className="suggestion__tools t-mono">{s.tools}</span>
-              </button>
-            ))}
-          </div>
+        <div className="chat-landing__composer">
+          <Composer onSubmit={onSubmit} busy={busy} variant="landing" autoFocus />
         </div>
       </div>
     </div>

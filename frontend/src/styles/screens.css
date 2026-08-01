@@ -1102,3 +1102,136 @@
     border-radius: 16px 16px 0 0;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Sohbet — before a flow exists                                       */
+/*                                                                     */
+/* The composer used to open the screen, top-left, with the examples   */
+/* stacked under it — correct for a form, wrong for the one screen     */
+/* whose whole job is "ask me anything". The mark centres instead: the */
+/* first thing read is what is listening, not a text box. The composer */
+/* stays where a hand already is by the time a sentence is chosen —    */
+/* the bottom of the screen — so writing and sending happen at the     */
+/* same place instead of at the top after a scroll up.                 */
+/* ------------------------------------------------------------------ */
+
+.chat-landing {
+  max-width: var(--page-w);
+  min-height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+.chat-landing__hero {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-24);
+  padding: var(--s-32) 0;
+  text-align: center;
+}
+
+/* Mark + halo. The halo is the same "ring blooms once" language as
+   `gate-arrived` (attention, not an alarm) run on a loop instead of a
+   single shot — idle-but-listening, which is what this screen is doing
+   before anyone has typed a word. transform + opacity only. */
+.chat-landing__mark-wrap {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+}
+.chat-landing__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  background: var(--accent);
+  opacity: 0;
+}
+.chat-landing__ring--2 {
+  animation-delay: 1.1s;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .chat-landing__ring {
+    animation: chat-mark-bloom 3.3s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  }
+  .chat-landing__mark {
+    animation: chat-mark-breathe 3.3s ease-in-out infinite;
+  }
+}
+@keyframes chat-mark-bloom {
+  0% {
+    transform: scale(0.82);
+    opacity: 0.3;
+  }
+  70%,
+  100% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+}
+@keyframes chat-mark-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+.chat-landing__mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 24px;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow), 0 10px 24px rgba(109, 40, 217, 0.2);
+}
+
+.chat-landing__title {
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: var(--fg);
+}
+
+.chat-landing__suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-12);
+  width: 100%;
+  max-width: 780px;
+  margin-top: var(--s-8);
+}
+.chat-landing__suggestions .suggestions {
+  width: 100%;
+}
+
+.chat-landing__composer {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  padding-bottom: var(--s-8);
+}
+
+@media (max-width: 640px) {
+  .chat-landing__hero {
+    padding: var(--s-24) 0;
+    gap: var(--s-16);
+  }
+  .chat-landing__mark-wrap,
+  .chat-landing__mark {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+  }
+}

@@ -99,17 +99,17 @@ afterEach(cleanup);
 it('a_signed_in_user_lands_on_the_ask_box_not_on_the_pitch', () => {
   const { container } = render(<ChatScreen />);
 
-  // The title is the application one, at the same 20px scale as the other six
-  // screens — the 56px display scale belongs to a page for strangers.
-  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Sohbet');
+  // The heading asks the question this screen exists to answer — not the old
+  // marketing headline, and not just the nav item's name repeated as a title.
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Ne yapmamı istersin?');
   expect(container.querySelector('.t-display')).toBeNull();
   expect(screen.queryByText(/Ekip yürütsün, sen izle/)).toBeNull();
 
-  // Same content container as Bugün, Geçmiş, Panel, Politikalar, Postana sor.
-  expect(container.querySelector('.page__inner.page__inner--app')).not.toBeNull();
+  // The centred landing shell, not the old 860px marketing container.
+  expect(container.querySelector('.chat-landing')).not.toBeNull();
   expect(container.querySelector('.landing__inner')).toBeNull();
 
-  // And the box that the screen exists for is present, above the examples.
+  // And the box that the screen exists for is present, along with the examples.
   expect(screen.getByLabelText('Yapılmasını istediğin iş')).not.toBeNull();
   expect(screen.getByText('Hazır örnekler')).not.toBeNull();
 });
