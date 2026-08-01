@@ -16,6 +16,8 @@
  * holding the state would be a second place the address could disagree with.
  */
 
+import type { ReactNode } from 'react';
+
 export type TabDef<T extends string> = {
   id: T;
   label: string;
@@ -27,6 +29,13 @@ export type TabDef<T extends string> = {
    * replaced, and a sentence nobody needs twice should not be on screen twice.
    */
   hint?: string;
+  /**
+   * A mark in front of the label, for a tab that names something with a mark of its own —
+   * Politikalar's provider tabs wear the provider's logo (#154). Decoration beside a word
+   * that is already written out, so it comes in `aria-hidden`; a tab that has nothing real
+   * to draw passes nothing rather than a stand-in glyph.
+   */
+  icon?: ReactNode;
 };
 
 type Props<T extends string> = {
@@ -70,6 +79,11 @@ export function TabStrip<T extends string>({
             title={tab.hint}
             onClick={() => onChoose(tab.id)}
           >
+            {tab.icon != null && (
+              <span className="tab__mark" aria-hidden>
+                {tab.icon}
+              </span>
+            )}
             {tab.label}
             {tab.count != null && tab.count > 0 && (
               <span className="tab__count t-mono">{tab.count}</span>

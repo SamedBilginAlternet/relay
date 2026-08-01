@@ -1,12 +1,8 @@
 import {
   Ban,
   Eye,
-  GitPullRequest,
   Hand,
-  Hash,
-  Mail,
   Pencil,
-  Plug,
   RefreshCw,
   RotateCcw,
   ShieldQuestion,
@@ -16,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { BrandMark, providerOf } from '../components/BrandMark';
+import type { Provider } from '../components/BrandMark';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EmptyState } from '../components/EmptyState';
 import { LoadError } from '../components/LoadError';
@@ -36,86 +33,147 @@ const RISKS: Record<RiskLevel, { label: string; Icon: LucideIcon }> = {
   destructive: { label: 'silme', Icon: Trash2 },
 };
 
-/** Same order as Bağlantılar, so the two screens read as one product. */
-const PROVIDER_ORDER = ['jira', 'github', 'slack', 'google'];
-const PROVIDERS: Record<string, { title: string; Icon: LucideIcon }> = {
-  jira: { title: 'Jira', Icon: Plug },
-  github: { title: 'GitHub', Icon: GitPullRequest },
-  slack: { title: 'Slack', Icon: Hash },
-  google: { title: 'Google — Gmail + Takvim', Icon: Mail },
-};
-
 function modeLabel(mode: PolicyMode): string {
   return MODES.find((m) => m.key === mode)?.label ?? mode;
 }
 
-/**
- * Which rule the table is filtered to, or all of them.
- *
- * <p>The screen used to draw a three-cell strip counting the modes — 12 / 6 / 0 — above a
- * table showing all eighteen rows at once. Nobody asks how many tools run unattended; they
- * ask which ones. The counts move onto the tabs, where the same three numbers select
- * something instead of only being read (#139).
- */
-export type PolicyTab = 'tumu' | 'otomatik' | 'onay' | 'yasak';
+/* ------------------------------------------------------------------ */
+/* The two questions the table is asked                                */
+/* ------------------------------------------------------------------ */
 
-/** The tab's own name in the address, and the mode it filters to. */
-const TABS: { id: PolicyTab; label: string; mode: PolicyMode | null }[] = [
-  { id: 'tumu', label: 'Tümü', mode: null },
-  { id: 'otomatik', label: 'Otomatik', mode: 'auto' },
-  { id: 'onay', label: 'Onay ister', mode: 'ask' },
-  { id: 'yasak', label: 'Yasak', mode: 'forbidden' },
+/**
+ * WHICH APP, and then WHICH RULE.
+ *
+ * <p>The tabs used to split by rule — `Tümü / Otomatik 12 / Onay ister 6 / Yasak`. Nobody
+ * walks up to this screen holding the number twelve. They walk up holding an app: "what can
+ * it do in Jira". So the app takes the tabs, wearing the app's own mark, and the rule
+ * becomes a filter *inside* the selected tab — one chip row in the table's head, not a
+ * second strip of tabs stacked on the first (#154).
+ *
+ * <p>`null` on either axis means "not filtered", and `Tümü` with no chip pressed is the
+ * whole table: eighteen rules, every one of them on screen at once. That is the state the
+ * height was cut to fit, because a rule table you have to scroll answers "what is this
+ * agent allowed to do" worse than a dense one you can take in whole.
+ */
+type ProviderTab = 'tumu' | string;
+
+/** Names for the providers we actually ship a tool for. */
+const PROVIDER_LABEL: Record<Provider, string> = {
+  jira: 'Jira',
+  gmail: 'Gmail',
+  calendar: 'Takvim',
+  github: 'GitHub',
+  slack: 'Slack',
+};
+
+/**
+ * Tab order, fixed by hand on purpose.
+ *
+ * <p>WHICH tabs exist is derived from the rows — see `providerTabs` — so a provider with no
+ * registered tool never gets one, and a provider added to the registry gets one for free.
+ * The ORDER cannot be derived: sorting by group size would make the strip rearrange itself
+ * every time somebody changes a rule, and a tab that moves is a tab you have to re-find.
+ *
+ * <p>Google is two families here, not one. `Gmail` and `Takvim` are separate tools with
+ * separate risks and they were sharing a band called "Google — Gmail + Takvim", which is a
+ * heading that answers neither question.
+ */
+const PROVIDER_ORDER: Provider[] = ['jira', 'gmail', 'calendar', 'github', 'slack'];
+
+/**
+ * The group a rule belongs to, read off the tool id.
+ *
+ * <p>`jira.createIssue` is already the answer; the row's `provider` field is not, because
+ * the server calls both Gmail and Calendar `google`. A tool id we do not recognise keeps
+ * its server-side provider so it still lands somewhere — it just gets a tab with no mark
+ * rather than a borrowed one.
+ */
+function groupOf(row: ToolPolicy): string {
+  return providerOf(row.toolName) ?? row.provider;
+}
+
+function groupLabel(group: string): string {
+  return PROVIDER_LABEL[group as Provider] ?? group;
+}
+
+function groupMark(group: string, size: number) {
+  const known = PROVIDER_ORDER.includes(group as Provider) ? (group as Provider) : null;
+  return known ? <BrandMark provider={known} size={size} /> : null;
+}
+
+function groupRank(group: string): number {
+  const index = PROVIDER_ORDER.indexOf(group as Provider);
+  return index < 0 ? PROVIDER_ORDER.length : index;
+}
+
+/* ------------------------------------------------------------------ */
+/* The address                                                         */
+/* ------------------------------------------------------------------ */
+
+/** `?kural=` names a mode; the ids are Turkish because the address is read by people. */
+const MODE_PARAM: { id: string; mode: PolicyMode }[] = [
+  { id: 'otomatik', mode: 'auto' },
+  { id: 'onay', mode: 'ask' },
+  { id: 'yasak', mode: 'forbidden' },
 ];
 
-/** What each rule does, on the control that selects it — see `TabDef.hint`. */
-function tabHint(mode: PolicyMode | null): string | undefined {
-  return mode ? MODES.find((m) => m.key === mode)?.hint : undefined;
-}
+export type PolicyView = { provider: ProviderTab; mode: PolicyMode | null };
 
 /**
- * A query, not a path segment, and the same shape Akışlar uses.
+ * Two queries, not a path segment, and the same shape Akışlar uses.
  *
- * <p>`#/politikalar/<x>` has no meaning in `parseHash` today, but giving the segment one
- * would make the router the second place that decides what this screen is.
+ * <p>`#/politikalar/<x>` has no meaning in `parseHash` today, and giving the segment one
+ * would make the router the second place that decides what this screen is. Both axes are
+ * optional and anything unreadable falls back to "not filtered" — a link that has rotted
+ * shows the whole table rather than an empty one.
+ *
+ * <p>`?kural=` is unchanged from when it selected a tab, so every link written before the
+ * provider tabs existed still opens the rule it opened.
  */
-export function tabFromHash(hash: string): PolicyTab {
+export function viewFromHash(hash: string): PolicyView {
   const query = hash.split('?')[1];
-  if (!query) return 'tumu';
-  const value = new URLSearchParams(query).get('kural');
-  return TABS.some((t) => t.id === value) ? (value as PolicyTab) : 'tumu';
+  if (!query) return { provider: 'tumu', mode: null };
+  const params = new URLSearchParams(query);
+  const provider = params.get('saglayici');
+  const kural = params.get('kural');
+  return {
+    provider: provider && provider !== 'tumu' ? provider : 'tumu',
+    mode: MODE_PARAM.find((m) => m.id === kural)?.mode ?? null,
+  };
 }
 
-export function hashForTab(tab: PolicyTab): string {
-  return tab === 'tumu' ? '#/politikalar' : `#/politikalar?kural=${tab}`;
+export function hashForView(view: PolicyView): string {
+  const parts: string[] = [];
+  if (view.provider !== 'tumu') parts.push(`saglayici=${view.provider}`);
+  const kural = MODE_PARAM.find((m) => m.mode === view.mode)?.id;
+  if (kural) parts.push(`kural=${kural}`);
+  return parts.length === 0 ? '#/politikalar' : `#/politikalar?${parts.join('&')}`;
 }
 
-/** The tab the address asks for, kept in step with the back button. */
-function useTabInHash(): [PolicyTab, (tab: PolicyTab) => void] {
-  const [tab, setTab] = useState<PolicyTab>(() =>
-    typeof window === 'undefined' ? 'tumu' : tabFromHash(window.location.hash),
+/** What the address asks for, kept in step with the back button. */
+function useViewInHash(): [PolicyView, (next: PolicyView) => void] {
+  const [view, setView] = useState<PolicyView>(() =>
+    typeof window === 'undefined'
+      ? { provider: 'tumu', mode: null }
+      : viewFromHash(window.location.hash),
   );
 
   useEffect(() => {
-    const onChange = () => setTab(tabFromHash(window.location.hash));
+    const onChange = () => setView(viewFromHash(window.location.hash));
     window.addEventListener('hashchange', onChange);
     return () => window.removeEventListener('hashchange', onChange);
   }, []);
 
-  const choose = useCallback((next: PolicyTab) => {
-    const hash = hashForTab(next);
+  const choose = useCallback((next: PolicyView) => {
+    const hash = hashForView(next);
     if (window.location.hash === hash) {
-      setTab(next);
+      setView(next);
       return;
     }
     window.location.hash = hash;
   }, []);
 
-  return [tab, choose];
-}
-
-function providerRank(provider: string): number {
-  const index = PROVIDER_ORDER.indexOf(provider);
-  return index < 0 ? PROVIDER_ORDER.length : index;
+  return [view, choose];
 }
 
 /**
@@ -134,16 +192,16 @@ export function PolicyScreen() {
   const [saveError, setSaveError] = useState<unknown>(null);
   const [busyTool, setBusyTool] = useState<string | null>(null);
   const [note, setNote] = useState('');
-  const [tab, choose] = useTabInHash();
+  const [view, choose] = useViewInHash();
   /*
     Tools whose rule was changed while a filter was on.
 
     A filter that drops the row the moment you change it is a filter that makes the change
-    look like it failed: press `Onay ister` on a row inside the `Otomatik` tab and the row
-    you were reading disappears from under the cursor. These stay put, wearing the rule they
-    moved to, until the tab changes or the table is reloaded. It is a ref rather than state
-    because the redraw is already coming from `setRows` — this only decides what that redraw
-    keeps.
+    look like it failed: press `Onay ister` on a row while the `Otomatik` chip is down and
+    the row you were reading disappears from under the cursor. These stay put, wearing the
+    rule they moved to, until the filter changes or the table is reloaded. It is a ref
+    rather than state because the redraw is already coming from `setRows` — this only
+    decides what that redraw keeps.
   */
   const moved = useRef<Set<string>>(new Set());
 
@@ -164,10 +222,10 @@ export function PolicyScreen() {
     void load();
   }, [load]);
 
-  // A tab is a fresh question; nothing is being held in place across it.
+  // A new question; nothing is being held in place across it.
   useEffect(() => {
     moved.current.clear();
-  }, [tab]);
+  }, [view.provider, view.mode]);
 
   const change = async (row: ToolPolicy, mode: PolicyMode) => {
     if (row.mode === mode || busyTool) return;
@@ -186,37 +244,67 @@ export function PolicyScreen() {
     }
   };
 
-  const counts = useMemo(() => {
-    const out: Record<PolicyMode, number> = { auto: 0, ask: 0, forbidden: 0 };
-    for (const row of rows ?? []) out[row.mode] += 1;
-    return out;
+  /** Every provider that has at least one registered tool, in the fixed order. */
+  const providerTabs = useMemo(() => {
+    const size = new Map<string, number>();
+    for (const row of rows ?? []) {
+      const group = groupOf(row);
+      size.set(group, (size.get(group) ?? 0) + 1);
+    }
+    return [...size.entries()]
+      .sort((a, b) => groupRank(a[0]) - groupRank(b[0]) || a[0].localeCompare(b[0], 'tr'))
+      .map(([group, n]) => ({ group, n }));
   }, [rows]);
 
-  const wanted = TABS.find((t) => t.id === tab)?.mode ?? null;
-  const shown = useMemo(
-    () =>
-      (rows ?? []).filter(
-        (row) => wanted == null || row.mode === wanted || moved.current.has(row.toolName),
-      ),
-    [rows, wanted],
+  /** Everything the selected provider tab holds, before the rule chips narrow it. */
+  const inTab = useMemo(
+    () => (rows ?? []).filter((row) => view.provider === 'tumu' || groupOf(row) === view.provider),
+    [rows, view.provider],
   );
 
-  const groups = useMemo(() => {
-    const byProvider = new Map<string, ToolPolicy[]>();
-    for (const row of shown) {
-      const list = byProvider.get(row.provider);
-      if (list) list.push(row);
-      else byProvider.set(row.provider, [row]);
-    }
-    return [...byProvider.entries()]
-      .sort((a, b) => providerRank(a[0]) - providerRank(b[0]) || a[0].localeCompare(b[0], 'tr'))
-      .map(([provider, tools]) => ({ provider, tools }));
-  }, [shown]);
+  /*
+    The three numbers that used to be a 12 / 6 / 0 strip above the table, and then the
+    counts on the rule tabs. They count what is in the tab you are in — on Jira the chip
+    says how many Jira tools ask, which is the question the tab put you there to ask.
+  */
+  const counts = useMemo(() => {
+    const out: Record<PolicyMode, number> = { auto: 0, ask: 0, forbidden: 0 };
+    for (const row of inTab) out[row.mode] += 1;
+    return out;
+  }, [inTab]);
+
+  const shown = useMemo(
+    () =>
+      inTab.filter(
+        (row) => view.mode == null || row.mode === view.mode || moved.current.has(row.toolName),
+      ),
+    [inTab, view.mode],
+  );
+
+  /* Sorted by provider then by name, so `Tümü` still reads as five blocks even though the
+     band headings are gone — the tool id is what carries the provider down the column. */
+  const listed = useMemo(
+    () =>
+      [...shown].sort(
+        (a, b) =>
+          groupRank(groupOf(a)) - groupRank(groupOf(b)) ||
+          groupOf(a).localeCompare(groupOf(b), 'tr') ||
+          a.toolName.localeCompare(b.toolName, 'tr'),
+      ),
+    [shown],
+  );
 
   const changed = useMemo(
     () => (rows ?? []).filter((r) => r.mode !== defaultModeFor(r.risk)),
     [rows],
   );
+
+  const tabLabel = view.provider === 'tumu' ? 'Tümü' : groupLabel(view.provider);
+  /* The rule that covers the tools that are NOT in this table. It belongs to no provider,
+     so it is drawn under `Tümü`; and it is a permanently forbidden row, so a chip claiming
+     "these run unattended" must not have it in the panel underneath. */
+  const showUnknownRule =
+    view.provider === 'tumu' && (view.mode == null || view.mode === 'forbidden');
 
   return (
     <div className="page">
@@ -260,145 +348,170 @@ export function PolicyScreen() {
 
         {loading && (
           <>
-            <div className="skeleton" style={{ height: 64 }} />
-            <div className="skeleton" style={{ height: 220, opacity: 0.6 }} />
-            <div className="skeleton" style={{ height: 180, opacity: 0.4 }} />
+            <div className="skeleton" style={{ height: 44 }} />
+            <div className="skeleton" style={{ height: 320, opacity: 0.6 }} />
           </>
         )}
 
         {!loading && rows && (
           <>
             {/*
-              The same three numbers, doing something. They used to be a strip of cells
-              above the table — 12 / 6 / 0 with a sentence each — and answered a question
-              nobody has: not "how many tools run unattended" but "which ones". On a tab
-              the number still says how big the group is and now also gets you into it.
+              An app per tab, wearing the app's own mark. The list is derived from the tool
+              ids that actually loaded, so it cannot name a provider we have no tool for,
+              and a provider added to the registry appears here without anyone editing a
+              list. The mark is the provider's trademark used referentially — see BrandMark.
 
-              Neutral, not amber. Amber on this product means a gate is holding something
-              for you; twelve tools running at their own default are holding nothing.
+              Neutral counters, no `tone` prop. Amber on this product means a gate is
+              holding something for you; seven Jira rules are holding nothing.
             */}
             <TabStrip
-              label="Kural listeleri"
-              current={tab}
-              onChoose={choose}
-              tabs={TABS.map((t) => ({
-                id: t.id,
-                label: t.label,
-                count: t.mode ? counts[t.mode] : null,
-                hint: tabHint(t.mode),
-              }))}
+              label="Sağlayıcılar"
+              current={view.provider}
+              onChoose={(provider) => choose({ ...view, provider })}
+              tabs={[
+                { id: 'tumu', label: 'Tümü', count: rows.length, hint: 'kayıtlı her araç' },
+                ...providerTabs.map(({ group, n }) => ({
+                  id: group,
+                  label: groupLabel(group),
+                  count: n,
+                  icon: groupMark(group, 14),
+                  hint: `${groupLabel(group)} araçları`,
+                })),
+              ]}
             />
 
-            {changed.length > 0 && (
-              <div className="notice notice--warn">
-                <TriangleAlert size={16} aria-hidden />
-                <span>
-                  {changed.length} araç varsayılanından farklı çalışıyor:{' '}
-                  {changed.map((r) => r.toolName).join(', ')}.
-                </span>
-              </div>
-            )}
-
             {/*
-              One table, not four cards. A provider is a band inside it — the
-              step from canvas to panel is drawn once, at the outside edge, and
-              everything under it is separated by a hairline. Four stacked cards
-              spent ~70px on borders and gutters that said nothing.
+              One frame, no cards, no band headings. A provider used to be a band inside the
+              table with its own head and its own count; both moved onto the tab, which is
+              where you now pick the provider. Keeping them would have printed the provider
+              three times over — tab, band head, and the `jira.` in front of every id — and
+              cost 116px of the 306 the page had to give back (#154).
             */}
-            <div className="pol-table" role="tabpanel" id={`tabpanel-${tab}`} aria-labelledby={`tab-${tab}`}>
-              {groups.map(({ provider, tools }) => {
-                const meta = PROVIDERS[provider] ?? { title: provider, Icon: Plug };
-                const headId = `pol-${provider}`;
-                return (
-                  <section className="pol-group" key={provider} aria-labelledby={headId}>
-                    <div className="pol-group__head">
-                      <span className="pol-group__icon" aria-hidden>
-                        {/* Google covers two tools here, so it keeps the generic
-                            glyph; the rest wear their own mark. */}
-                        {providerOf(provider) ? (
-                          <BrandMark provider={providerOf(provider)!} size={15} />
-                        ) : (
-                          <meta.Icon size={15} />
+            <div
+              className="pol-table"
+              role="tabpanel"
+              id={`tabpanel-${view.provider}`}
+              aria-labelledby={`tab-${view.provider}`}
+            >
+              {/*
+                The column head, and the filter that lives inside the tab. Left: what you
+                are looking at and how big it is. Right: the rule chips — press one to
+                narrow, press it again to let go. Chips and not a second tab strip on
+                purpose: two stacked strips make the reader guess which one is the list and
+                which one is the filter.
+              */}
+              <div className="pol-table__head">
+                {/*
+                  Nothing on the left but the alarm. The provider's name, its mark and its
+                  count are on the tab you pressed to get here, and the panel underneath a
+                  tab does not need to repeat what the tab says — that is how the old band
+                  heads got to be 116px of wallpaper.
+
+                  The banner this alarm replaced listed the strayed tool names above the
+                  table and cost ~56px the moment anything deviated, on a screen whose
+                  whole complaint was that it scrolled. The count stays and is visible from
+                  every tab, the names are one hover away, and every strayed row still
+                  carries its own amber edge, "Operatör değiştirdi" and the way back (#67).
+                */}
+                <span className="pol-table__what">
+                  {changed.length > 0 && (
+                    <span
+                      className="pol-table__off"
+                      title={changed.map((r) => r.toolName).join(', ')}
+                    >
+                      <TriangleAlert size={12} aria-hidden />
+                      {changed.length} araç varsayılan dışı
+                    </span>
+                  )}
+                </span>
+                <div className="pol-modes" role="group" aria-label="Kural filtresi">
+                  {/* The chips head the column they filter, so they need a word saying
+                      they are a filter and not three buttons that set every row at once. */}
+                  <span className="pol-modes__label">Kural</span>
+                  {MODES.map((mode) => {
+                    const on = view.mode === mode.key;
+                    return (
+                      <button
+                        key={mode.key}
+                        type="button"
+                        className={`pol-chip${on ? ` pol-chip--on pol-chip--${mode.key}` : ''}`}
+                        aria-pressed={on}
+                        title={on ? 'Kural filtresini kaldır' : mode.hint}
+                        onClick={() => choose({ ...view, mode: on ? null : mode.key })}
+                      >
+                        <mode.Icon size={13} aria-hidden />
+                        {mode.label}
+                        {counts[mode.key] > 0 && (
+                          <span className="pol-chip__n t-mono">{counts[mode.key]}</span>
                         )}
-                      </span>
-                      <h2 className="t-title" id={headId}>
-                        {meta.title}
-                      </h2>
-                      <span className="pol-group__n t-mono">{tools.length} araç</span>
-                    </div>
-                    <ul className="pol-list">
-                      {tools.map((row) => (
-                        <PolicyRow
-                          key={row.toolName}
-                          row={row}
-                          busy={busyTool === row.toolName}
-                          disabled={busyTool !== null && busyTool !== row.toolName}
-                          // Held in a filtered list it no longer belongs to — see `moved`.
-                          strayed={wanted != null && row.mode !== wanted}
-                          onChange={(mode) => void change(row, mode)}
-                        />
-                      ))}
-                    </ul>
-                  </section>
-                );
-              })}
-              {groups.length === 0 && (
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {listed.length > 0 && (
+                <ul className="pol-list">
+                  {listed.map((row) => (
+                    <PolicyRow
+                      key={row.toolName}
+                      row={row}
+                      busy={busyTool === row.toolName}
+                      disabled={busyTool !== null && busyTool !== row.toolName}
+                      // Held in a filtered list it no longer belongs to — see `moved`.
+                      strayed={view.mode != null && row.mode !== view.mode}
+                      onChange={(mode) => void change(row, mode)}
+                    />
+                  ))}
+                </ul>
+              )}
+
+              {listed.length === 0 && (
                 /*
-                  An empty tab is the answer, not a gap. The forbidden one is the case that
-                  is normally empty and the only one that needs a reason: no registered tool
+                  An empty filter is the answer, not a gap. `Yasak` is the case that is
+                  normally empty and the only one that needs a reason: no registered tool
                   carries the `silme` risk today, and the rule is still live — see the row
                   below, and the day such a tool is added it arrives forbidden.
                 */
                 <div className="pol-empty">
                   <EmptyState
-                    Icon={tab === 'yasak' ? Ban : ShieldQuestion}
-                    title={`${TABS.find((t) => t.id === tab)?.label} kuralında araç yok`}
+                    Icon={view.mode === 'forbidden' ? Ban : ShieldQuestion}
+                    title={emptyTitle(view, tabLabel)}
                     description={
-                      tab === 'yasak'
-                        ? 'Kayıtlı hiçbir aracın riski silme değil. Kural boşta durmuyor: silme riskli bir araç eklendiği gün varsayılanı yasak gelir, aşağıdaki satır da her zaman yasaktır.'
-                        : 'Bu kuralda çalışan araç yok. Bir aracın kuralını Tümü sekmesinden değiştirebilirsin.'
+                      view.mode === 'forbidden'
+                        ? 'Kayıtlı hiçbir aracın riski silme değil. Kural boşta durmuyor: silme riskli bir araç eklendiği gün varsayılanı yasak gelir, listede olmayan her araç da her zaman yasaktır.'
+                        : 'Bu kuralda çalışan araç yok. Kural filtresini kaldırınca bu sekmedeki bütün araçlar geri gelir.'
                     }
                   />
                 </div>
               )}
-            </div>
 
-            {/* The rule that has no row of its own, because it is about the tools
-                that are NOT in this table. Issue #14 asks for it explicitly.
-
-                Not drawn under `Otomatik` or `Onay ister`: it is a permanently forbidden
-                row, and a filter that says "these run unattended" must not have it in the
-                panel underneath. */}
-            {(tab === 'tumu' || tab === 'yasak') && (
-            <section className="pol-group pol-group--rule" aria-labelledby="pol-unknown">
-              <div className="pol-group__head">
-                <span className="pol-group__icon" aria-hidden>
-                  <ShieldQuestion size={16} />
-                </span>
-                <h2 className="t-title" id="pol-unknown">
-                  Listede olmayan her araç
-                </h2>
-              </div>
-              <div className="pol-unknown">
-                <div className="pol-row__id">
-                  <code className="pol-row__name t-mono">bilinmeyen araç adı</code>
-                  <span className="pol-risk pol-risk--destructive">
-                    <Trash2 size={12} aria-hidden />
-                    risk bilinmiyor
+              {/* The rule that has no row of its own, because it is about the tools that
+                  are NOT in this table. Issue #14 asks for it explicitly. It used to be a
+                  dashed card below the table, worth 117px plus the gap above it; it is the
+                  table's last row now, which is also what it is. */}
+              {showUnknownRule && (
+                <div className="pol-rule" aria-label="Listede olmayan her araç">
+                  <span className="pol-row__mark pol-row__mark--destructive" aria-hidden>
+                    <ShieldQuestion size={13} />
                   </span>
+                  <span className="pol-row__id">
+                    <code className="pol-row__name t-mono">bilinmeyen araç adı</code>
+                  </span>
+                  <span className="pol-row__risk pol-row__risk--destructive">bilinmiyor</span>
+                  <span className="pol-fixed">
+                    <Ban size={13} aria-hidden />
+                    Yasak — değiştirilemez
+                  </span>
+                  <p className="pol-row__src">
+                    Listede olmayan her araç yasaktır: bir plan bu tabloda geçmeyen bir araç
+                    adı üretirse motor onu çalıştırmadan reddeder (
+                    <code className="t-mono">unknown tool</code>). Kayıtlı araç yoksa risk de
+                    bilinmiyordur; bilinmeyen riskin varsayılanı en dar olanıdır.
+                  </p>
                 </div>
-                <span className="pol-fixed">
-                  <Ban size={13} aria-hidden />
-                  Yasak — değiştirilemez
-                </span>
-                <p className="pol-row__src">
-                  Bir plan bu tabloda olmayan bir araç adı üretirse motor onu çalıştırmadan
-                  reddeder (<code className="t-mono">unknown tool</code>). Kayıtlı araç yoksa
-                  risk de bilinmiyordur; bilinmeyen riskin varsayılanı en dar olanıdır.
-                </p>
-              </div>
-            </section>
-            )}
+              )}
+            </div>
           </>
         )}
       </div>
@@ -406,11 +519,19 @@ export function PolicyScreen() {
   );
 }
 
+/** What the empty frame is empty of — both halves of the question, when both are asked. */
+function emptyTitle(view: PolicyView, tabLabel: string): string {
+  const rule = view.mode ? modeLabel(view.mode) : null;
+  if (rule && view.provider !== 'tumu') return `${tabLabel} altında ${rule} kuralında araç yok`;
+  if (rule) return `${rule} kuralında araç yok`;
+  return `${tabLabel} altında araç yok`;
+}
+
 type RowProps = {
   row: ToolPolicy;
   busy: boolean;
   disabled: boolean;
-  /** The tab filters to another rule and this row is only still here because you moved it. */
+  /** The chips filter to another rule and this row is only still here because you moved it. */
   strayed?: boolean;
   onChange: (mode: PolicyMode) => void;
 };
@@ -427,6 +548,10 @@ function PolicyRow({ row, busy, disabled, strayed = false, onChange }: RowProps)
         on a read tool and "auto" on a write tool are not the same sentence —
         so it holds the fixed gutter, and the word beside it repeats the glyph
         rather than relying on colour.
+
+        Not the provider's mark: inside the Jira tab that would be seven identical
+        logos, and on `Tümü` the `jira.` in front of the id already says it. A mark
+        earns its place where it tells two things apart — on the tabs.
       */}
       <span className={`pol-row__mark pol-row__mark--${row.risk}`} aria-hidden>
         <risk.Icon size={13} />
@@ -436,7 +561,7 @@ function PolicyRow({ row, busy, disabled, strayed = false, onChange }: RowProps)
       <span className="pol-row__id">
         <code className="pol-row__name t-mono">{row.toolName}</code>
         {/* The row you just changed does not vanish from under the cursor: it keeps its
-            place in the list it has left, saying where it went, until the tab changes or
+            place in the list it has left, saying where it went, until the filter changes or
             the table is reloaded. A filter that drops the row on the press makes a change
             that worked look like one that failed. */}
         {strayed && <span className="pol-row__moved">→ {modeLabel(row.mode)}</span>}

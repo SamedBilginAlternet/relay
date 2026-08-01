@@ -66,7 +66,6 @@ kbd {
 .src-badge,
 .tool-chip,
 .agent-badge,
-.pol-group__icon,
 .card__icon,
 .draft__tool-wrap {
   display: inline-flex;
@@ -3179,43 +3178,11 @@ a.btn {
   max-width: 1040px;
 }
 
-.pol-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-12);
-  padding: var(--s-16);
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
-.pol-group__head {
-  display: flex;
-  align-items: center;
-  gap: var(--s-12);
-  flex-wrap: wrap;
-}
-.pol-group__head h2 {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.pol-group__icon {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--r-btn);
-  border: 1px solid var(--border);
-  background: var(--bg-subtle);
-  color: var(--fg-muted);
-}
-/* The last block is a rule, not a provider — dashed edge says "no rows here". */
-.pol-group--rule {
-  border-style: dashed;
-  background: var(--bg-subtle);
-  box-shadow: none;
-}
+/*
+  A provider used to be a card here, then a band inside the table with a head
+  of its own. It is a TAB now (#154) — `.pol-group*` and the dashed
+  `.pol-group--rule` card under it went with the heads they styled.
+*/
 
 .pol-list {
   list-style: none;
@@ -3344,57 +3311,15 @@ a.btn {
   border-color: rgba(185, 28, 28, 0.35);
 }
 
-/* ---- risk badge --------------------------------------------------- */
-
-.pol-risk {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: var(--r-pill);
-  border: 1px solid var(--border);
-  background: var(--bg-subtle);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--fg-muted);
-  white-space: nowrap;
-}
-.pol-risk--read {
-  border-color: rgba(37, 99, 235, 0.28);
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-.pol-risk--write {
-  border-color: rgba(180, 83, 9, 0.28);
-  background: #fffbeb;
-  color: #92400e;
-}
-.pol-risk--destructive {
-  border-color: rgba(185, 28, 28, 0.28);
-  background: #fef2f2;
-  color: #b91c1c;
-}
-
 /* ---- the tools that are not in the table -------------------------- */
 
-.pol-unknown {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: var(--s-16);
-  row-gap: 4px;
-}
-/* Prose, not a status line: flex would break the sentence around the inline
-   `<code>` and leave the closing bracket stranded on its own row. */
-.pol-unknown .pol-row__src {
-  grid-column: 1 / -1;
-  display: block;
-}
-.pol-unknown .pol-row__src code {
-  font-size: 12px;
-  white-space: nowrap;
-}
+/*
+  The pill that says a rule cannot be moved. `.pol-risk*` used to sit beside it
+  — a bordered, tinted badge for the risk word — and went when the risk word
+  lost its pill: at one per row the chrome was the noise and the gutter glyph
+  already carried the colour. `.pol-unknown`'s two-column grid went the same
+  way; the block is a row in the table's own four-column grid now (#154).
+*/
 .pol-fixed {
   grid-column: 2;
   grid-row: 1;
@@ -3411,8 +3336,7 @@ a.btn {
   white-space: nowrap;
 }
 @media (max-width: 860px) {
-  .pol-row,
-  .pol-unknown {
+  .pol-row {
     grid-template-columns: minmax(0, 1fr);
   }
   .pol-seg,

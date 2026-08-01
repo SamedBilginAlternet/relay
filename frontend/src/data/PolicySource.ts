@@ -100,19 +100,28 @@ class ApiPolicySource implements PolicySource {
  * Offline twin. The demo runs without a backend, and a policy screen that shows
  * nothing there would break the one sentence the demo is built on. Same tools,
  * same defaults, overrides held in memory for the length of the session.
+ *
+ * <p>"Same tools" is load-bearing and had drifted: the registry grew
+ * `jira.getComments`, `gmail.createDraft` and `calendar.listUpcoming` and this
+ * list did not, so the demo answered "what is this agent allowed to do" with
+ * fifteen of the eighteen rules the server enforces. It is also the only place
+ * the screen's height can be measured before it ships.
  */
 class MockPolicySource implements PolicySource {
   private rows: ToolPolicy[] = (
     [
       ['google', 'calendar.listToday', 'read'],
+      ['google', 'calendar.listUpcoming', 'read'],
       ['github', 'github.addComment', 'write'],
       ['github', 'github.listMyIssues', 'read'],
       ['github', 'github.listMyPullRequests', 'read'],
+      ['google', 'gmail.createDraft', 'write'],
       ['google', 'gmail.getMessage', 'read'],
       ['google', 'gmail.listToday', 'read'],
       ['google', 'gmail.search', 'read'],
       ['jira', 'jira.addComment', 'write'],
       ['jira', 'jira.createIssue', 'write'],
+      ['jira', 'jira.getComments', 'read'],
       ['jira', 'jira.getIssue', 'read'],
       ['jira', 'jira.listMyIssues', 'read'],
       ['jira', 'jira.searchIssues', 'read'],
