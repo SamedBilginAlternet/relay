@@ -241,7 +241,25 @@
 /* in front of the other, and the reader who came for either had to     */
 /* scroll the other first.                                              */
 /*                                                                     */
-/* The selected tab is marked in ink, not in violet. Violet on this     */
+/* The selected tab is marked in blue (`--info`), not in ink and not in */
+/* violet. This is a THIRD meaning for colour here and it is deliberate, */
+/* so read it before you "fix" it:                                      */
+/*                                                                      */
+/*   violet (--accent) — state: this is what the product is doing.      */
+/*   amber  (--warn)   — a gate: this is waiting on YOU.                */
+/*   blue   (--info)   — navigation: this is WHERE YOU ARE.             */
+/*                                                                      */
+/* Blue was asked for by name, for three things at once: the underline, */
+/* the selected label, and the gate count next to "Onay bekleyen". The  */
+/* count losing its amber is the real cost — the queue size and the top */
+/* bar's waiting badge are the same number and are no longer the same   */
+/* colour. It bought one legible selected state: the count sits inside  */
+/* the tab, and a blue tab holding an amber pill read as two controls.  */
+/* Blue never means "act on this" anywhere else, so it does not spend   */
+/* amber's meaning elsewhere; it only stops claiming it here.           */
+/*                                                                      */
+/* The old note, kept because it still explains the violet:             */
+/* ink was chosen over violet on this strip. Violet on this            */
 /* product means "this is waiting on you" — spending it on "the tab     */
 /* you are looking at" would take that meaning away from the one place  */
 /* it earns its keep, the count on the queue.                           */
@@ -276,20 +294,34 @@
 .tab:hover {
   color: var(--fg);
 }
+/* One selected state, both strips. TabStrip exists as one component so that
+   Akışlar and Politikalar cannot drift into two ways of looking selected, and
+   scoping this to Akışlar would have re-created exactly that. Blue here says
+   "you are on this tab", which is as true on Politikalar as it is on Akışlar.
+   Politikalar's COUNTS are untouched — see `.tabs--gate` below. */
 .tab--on {
-  color: var(--fg);
+  color: var(--info);
   font-weight: 600;
-  border-bottom-color: var(--fg);
+  border-bottom-color: var(--info);
 }
 /*
   Neutral by default: on Politikalar the number is the size of a group and
   nobody is being asked to do anything about it.
 
-  `--gate` is the same amber, and the same pill, as the top bar's waiting
-  badge — because it is literally the same number. Measured live it was violet
-  here and amber there: one 28, two colours, and nothing on screen saying they
-  were one fact. Colour is the only thing that can say it at a
-  glance, and spending it on a group size would take it away from the gate.
+  The `gate` tone used to be the same amber, and the same pill, as the top
+  bar's waiting badge, because it is literally the same number — one 28, one
+  colour, so the two places read as one fact. It is blue now, by request: the
+  count lives inside a tab whose selected state is blue, and an amber pill in
+  a blue tab read as a second control rather than as part of the label.
+
+  Known cost, written down so it is not mistaken for a slip: the top bar badge
+  is still amber, so the same 28 now appears in two colours. If you are here to
+  make them agree, the fix is the top bar, not this rule — the tab has to match
+  the tab it sits in.
+
+  Politikalar stays on the neutral default above. Amber never claimed a group
+  size and blue does not get to either: nothing is waiting on you, and you are
+  not "at" a count.
 */
 .tab__count {
   min-width: 20px;
@@ -303,9 +335,13 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
+/* `rgba(37, 99, 235, .12)` is `--info` at the same 12% the amber it replaces
+   used, derived by hand for the same reason that one was: a token holding a
+   soft wash of another token has no second caller, and one-caller tokens are
+   how a palette stops being readable. */
 .tabs--gate .tab__count {
-  background: rgba(180, 83, 9, 0.12);
-  color: var(--warn);
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--info);
 }
 
 .runs {

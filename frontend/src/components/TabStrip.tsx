@@ -36,10 +36,13 @@ type Props<T extends string> = {
   /** Names the strip for a screen reader — there is more than one list on the page. */
   label: string;
   /**
-   * `gate` paints the counts amber, and is for a number that means "this is waiting on
-   * you" — the same amber as the top bar's badge, because it is the same set. Everything
-   * else counts group sizes, which nobody is being asked to act on, and stays neutral:
-   * an amber 12 would claim twelve tools were holding something up.
+   * `gate` is for a number that means "this is waiting on you". Everything else counts
+   * group sizes, which nobody is being asked to act on, and stays neutral: a painted 12
+   * would claim twelve tools were holding something up.
+   *
+   * <p>It painted those counts amber, matching the top bar's waiting badge, because it is
+   * the same set. It paints them blue now — see the note over `.tabs--gate` in screens.css
+   * for what was traded and what the two colours cost.
    */
   tone?: 'gate' | 'plain';
 };
