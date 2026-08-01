@@ -18,12 +18,12 @@ import '../styles/runs-cards.css';
  * <p>WHAT THE TABLE WAS RIGHT ABOUT, KEPT. #68's complaint was never the shape
  * of the frame, it was that `4.246 token` and `614 token` ended in different
  * places on consecutive rows, so nothing lined up down the page. Every card
- * here is the same grid: the state mark on the same x, the goal from the same
- * x, and the four figures in fixed tracks with the value right-aligned against
- * its unit — so Zaman, Adım, Token and Tutar sit in the same place on card one
- * and on card fifteen, and the digits still stack. A card whose contents flow
- * would put that back the way it was, and it is the one thing this rewrite is
- * not allowed to cost.
+ * here is the same grid: the state on the same fixed left track, the goal from
+ * the same x, and the footer's four figures in fixed tracks with the value
+ * right-aligned against its unit — so Zaman, Adım, Token and Tutar sit in the
+ * same place on card one and on card five, and the digits still stack. A card
+ * whose contents flow would put that back the way it was, and it is the one
+ * thing this rewrite is not allowed to cost.
  *
  * <p>WHAT THE GRID COST AND WHY IT IS GONE. ag-grid arrived in #156 to buy
  * per-column filtering, at 232KB gzipped in a lazy chunk. A card has no
@@ -50,22 +50,22 @@ type Props = {
 /**
  * How many runs one page holds.
  *
- * <p>Derived, and the arithmetic is from the screen rather than from a habit.
- * Measured at 1440x900: a card is 72.7px — 12px of padding, a 20.3px goal
- * line, 6px, a 20.4px figure line, 12px, and two hairlines — and the gap
- * between two cards is 8px, so the list costs 80.7px a run. The list starts
- * 231.9px down the page, under the heading, the tabs, the note and the filter
- * row, which leaves 668px of it visible: eight cards and a bit. Fifteen cards
- * is 1,202px, or 1.8 screens of list — about the distance a reader will scroll
- * before reaching for a control instead of the scrollbar, and short enough
- * that the pager is one flick away rather than a page and a half.
+ * <p>Five, by the owner's decision, and the trade is written here so nobody
+ * mistakes it for arithmetic: the live box holds 227 runs, and 227 ÷ 5 is 46
+ * pages. What five buys is a card that can afford to be a card — a status
+ * word, a goal allowed two lines, a footer of figures — instead of the
+ * 72.7px strip fifteen-per-page forced every run into. What it costs is the
+ * pager as a way to *walk* the log; at 46 pages nobody walks. The controls
+ * above the list (goal search, status, sort) are the way to a run now, and
+ * the pager is for the neighbourhood once a filter has done the finding —
+ * which is why `İlk`/`Son` stay and why the summary keeps saying `1–5 / 227`
+ * next to `Sayfa 1 / 46` rather than making the reader do the division.
  *
- * <p>Not 20, which is what a table library defaults to: 20 is 1,614px, two and
- * a half screens, and the pager stops being something you know is there. It
- * also divides the live box's 222 runs into 15 pages rather than 12, which is
- * the only thing 20 would have bought.
+ * <p>Measured at 1440×900: a one-line card is ~101px, a two-line card ~123px,
+ * the gap 12px — five cards are 565–675px of list, which with the 232px of
+ * heading, tabs, note and filters above them is one screen, pager included.
  */
-export const PAGE_SIZE = 15;
+export const PAGE_SIZE = 5;
 
 /** The six-character tail a repeated goal is told apart by. */
 function shortId(id: string): string {
@@ -79,11 +79,16 @@ function shortId(id: string): string {
  * table's bare `3` could not do — but the label still spells all five facts
  * out in one string, because a card read aloud is otherwise five fragments
  * with no sentence holding them together.
+ *
+ * <p>The action no longer replaces the state. The card shows both — `Onay
+ * bekliyor` in the header, `Karar ver` in the footer — so a label that read
+ * only the action would be the screen reader hearing less than the screen
+ * shows.
  */
 export function runLabel(row: RunSummary, action?: string): string {
   const status = runStatusMeta(row.status);
   return [
-    `${row.goal} — ${action ?? status.label}`,
+    `${row.goal} — ${status.label}${action ? ` — ${action}` : ''}`,
     formatRelative(row.createdAt),
     `${row.stepCount} adım`,
     `${formatTokens(row.costTokens)} token`,
@@ -175,13 +180,23 @@ function Fig({ value, unit }: { value: string; unit?: string }) {
 }
 
 /**
- * One run.
+ * One run, as a card with a header, a body and a footer (#164).
  *
- * <p>The whole card is the control. A card with a button inside it and a click
- * handler around it is two answers to one gesture, and a nested second button
- * (`Karar ver` as a control of its own) would be a second tab stop leading to
- * the same screen — so `Karar ver` is what the state says, in the state's own
- * colour, on a card that opens where the word points.
+ * <p>The whole card is still the control. A card with a button inside it and a
+ * click handler around it is two answers to one gesture, and a nested second
+ * button (`Karar ver` as a control of its own) would be a second tab stop
+ * leading to the same screen — so `Karar ver` is a word on the footer, in the
+ * accent that means "the product's next act", on a card that opens where the
+ * word points.
+ *
+ * <p>The anatomy, top to bottom: the state (glyph + word, in the state's own
+ * colour, on a fixed left track so it is the same x on every card), the goal
+ * at 15.5px allowed two lines with the full text on `title`, and under a
+ * hairline the machine footer — the four figures on the fixed tracks #68 is
+ * about, plus the action when the card is a decision. The state moved from
+ * the right edge to the header because at five substantial cards a page the
+ * card reads top-down, not left-right: the first thing the eye crosses must
+ * be what the run *is*, not a word floating a column away from it.
  */
 function RunCard({
   row,
@@ -197,34 +212,37 @@ function RunCard({
   const status = runStatusMeta(row.status);
   const Icon = status.Icon;
   return (
-    <li className="run-card">
+    <li className="run-card" data-status={row.status}>
       <button
         type="button"
         className="run-card__open"
         aria-label={runLabel(row, action)}
+        /* The goal is clamped at two lines; `title` is where the third line
+           went. Truncation without a route to the full text is the rule the
+           one-line strip broke. */
+        title={row.goal}
         onClick={() => onOpen(row.id)}
       >
         {/* Colour is never the whole signal: the glyph differs per status and
             the word next to it says the same thing in Turkish. */}
-        <span className={`run-card__mark ${status.className}`} aria-hidden>
-          <Icon size={16} />
+        <span className={`run-card__state ${status.className}`}>
+          <Icon size={14} aria-hidden />
+          {status.label}
         </span>
-        <span className="run-card__goal">
-          <span className="run-card__text">{row.goal}</span>
-          {/* Bare, never `#7fd92e`: the hash read as an issue number, which on a
-              screen full of Jira keys is the one thing it must not look like. */}
-          {repeated && <code className="run-card__id t-mono">{shortId(row.id)}</code>}
-        </span>
-        <span className={`run-card__state${action ? ' run-card__state--act' : ` ${status.className}`}`}>
-          {action ?? status.label}
-        </span>
-        <span className="run-card__figs">
-          <Fig value={formatRelative(row.createdAt)} />
-          <Fig value={String(row.stepCount)} unit="adım" />
-          <Fig value={formatTokens(row.costTokens)} unit="token" />
-          {/* `formatUsd` writes `—` for a cost nobody measured. A card that
-              printed $0.000000 there would be inventing a measurement. */}
-          <Fig value={formatUsd(row.costUsd ?? Number.NaN)} />
+        <span className="run-card__goal">{row.goal}</span>
+        {/* Bare, never `#7fd92e`: the hash read as an issue number, which on a
+            screen full of Jira keys is the one thing it must not look like. */}
+        {repeated && <code className="run-card__id t-mono">{shortId(row.id)}</code>}
+        <span className="run-card__foot">
+          <span className="run-card__figs">
+            <Fig value={formatRelative(row.createdAt)} />
+            <Fig value={String(row.stepCount)} unit="adım" />
+            <Fig value={formatTokens(row.costTokens)} unit="token" />
+            {/* `formatUsd` writes `—` for a cost nobody measured. A card that
+                printed $0.000000 there would be inventing a measurement. */}
+            <Fig value={formatUsd(row.costUsd ?? Number.NaN)} />
+          </span>
+          {action && <span className="run-card__act">{action}</span>}
         </span>
       </button>
     </li>
@@ -360,8 +378,8 @@ export function RunCards({ rows, repeated, action, onOpen, waiting, onFilterChan
  * same lie in a smaller font.
  *
  * <p>Four buttons and a page number, all Turkish, all at least 44px. `İlk` and
- * `Son` earn their place at fifteen pages: without them the only way to the
- * oldest run is fourteen presses of `Sonraki`.
+ * `Son` earn their place at forty-six pages: without them the only way to the
+ * oldest run is forty-five presses of `Sonraki`.
  */
 function Pager({
   first,

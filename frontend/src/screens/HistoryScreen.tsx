@@ -275,7 +275,9 @@ export function HistoryScreen({ onOpen }: Props) {
 
         {error != null && <LoadError error={error} onRetry={() => void load()} />}
 
-        {loading && !rows && <div className="skeleton" style={{ height: 320 }} />}
+        {/* Sized to what replaces it — the filter row and five two-row cards —
+            so the pager does not leap up the screen when the list lands. */}
+        {loading && !rows && <div className="skeleton" style={{ height: 480 }} />}
 
         {nothingAtAll && (
           <EmptyState

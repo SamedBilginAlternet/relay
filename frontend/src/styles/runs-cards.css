@@ -9,11 +9,11 @@
 /* #68's complaint was NOT the frame. It was that `4.246 token` and     */
 /* `614 token` ended in different places on consecutive rows, so a      */
 /* column of figures could not be read as a column. Every card below is */
-/* therefore the same grid: the mark on the same x, the goal from the   */
-/* same x, the state against the same right edge, and the four figures  */
-/* in fixed tracks with the value right-aligned against its unit. Flow  */
-/* the contents of a card and that is undone — which is the one change  */
-/* to this file that would take the screen back to 2025.                */
+/* therefore the same grid: the state on the same fixed left track, the */
+/* goal from the same x, and the four figures of the footer in fixed    */
+/* tracks with the value right-aligned against its unit. Flow the       */
+/* contents of a card and that is undone — which is the one change to   */
+/* this file that would take the screen back to 2025.                   */
 /*                                                                     */
 /* Cards are quiet: one hairline, `--r-card`, no shadow between items.  */
 /* The shadow ban (DESIGN.md, three surfaces) is about noise, not about */
@@ -75,9 +75,10 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  /* 8px, and the card's own hairline is what separates two runs. Wider and the
-     list stops reading as one thing; touching and it is the strip again. */
-  gap: var(--s-8);
+  /* 12px, up from the strip's 8: a two-row card needs a beat more air between
+     itself and the next one, or five of them read as one striped block. Wider
+     and the list stops reading as one thing. */
+  gap: var(--s-12);
 }
 
 .runs-cards__none {
@@ -93,11 +94,28 @@
   Surface two: a panel on the canvas, held by a hairline. Radius `--r-card`,
   the same one every other panel in the product uses, so a run does not look
   like a different kind of object from the panel it used to sit inside.
+
+  Since #164 the card has an anatomy rather than a row: a header (the state on
+  a fixed left track, then the goal, then the short id), and under a hairline
+  a machine footer (the four figures, plus `Karar ver` when the card is a
+  decision). Five per page — the owner's number — is what pays for the second
+  row; see PAGE_SIZE in RunCards.tsx for the 46-page trade that comes with it.
 */
 .run-card {
   border: 1px solid var(--line);
   border-radius: var(--r-card);
   background: var(--surface);
+  transition: border-color 140ms ease-out, background-color 140ms ease-out;
+}
+/*
+  A run stopped on a person is the one card the reader pays for missing, so it
+  is marked on the frame as well as in the words — the same amber edge the
+  step row uses for its gate, at the same weight. Amber, never violet: on this
+  product violet is what the machine is doing, amber is what is waiting on you
+  (screens.css, the colour law above `.tabs`).
+*/
+.run-card[data-status='awaiting_approval'] {
+  border-color: rgba(180, 83, 9, 0.4);
 }
 
 /*
@@ -106,24 +124,24 @@
   `Karar ver` is a word on it, not a second button — a nested control leading
   to the same screen is two tab stops for one destination.
 
-  The grid is the contract with #68. Three columns and two rows: the mark
-  spans both rows on the left, the goal and the figures stack in the middle,
-  and the state is held against the right edge — an edge, so its position does
-  not move with the length of the word in front of it.
+  The grid is the contract with #68, restated for the two-row card: the state
+  starts at the same x on every card, the goal starts at the same x, and the
+  footer's figures sit on fixed tracks from the card's own left edge — so the
+  digits of card one and card five still stack.
 */
 .run-card__open {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) auto;
+  grid-template-columns: 148px minmax(0, 1fr) auto;
   grid-template-areas:
-    'mark goal state'
-    'mark figs state';
-  align-items: center;
-  column-gap: var(--s-12);
-  row-gap: 6px;
+    'state goal id'
+    'foot  foot foot';
+  align-items: start;
+  column-gap: var(--s-16);
+  row-gap: var(--s-12);
   width: 100%;
-  padding: var(--s-12) var(--s-16);
+  padding: var(--s-16) var(--s-16) var(--s-12);
   border: 0;
-  border-radius: var(--r-card);
+  border-radius: calc(var(--r-card) - 1px);
   background: transparent;
   font: inherit;
   text-align: left;
@@ -142,75 +160,80 @@
   outline-offset: 2px;
 }
 
-/* The scan column: same x on every card, whatever the card says on the right.
-   Walk it down the page and a failure is the only red thing on it. */
-.run-card__mark {
-  grid-area: mark;
-  display: grid;
-  place-items: center;
-  align-self: center;
+/*
+  The header's left track: glyph + word, in the state's own colour, always
+  both — colour is never the whole signal. 148px fits the longest state the
+  product writes (`ONAY BEKLİYOR` with its glyph) and holds the goal's x still
+  from card to card, which is the header's half of the #68 contract.
+
+  Uppercase is safe here and only here: these are the six fixed labels from
+  lib/status.ts, never data, and the page is `lang="tr"` so `bekliyor` becomes
+  `BEKLİYOR` with its dot. The rule on `.t-label` (global.css) is the same one.
+*/
+.run-card__state {
+  grid-area: state;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px; /* optically on the goal's first line, cap to cap */
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
-/* Every card in the queue carries the same status, so its mark stops being a
-   second colour on the card and joins the state it is part of. */
-.runs-cards[data-waiting='true'] .run-card__mark {
-  color: var(--accent);
+.run-card__state svg {
+  flex: 0 0 auto;
 }
 
 .run-card__goal {
   grid-area: goal;
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-8);
   min-width: 0;
-  /* The card's primary content, one step above the page's own caption — the
-     hierarchy the row settled on in #127 and the reason the card is 70px. */
-  font-size: 15px;
-  line-height: 1.35;
+  /* The card's subject, one step above the page's own caption — with five
+     cards a page it can afford a second line instead of an ellipsis. The
+     third line is the `title` on the button. */
+  font-size: 15.5px;
+  line-height: 1.45;
+  font-weight: 500;
   color: var(--fg);
-}
-.run-card__text {
-  min-width: 0;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 /* Only repeated goals carry one. No `#`: it was read as an issue number, and
    on a screen whose goals are full of `RUN-88` that is the one thing a run id
    must not look like. */
 .run-card__id {
-  flex: 0 0 auto;
+  grid-area: id;
+  margin-top: 4px; /* baseline of the goal's first line */
   font-size: 12px;
   color: var(--fg-faint);
 }
 
-.run-card__state {
-  grid-area: state;
-  justify-self: end;
-  align-self: center;
-  padding-left: var(--s-8);
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-/* Violet is the state, not the decoration: this run is waiting on a person. */
-.run-card__state--act {
-  color: var(--accent);
-}
-.run-card__state--act::after {
-  content: ' ›';
-}
-
 /*
-  The machine layer. Fixed tracks, not a flow: this is the whole of #68.
+  The machine footer, separated from the prose by the soft hairline — inside
+  the card, `--line-soft`, so it steps down from the card's own edge instead
+  of competing with it. Fixed tracks, not a flow: this is the whole of #68.
 
   Each track holds a value and its unit, and the value is right-aligned against
   the unit — so the digits of `1.200` and `614` end at the same x on every card
   in the list, and `token` starts at the same x under it. A `·`-separated
   sentence of the same four facts would read fine on one card and would be
-  unscannable on fifteen.
+  unscannable on five.
 */
+.run-card__foot {
+  grid-area: foot;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-12);
+  border-top: 1px solid var(--line-soft);
+  padding-top: var(--s-12);
+}
 .run-card__figs {
-  grid-area: figs;
   display: grid;
   grid-template-columns: 108px 84px 116px 96px;
   column-gap: var(--s-12);
@@ -243,27 +266,57 @@
 }
 
 /*
-  Narrow. The four tracks need ~440px and a phone does not have it beside a
-  goal, so they become two rows of two — still fixed tracks, so two cards still
-  agree about where a figure sits. The state moves under the goal for the same
-  reason it dropped out of the row layout at this width: at 360px it was taking
-  a third of the line from the sentence people are actually reading.
+  The card's one verb, on the footer's right edge where a footer action lives.
+  Violet, not amber: the amber above says what the run is (stopped, on you),
+  and this says what pressing the card does next — the product's next act,
+  which is the accent's one meaning. `›` says the word is a door, not a badge.
+*/
+.run-card__act {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.run-card__act::after {
+  content: ' ›';
+}
+
+/*
+  Narrow. The four tracks need ~440px and a phone does not have it, so they
+  become two rows of two — still fixed tracks, so two cards still agree about
+  where a figure sits. The state track gives up its fixed width for the same
+  reason it earned it: it exists to hold the goal's x still, and in a single
+  column the goal's x is the card's padding.
 */
 @media (max-width: 640px) {
   .run-card__open {
-    grid-template-columns: 20px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      'mark goal'
-      'mark state'
-      'figs figs';
+      'state id'
+      'goal  goal'
+      'foot  foot';
+    row-gap: var(--s-8);
   }
   .run-card__state {
-    justify-self: start;
-    padding-left: 0;
+    margin-top: 0;
+  }
+  .run-card__id {
+    margin-top: 0;
   }
   .run-card__figs {
+    flex: 1 1 auto;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     row-gap: 4px;
+  }
+  .run-card__foot {
+    flex-wrap: wrap;
+  }
+  /* On its own line under the figures, not wedged between them: at 375px the
+     word was landing beside `1 adım` and breaking the 2×2 figure grid. */
+  .run-card__act {
+    flex: 1 0 100%;
+    text-align: right;
   }
 }
 

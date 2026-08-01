@@ -466,24 +466,24 @@ it('the_walk_reads_past_the_first_response_so_the_total_is_the_log', async () =>
   // A short page ends the walk: a third request would be one the server already
   // answered by handing back fewer rows than were asked for.
   expect(asked).not.toContain(2);
-  expect(screen.getByText('1–15 / 122')).toBeTruthy();
+  expect(screen.getByText('1–5 / 122')).toBeTruthy();
 });
 
 /**
  * The Turkish the pager is written in, and the arithmetic under it. `Sayfa 1 / 9` and
- * `1–15 / 122` are the only two sentences on it, and neither is a translation of a grid
+ * `1–5 / 122` are the only two sentences on it, and neither is a translation of a grid
  * vendor's English left in place because nobody looked at the bottom of the list.
  */
 it('the_pager_is_turkish_and_says_where_in_the_log_the_reader_is', async () => {
   listRuns.mockImplementation(async (options?: { status?: string }) =>
-    options?.status === 'awaiting_approval' ? [] : manyRuns(40),
+    options?.status === 'awaiting_approval' ? [] : manyRuns(43),
   );
 
   render(<HistoryScreen onOpen={() => {}} />);
   await screen.findByText('r işi 0');
 
   const pager = screen.getByRole('navigation', { name: 'Sayfalama' });
-  expect(within(pager).getByText('1–15 / 40')).toBeTruthy();
+  expect(within(pager).getByText('1–5 / 43')).toBeTruthy();
   expect(pager.textContent).toContain('Sayfa');
   expect(within(pager).getByRole('button', { name: 'Sonraki sayfa' })).toBeTruthy();
   expect(within(pager).getByRole('button', { name: 'Son sayfa' })).toBeTruthy();
@@ -501,16 +501,16 @@ it('the_pager_is_turkish_and_says_where_in_the_log_the_reader_is', async () => {
 
   fireEvent.click(within(pager).getByRole('button', { name: 'Sonraki sayfa' }));
 
-  await waitFor(() => expect(screen.getByText('16–30 / 40')).toBeTruthy());
-  expect(screen.getByText('r işi 15')).toBeTruthy();
+  await waitFor(() => expect(screen.getByText('6–10 / 43')).toBeTruthy());
+  expect(screen.getByText('r işi 5')).toBeTruthy();
   expect(screen.queryByText('r işi 0')).toBeNull();
 
   fireEvent.click(within(pager).getByRole('button', { name: 'Son sayfa' }));
 
-  // The last page is as short as what is left of the list — never fifteen rows padded
+  // The last page is as short as what is left of the list — never five rows padded
   // out to look full.
-  await waitFor(() => expect(screen.getByText('31–40 / 40')).toBeTruthy());
-  expect(runCards()).toHaveLength(10);
+  await waitFor(() => expect(screen.getByText('41–43 / 43')).toBeTruthy());
+  expect(runCards()).toHaveLength(3);
 });
 
 /**
@@ -532,7 +532,7 @@ it('turning_a_page_does_not_change_what_the_tab_says_is_waiting', async () => {
 
   fireEvent.click(screen.getByRole('button', { name: 'Sonraki sayfa' }));
 
-  await waitFor(() => expect(screen.getByText('16–20 / 20')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText('6–10 / 20')).toBeTruthy());
   expect(within(screen.getByRole('tab', { name: /Onay bekleyen/ })).getByText('20')).toBeTruthy();
   expect(screen.getByText(/Bu 20 akış durdu/)).toBeTruthy();
 });
@@ -552,14 +552,14 @@ it('narrowing_the_list_returns_to_its_first_page', async () => {
   await screen.findByText('r işi 0');
 
   fireEvent.click(screen.getByRole('button', { name: 'Son sayfa' }));
-  await waitFor(() => expect(screen.getByText('31–40 / 40')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText('36–40 / 40')).toBeTruthy());
 
   fireEvent.change(screen.getByPlaceholderText('İşin adında ara'), { target: { value: 'işi 3' } });
 
-  // `işi 3`, `işi 30`…`işi 39` — eleven runs, and the reader is looking at the first of
-  // them rather than at the fourth page of a list that is now one page long.
+  // `işi 3`, `işi 30`…`işi 39` — eleven runs, and the reader is looking at the first
+  // page of them rather than at the eighth page of a list that is now three pages long.
   await waitFor(() => expect(screen.getByText('r işi 3')).toBeTruthy());
-  expect(screen.queryByRole('navigation', { name: 'Sayfalama' })).toBeNull();
+  expect(screen.getByText('1–5 / 11')).toBeTruthy();
 });
 
 /**
@@ -616,6 +616,53 @@ it('a_server_that_ignores_the_page_parameter_is_not_reported_five_times_over', a
   expect(walked.rows).toHaveLength(100);
   expect(walked.complete).toBe(true);
   expect(calls).toBe(2);
+});
+
+/* ------------------------------------------------------------------ */
+/* The card's anatomy (#164)                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The goal wraps to two lines and is clamped there; the rest of a long sentence
+ * has to live somewhere the reader can still reach. It rides on the card as
+ * `title` — a clamp with no route to the full text is the one-line strip's
+ * ellipsis bug restated on two lines.
+ */
+it('a_clamped_goal_carries_its_full_text_on_the_card', async () => {
+  const long =
+    'KAN projesindeki açık kayıtları listele, önceliklerine göre sırala, sahiplerine ' +
+    'birer hatırlatma yaz ve sonucu haftalık rapor sayfasına işle';
+  listRuns.mockResolvedValue([run({ goal: long })]);
+
+  render(<HistoryScreen onOpen={() => {}} />);
+
+  await screen.findByText(long);
+  expect(screen.getByTitle(long)).toBeTruthy();
+});
+
+/**
+ * A parked run says two different things and the card must say both: what the
+ * run IS (`Onay bekliyor` — the state, amber, in the header) and what pressing
+ * the card DOES (`Karar ver` — the action, on the footer). The old card spent
+ * one slot on whichever it had, so the queue never named its own state.
+ */
+it('a_waiting_card_says_the_state_and_the_action_both', async () => {
+  window.location.hash = '#/history?durum=bekleyen';
+  listRuns.mockResolvedValue([
+    run({ id: 'w-1', goal: 'onay isteyen iş', status: 'awaiting_approval' }),
+  ]);
+
+  render(<HistoryScreen onOpen={() => {}} />);
+  await screen.findByText('onay isteyen iş');
+
+  const card = runCards()[0]!;
+  expect(within(card).getByText('Onay bekliyor')).toBeTruthy();
+  expect(within(card).getByText('Karar ver')).toBeTruthy();
+
+  // And the accessible name reads the same two facts in the same order.
+  const label = within(card).getByRole('button').getAttribute('aria-label') ?? '';
+  expect(label).toContain('Onay bekliyor');
+  expect(label).toContain('Karar ver');
 });
 
 /** The ordinary end of the walk: a page shorter than the one asked for. */
