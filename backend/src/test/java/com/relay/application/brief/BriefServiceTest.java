@@ -288,8 +288,16 @@ class BriefServiceTest {
         Map<String, Object> forced = service.brief(true);
         assertThat(forced.get("cached")).isEqualTo(false);
 
+        /*
+          Past the TTL the reader is still answered out of the cache — marked stale — and
+          the rebuild happens behind them. It used to block here, which live meant between
+          3.6 and 14.3 seconds of skeleton for a summary of a day that had not changed
+          while the reader waited. See BriefStaleWhileRevalidateTest.
+        */
         clock.advance(Duration.ofSeconds(61));
-        assertThat(service.brief().get("cached")).isEqualTo(false);
+        Map<String, Object> old = service.brief();
+        assertThat(old.get("cached")).isEqualTo(true);
+        assertThat(old.get("stale")).isEqualTo(true);
     }
 
     /**

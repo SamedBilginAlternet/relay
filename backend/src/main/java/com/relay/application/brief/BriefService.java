@@ -114,16 +114,60 @@ public class BriefService {
         return brief(false);
     }
 
+    /**
+     * The screen's answer — from the cache whenever there is one at all.
+     *
+     * <p>WHY STALE IS SERVED. Building a brief calls five providers and spends two model
+     * turns. Measured on the live box: 3.6s when Groq answers, 5.4s when it answers slowly,
+     * and 14.3s when every Groq key is at its daily wall and the request falls through to
+     * the paid tier. For all of that the screen shows a skeleton, and the thing being waited
+     * for is a summary of a day that has not changed in the meantime.
+     *
+     * <p>So a brief past its TTL is handed over immediately and rebuilt behind the reader.
+     * The only request that can wait is the first one after a restart, when there is nothing
+     * to hand over. {@code stale} says which kind of answer this is, and {@code cachedAt}
+     * says how old — the screen is never quietly served yesterday.
+     *
+     * <p>Pressing Yenile still waits. That press means "I do not believe this is current",
+     * and answering it out of the cache would be answering a different question.
+     */
     public Map<String, Object> brief(boolean refresh) {
         Cached cached = cache.get();
-        if (!refresh && cached != null
-                && Duration.between(cached.at(), clock.now()).compareTo(cacheTtl) < 0) {
+        if (!refresh && cached != null) {
+            boolean fresh = Duration.between(cached.at(), clock.now()).compareTo(cacheTtl) < 0;
+            if (!fresh) {
+                revalidate();
+            }
             Map<String, Object> body = new LinkedHashMap<>(cached.body());
             body.put("cached", true);
             body.put("cachedAt", cached.at().toString());
+            body.put("stale", !fresh);
             return body;
         }
         return await(generation());
+    }
+
+    /**
+     * Rebuild in the background, and only if nobody is already rebuilding.
+     *
+     * <p>The check is an optimisation, not the guard: {@code generation()} is what makes
+     * one build at a time true, so two readers arriving on the same millisecond cost one
+     * build either way. The executor is a virtual-thread-per-task pool, so this borrows no
+     * thread from anything the reader is waiting on.
+     */
+    private void revalidate() {
+        if (inFlight.get() != null) {
+            return;
+        }
+        executor.execute(() -> {
+            try {
+                generation();
+            } catch (RuntimeException | Error e) {
+                // The reader already has an answer. A failed rebuild leaves the last good
+                // brief standing and the next request tries again.
+                LOG.log(Level.WARNING, "brief revalidation failed: " + e);
+            }
+        });
     }
 
     /**
@@ -243,6 +287,9 @@ public class BriefService {
         body.put("generatedAt", now.toString());
         body.put("cached", false);
         body.put("cachedAt", null);
+        // Always present, so the screen never has to tell "not stale" from "an older
+        // server that does not know the word".
+        body.put("stale", false);
         body.put("ttlSeconds", cacheTtl.toSeconds());
         body.put("llm", llmInfo);
         body.put("today", tally.view());
