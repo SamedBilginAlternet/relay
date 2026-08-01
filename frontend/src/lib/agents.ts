@@ -1,5 +1,3 @@
-import type { AgentMessage } from '../types/api';
-
 /**
  * Turkish names for the agents whose traffic the Sohbet screen prints.
  *
@@ -55,17 +53,3 @@ export function agentLabel(id: string): string {
   return id;
 }
 
-/**
- * The same message with both ends named the way the screen speaks.
- *
- * Applied to mock traffic too — the mock already carries Turkish names, and
- * those fall through `agentLabel` untouched, which is exactly what makes one
- * mapping enough for both sources.
- */
-export function withAgentLabels(message: AgentMessage): AgentMessage {
-  return {
-    ...message,
-    fromAgent: agentLabel(message.fromAgent),
-    toAgent: agentLabel(message.toAgent),
-  };
-}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agentLabel, withAgentLabels } from './agents';
+import { agentLabel } from './agents';
 
 /**
  * Why this test exists.
@@ -49,21 +49,3 @@ describe('agentLabel', () => {
   });
 });
 
-describe('withAgentLabels', () => {
-  const message = {
-    id: 'm-1',
-    stepId: null,
-    fromAgent: 'verifier',
-    toAgent: 'coordinator',
-    content: 'Kayıt açıldı, alanlar istenenle uyuşuyor.',
-    createdAt: '2026-08-01T09:00:00Z',
-  };
-
-  it('renames both ends and touches nothing else', () => {
-    expect(withAgentLabels(message)).toEqual({
-      ...message,
-      fromAgent: 'Doğrulayıcı',
-      toAgent: 'Koordinatör',
-    });
-  });
-});

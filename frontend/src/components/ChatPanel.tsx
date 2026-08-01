@@ -6,6 +6,7 @@ import type { RunPhase } from '../store/runStore';
 import type { AgentMessage, Run } from '../types/api';
 import { Composer } from './Composer';
 import { EmptyState } from './EmptyState';
+import { agentLabel } from '../lib/agents';
 
 type Props = {
   run: Run | null;
@@ -17,6 +18,12 @@ type Props = {
   readOnly?: boolean;
 };
 
+/*
+  Naming is done here rather than at each screen's edge: Sohbet and Geçmiş print
+  the same traffic, and one of them used to print it in Turkish while the other
+  showed the backend's ids. The ids themselves stay untouched — `isToUser` below
+  still matches on them, and the store keeps what the wire sent.
+*/
 const USER_TARGETS = new Set(['kullanıcı', 'user', 'sen', 'you']);
 
 function isToUser(message: AgentMessage): boolean {
@@ -93,7 +100,7 @@ export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = fal
               <div className="msg-agent__who">
                 <span className="agent-badge agent-badge--accent">
                   <Bot size={12} aria-hidden />
-                  {m.fromAgent}
+                  {agentLabel(m.fromAgent)}
                 </span>
                 <span className="t-caption">{formatTime(m.createdAt)}</span>
               </div>
@@ -103,7 +110,7 @@ export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = fal
             <motion.article
               key={m.id}
               className="a2a"
-              aria-label={`Ajan mesajı: ${m.fromAgent} → ${m.toAgent}`}
+              aria-label={`Ajan mesajı: ${agentLabel(m.fromAgent)} → ${agentLabel(m.toAgent)}`}
               initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(8px)' }}
               animate={{ opacity: 1, transform: 'translateY(0px)' }}
               transition={{
@@ -114,9 +121,9 @@ export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = fal
             >
               <header className="a2a__route">
                 <Sparkles size={12} aria-hidden />
-                <span className="a2a__from">{m.fromAgent}</span>
+                <span className="a2a__from">{agentLabel(m.fromAgent)}</span>
                 <ArrowRight size={12} aria-hidden />
-                <span className="a2a__to">{m.toAgent}</span>
+                <span className="a2a__to">{agentLabel(m.toAgent)}</span>
                 <span style={{ marginLeft: 'auto' }}>{formatTime(m.createdAt)}</span>
               </header>
               <p className="a2a__body">{m.content}</p>

@@ -220,3 +220,42 @@ it('a_refused_parameter_edit_is_reported_under_the_box_that_caused_it', async ()
   expect(await screen.findByText('Kanal adı # ile başlamalı.')).toBeTruthy();
   expect(screen.getByDisplayValue('dev').getAttribute('aria-invalid')).toBe('true');
 });
+
+/**
+ * The transcript is the same component Sohbet uses, and Sohbet named its agents in Turkish
+ * while this screen printed the backend's ids — `verifier → coordinator` in the middle of a
+ * Turkish audit trail (#97, #75). Naming belongs to the transcript, so both screens read the
+ * same way and neither store keeps a translated id.
+ */
+it('the_transcript_names_the_agents_in_the_language_the_screen_is_in', async () => {
+  getRun.mockResolvedValue(
+    run({
+      messages: [
+        {
+          id: 'm-1',
+          stepId: null,
+          fromAgent: 'verifier',
+          toAgent: 'coordinator',
+          content: 'Adım doğrulandı.',
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'm-2',
+          stepId: null,
+          fromAgent: 'jira-agent',
+          toAgent: 'user',
+          content: 'Kayıt açıldı.',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    }),
+  );
+  const { container } = show();
+
+  await screen.findByText('Adım doğrulandı.');
+  const text = container.textContent ?? '';
+  expect(text).toContain('Doğrulayıcı');
+  expect(text).toContain('Koordinatör');
+  expect(text).toContain('Jira Uzmanı');
+  expect(text).not.toMatch(/\bverifier\b|\bcoordinator\b|\bjira-agent\b/);
+});
