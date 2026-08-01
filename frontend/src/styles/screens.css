@@ -217,17 +217,81 @@
 /* the row keeps a bare figure and fits on one line at 34px.            */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* Two lists, one at a time (issue #133)                               */
+/*                                                                     */
+/* The decision queue and the log used to be two sections stacked in    */
+/* one column. At 28 parked runs that is ~1000px of one list standing   */
+/* in front of the other, and the reader who came for either had to     */
+/* scroll the other first.                                              */
+/*                                                                     */
+/* The selected tab is marked in ink, not in violet. Violet on this     */
+/* product means "this is waiting on you" — spending it on "the tab     */
+/* you are looking at" would take that meaning away from the one place  */
+/* it earns its keep, the count on the queue.                           */
+/* ------------------------------------------------------------------ */
+
+.tabs {
+  display: flex;
+  gap: var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-8);
+  /* `touch-target-size`: below 1024px this screen has no sidebar and is read on
+     a tablet, where a 32px tab is a miss waiting to happen. */
+  min-height: 44px;
+  padding: 0 var(--s-12);
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-faint);
+  cursor: pointer;
+  transition:
+    color 140ms ease-out,
+    border-color 140ms ease-out;
+}
+.tab:hover {
+  color: var(--fg);
+}
+.tab--on {
+  color: var(--fg);
+  font-weight: 600;
+  border-bottom-color: var(--fg);
+}
+/* The count is the state, so it keeps the accent on both tabs — the queue is
+   waiting on a person whether or not you are looking at it. */
+.tab__count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 .runs {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.runs__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-12);
-  flex-wrap: wrap;
+/* What the list below is a list of, in one line. It replaced a heading and a
+   caption that between them said the section's name twice — the name is on the
+   tab now. */
+.runs__note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--fg-muted);
 }
 
 /*
@@ -347,20 +411,17 @@
   content: ' ›';
 }
 
-/* The block that is waiting on a person wears the accent, once, on its edge. */
-.runs--waiting .runs__frame {
-  border-color: var(--accent-line);
-  box-shadow: inset 2px 0 0 0 var(--accent);
-}
-/* Every row in this block carries the same status, so its mark stops being a
-   second colour on a purple block and joins the state it is part of. */
+/*
+  Every row in the queue carries the same status, so its mark stops being a
+  second colour on the row and joins the state it is part of.
+
+  The frame used to wear the accent too — a violet inset bar down its edge and a
+  violet column strip. That was drawn when the queue was a section competing for
+  attention with the log below it. It is a whole tab now: nothing is next to it
+  to be louder than, and painting the panel violet spends the accent on the
+  container instead of on the rows that are actually waiting (#133).
+*/
 .runs--waiting .run-row__mark {
-  color: var(--accent);
-}
-.runs--waiting .runs__cols {
-  background: var(--accent-soft);
-}
-.runs--waiting .runs__head h2 {
   color: var(--accent);
 }
 
