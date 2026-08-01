@@ -46,6 +46,7 @@ class PlaybookServiceTest {
                 new GitHubTool.ListMyPullRequests("replay", FIXTURES),
                 new com.relay.infrastructure.tools.GmailTool.ListToday("replay", FIXTURES, null),
                 new com.relay.infrastructure.tools.GmailTool.Search("replay", FIXTURES, null),
+                new com.relay.infrastructure.tools.GmailTool.CreateDraft("replay", FIXTURES, null),
                 new com.relay.infrastructure.tools.CalendarTool.ListToday(
                         "replay", FIXTURES, null, "Europe/Istanbul"),
                 new com.relay.infrastructure.tools.CalendarCreateEventTool(
@@ -193,6 +194,22 @@ class PlaybookServiceTest {
 
         assertThat(run.steps()).extracting(step -> step.toolName())
                 .containsExactly("sheets.readRange", "slack.postMessage");
+        assertThat(run.status().wire()).isEqualTo("awaiting_approval");
+    }
+
+    /**
+     * The HR story is a flow over the tools a small company's HR actually runs on, not a
+     * provider (#169). Everything it needs is one Google connection plus the mailbox, so a
+     * workspace with Google alone gets the whole flow — and every write in it is a step
+     * that stops at its own gate, which the awaiting status at the end asserts.
+     */
+    @Test
+    void the_leave_flow_runs_on_google_alone_and_stops_on_its_writes() {
+        Run run = rig("google").playbooks().start("izin-talepleri", 1.0);
+
+        assertThat(run.steps()).extracting(step -> step.toolName())
+                .containsExactly("gmail.search", "calendar.createEvent",
+                        "sheets.appendRow", "gmail.createDraft");
         assertThat(run.status().wire()).isEqualTo("awaiting_approval");
     }
 }

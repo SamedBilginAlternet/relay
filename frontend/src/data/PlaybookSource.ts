@@ -110,6 +110,27 @@ class MockPlaybookSource implements PlaybookSource {
       step is optional for the same reason the live playbook's is: a workspace
       with no Notion connection still runs the flow, minus the note.
     */
+    /*
+      The HR flow rides here for the same reason Notion's does: the shelf argues
+      who the product is for, and a flow that files leave requests says it is
+      not only for engineers. Its writes are the three places a small company's
+      HR already lives — calendar, sheet, mailbox — because there is no HR
+      provider to connect and a tool wired to nothing would be theatre (#169).
+    */
+    {
+      id: 'izin-talepleri',
+      title: 'İzin talepleri',
+      goal: 'Son bir haftanın maillerinde ekipten gelen izin taleplerini bul; gelenler için izin günlerini takvime işle, izin tablosuna satır ekle ve onay cevabını taslakla.',
+      subtitle: 'Gmail okunur; takvim bloğu, tablo satırı ve cevap taslağı ayrı ayrı onayına gelir',
+      steps: [
+        { title: 'İzin taleplerini maillerde ara', tool: 'gmail.search', optional: false },
+        { title: 'İzin günlerini takvime işle', tool: 'calendar.createEvent', optional: true },
+        { title: 'İzin tablosuna satır ekle', tool: 'sheets.appendRow', optional: true },
+        { title: 'Onay cevabını taslakla', tool: 'gmail.createDraft', optional: true },
+      ],
+      runnable: true,
+      missing: [],
+    },
     {
       id: 'karar-notu',
       title: 'Gün sonu notu',

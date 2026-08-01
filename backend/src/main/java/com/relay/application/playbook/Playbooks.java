@@ -124,12 +124,44 @@ public final class Playbooks {
                     Move.optional("Takip toplantısı öner", "calendar.createEvent", Map.of())));
 
     /**
+     * The HR story, and deliberately not an "HR integration" (#169). There is no HR
+     * provider here to connect: Workday and its kin sell tenants, not API keys, and a
+     * tool wired to nothing would be exactly the theatre this product refuses. What a
+     * small company's HR actually runs on is the three things already connected — the
+     * mailbox the requests arrive in, the calendar the absence lives on, the sheet the
+     * balance is tracked in. So leave management is a flow over real tools, and every
+     * write in it stops at its own gate.
+     *
+     * <p>The reading step is required: without the requests there is nothing to process,
+     * and a goal that says "gelenler için" with nothing arrived is the empty-precondition
+     * case — the writing steps skip with their reason instead of inventing an absence
+     * (#168), and the run closes honestly.
+     */
+    public static final Playbook LEAVE_REQUESTS = new Playbook(
+            "izin-talepleri",
+            "İzin talepleri",
+            "Son bir haftanın maillerinde ekipten gelen izin taleplerini bul. Gelenler için: "
+                    + "izin günlerini takvimime blok olarak işle, izin takip tablosuna kişi, "
+                    + "tarih aralığı ve izin türüyle bir satır ekle, ve talebi yanıtlayan kısa "
+                    + "bir onay maili taslağı hazırla. Talep yoksa uydurma — bulunmadığını "
+                    + "söyle ve hiçbir şey yazma.",
+            "Gmail okunur; takvim bloğu, tablo satırı ve cevap taslağı ayrı ayrı onayına gelir",
+            List.of(
+                    Move.required("İzin taleplerini maillerde ara", "gmail.search",
+                            Map.of("query", "subject:(izin OR \"annual leave\" OR rapor) newer_than:7d",
+                                    "maxResults", 15)),
+                    Move.optional("İzin günlerini takvime işle", "calendar.createEvent", Map.of()),
+                    Move.optional("İzin tablosuna satır ekle", "sheets.appendRow", Map.of()),
+                    Move.optional("Onay cevabını taslakla", "gmail.createDraft", Map.of())));
+
+    /**
      * Order is the shelf's argument. The mail flow leads because it is the one job every
      * desk has; the engineering-shaped ones follow. A shelf that opens with "Takılan işler"
      * tells a first-time reader this is a tool for a sprint board.
      */
     public static final List<Playbook> ALL =
-            List.of(MAIL_TO_TICKET, MORNING, MEETING_PREP, BLOCKERS, SHEET_DIGEST, PR_REVIEW);
+            List.of(MAIL_TO_TICKET, MORNING, LEAVE_REQUESTS, MEETING_PREP, BLOCKERS,
+                    SHEET_DIGEST, PR_REVIEW);
 
     private Playbooks() {
     }
