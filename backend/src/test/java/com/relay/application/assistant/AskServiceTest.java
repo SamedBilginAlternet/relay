@@ -95,6 +95,31 @@ class AskServiceTest {
         }
     }
 
+    /**
+     * The mailbox from the live report: an English receipt that a Turkish {@code subject:}
+     * filter cannot match. Records every query it was asked.
+     */
+    private static class EnglishInbox extends EmptySearch {
+        private final List<String> queries = new ArrayList<>();
+
+        @Override
+        public ToolResult execute(JsonNode params, Connection connection) {
+            String query = params.path("query").asText("");
+            queries.add(query);
+            var data = Json.object();
+            var messages = data.putArray("messages");
+            if (!query.toLowerCase(java.util.Locale.ROOT).contains("subject:")) {
+                messages.addObject()
+                        .put("id", "19fb98c8445a5122")
+                        .put("subject", "Your receipt from Anthropic, PBC #2293-9991-0125")
+                        .put("from", "Anthropic <receipts@anthropic.com>")
+                        .put("date", "2026-07-28T09:12:00Z");
+            }
+            data.put("total", messages.size());
+            return ToolResult.ok(data, 4, "live");
+        }
+    }
+
     /** A gmail.search whose provider is down — the message must never reach the user. */
     private static class FailingSearch extends EmptySearch {
         @Override
@@ -159,6 +184,71 @@ class AskServiceTest {
         // The answer model was never even called.
         assertThat(llm.of(LlmPurpose.ASK_ANSWER)).isEmpty();
         assertThat(answer.get("answerSource")).isEqualTo("none");
+    }
+
+    private static final String INVOICE = "Anthropic'ten fatura geldi mi?";
+    private static final String NARROW_ROUTE = """
+            {"lookups":[{"tool":"gmail.search",
+                         "query":"(from:anthropic) subject:(fatura OR ödeme OR makbuz) newer_than:30d",
+                         "explanation":"Son 30 günde Anthropic faturalarını aradım."}]}""";
+
+    /**
+     * The defect that made the same question answer "there is nothing" and then answer
+     * correctly: the router writes the subject filter in the language of the question, and
+     * the mailbox is in English. Asked five times it has to find the receipt five times.
+     */
+    @Test
+    void a_turkish_question_finds_an_english_subject_mail() {
+        EnglishInbox inbox = new EnglishInbox();
+        TestDoubles.ScriptedLlmClient llm = new TestDoubles.ScriptedLlmClient(Map.of(
+                LlmPurpose.ASK_ROUTE, NARROW_ROUTE,
+                LlmPurpose.ASK_ANSWER, "Anthropic'ten 28 Temmuz'da bir makbuz gelmiş [1]."));
+
+        Map<String, Object> answer = serviceWith(List.of(inbox), llm).ask(INVOICE);
+
+        assertThat(answer.get("status")).isEqualTo("ok");
+        assertThat(sources(answer)).hasSize(1);
+        assertThat(sources(answer).get(0).get("subject")).asString().contains("Your receipt from Anthropic");
+        // Two calls, one question: the narrow query, then the same query without its guess.
+        assertThat(inbox.queries).hasSize(2);
+        assertThat(inbox.queries.get(0)).contains("subject:");
+        assertThat(inbox.queries.get(1)).isEqualTo("(from:anthropic) newer_than:30d");
+        // The query on the wire is the one that produced the answer, and the first is kept.
+        assertThat(answer.get("query")).isEqualTo("(from:anthropic) newer_than:30d");
+        assertThat(breakdown(answer).get(0).get("alsoTried")).asString().contains("subject:");
+    }
+
+    /** Widening is one extra call, not a search that keeps loosening until something matches. */
+    @Test
+    void a_widened_query_that_finds_nothing_is_reported_with_both_queries() {
+        EmptySearch inbox = new EmptySearch();
+        TestDoubles.ScriptedLlmClient llm = new TestDoubles.ScriptedLlmClient(Map.of(
+                LlmPurpose.ASK_ROUTE, NARROW_ROUTE,
+                LlmPurpose.ASK_ANSWER, "cevap"));
+
+        Map<String, Object> answer = serviceWith(List.of(inbox), llm).ask(INVOICE);
+
+        assertThat(answer.get("status")).isEqualTo("empty");
+        assertThat(answer.get("answer")).asString()
+                .contains("subject:")
+                .contains("daraltmayı kaldırıp da denedim")
+                .contains("(from:anthropic) newer_than:30d");
+    }
+
+    /**
+     * Dropping the subject filter out of {@code (from:(x) OR subject:(y))} would search for
+     * less, not more, and a query with no sender left in it widens to somebody else's mail.
+     */
+    @Test
+    void a_query_that_cannot_be_widened_safely_is_run_once() {
+        EnglishInbox inbox = new EnglishInbox();
+        TestDoubles.ScriptedLlmClient llm = new TestDoubles.ScriptedLlmClient(Map.of(
+                LlmPurpose.ASK_ROUTE, MAIL_ROUTE,
+                LlmPurpose.ASK_ANSWER, "cevap"));
+
+        serviceWith(List.of(inbox), llm).ask(CARGO);
+
+        assertThat(inbox.queries).hasSize(1);
     }
 
     @Test

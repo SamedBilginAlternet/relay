@@ -114,9 +114,21 @@ public class AskService {
         }
     }
 
-    /** One lookup, already run and already judged. {@code reason} is user-facing Turkish. */
+    /**
+     * One lookup, already run and already judged. {@code reason} is user-facing Turkish.
+     *
+     * <p>{@code query} is the one that produced what came back. {@code alsoTried} is the other
+     * one when the narrow query found nothing and was widened — kept so the answer can say
+     * what was actually searched rather than leaving "bulamadım" to stand on its own.
+     */
     private record Found(String tool, String provider, String status, String reason,
-                         String query, String explanation, List<Source> sources, String mode) {
+                         String query, String explanation, List<Source> sources, String mode,
+                         String alsoTried) {
+
+        Found(String tool, String provider, String status, String reason,
+              String query, String explanation, List<Source> sources, String mode) {
+            this(tool, provider, status, reason, query, explanation, sources, mode, null);
+        }
     }
 
     // ---- entry point ------------------------------------------------------
@@ -240,8 +252,50 @@ public class AskService {
                     provider + " bağlı değil — Ayarlar'dan bağlayabilirsin.",
                     lookup.query(), lookup.explanation(), List.of(), result.mode());
         }
+        List<Source> rows = sources(lookup.tool(), provider, result.data());
+        if (rows.isEmpty()) {
+            return widen(lookup, tool, connection, provider, result.mode());
+        }
         return new Found(lookup.tool(), provider, OK, null, lookup.query(), lookup.explanation(),
-                sources(lookup.tool(), provider, result.data()), result.mode());
+                rows, result.mode());
+    }
+
+    /**
+     * A second, wider try for a query that found nothing — see {@link QueryRelaxer}.
+     *
+     * <p>Only ever one: if the widened query is empty too, that is the answer. Anything that
+     * goes wrong on the retry leaves the first, honest empty result standing.
+     */
+    private Found widen(SourceRouter.Lookup lookup, Tool tool, Connection connection,
+                        String provider, String mode) {
+        Found empty = new Found(lookup.tool(), provider, OK, null, lookup.query(),
+                lookup.explanation(), List.of(), mode);
+        String widened = QueryRelaxer.widen(lookup.query());
+        if (widened == null) {
+            return empty;
+        }
+        SourceRouter.Lookup second = new SourceRouter.Lookup(lookup.tool(), widened, lookup.explanation());
+        ToolResult result;
+        try {
+            result = tool.execute(SourceRouter.params(tool, second, MAX_RESULTS), connection);
+        } catch (RuntimeException e) {
+            LOG.log(Level.WARNING, "ask: widened {0} threw {1}", lookup.tool(), e.getClass().getSimpleName());
+            return empty;
+        }
+        if (!result.ok()) {
+            LOG.log(Level.WARNING, "ask: widened {0} failed: {1}", lookup.tool(), result.error());
+            return empty;
+        }
+        List<Source> rows = sources(lookup.tool(), provider, result.data());
+        if (rows.isEmpty()) {
+            // Both queries ran and both were empty. The answer says so with both of them,
+            // because "bulamadım" after one Turkish subject filter means something different
+            // from "bulamadım" after dropping it.
+            return new Found(lookup.tool(), provider, OK, null, lookup.query(), lookup.explanation(),
+                    List.of(), result.mode(), widened);
+        }
+        return new Found(lookup.tool(), provider, OK, null, widened, lookup.explanation(),
+                rows, result.mode(), lookup.query());
     }
 
     private static Found failed(SourceRouter.Lookup lookup, String reason) {
@@ -432,7 +486,13 @@ public class AskService {
         List<String> ran = new ArrayList<>();
         for (Found one : found) {
             if (OK.equals(one.status())) {
-                ran.add(one.provider() + (one.query().isBlank() ? "" : " — " + one.query()));
+                String tried = one.query().isBlank() ? "" : " — " + one.query();
+                if (one.alsoTried() != null) {
+                    // Say that the narrowing was already taken off, so "nothing" is not read
+                    // as "the query was too tight" when it was not.
+                    tried = tried + ", daraltmayı kaldırıp da denedim: " + one.alsoTried();
+                }
+                ran.add(one.provider() + tried);
             }
         }
         StringBuilder sb = new StringBuilder();
@@ -646,6 +706,7 @@ public class AskService {
             row.put("provider", one.provider());
             row.put("status", one.status());
             row.put("query", one.query());
+            row.put("alsoTried", one.alsoTried());
             row.put("queryExplanation", one.explanation());
             row.put("reason", one.reason());
             row.put("resultCount", one.sources().size());
