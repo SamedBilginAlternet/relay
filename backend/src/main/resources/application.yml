@@ -32,6 +32,10 @@ spring:
     default-property-inclusion: always
     serialization:
       write-dates-as-timestamps: false
+    generator:
+      # Money is a BigDecimal fixed at six decimals (CostMeter.usd). Without this a small
+      # one still prints as 3.82E-4, and a price in scientific notation is not a price.
+      write-bigdecimal-as-plain: true
 
 app:
   version: 0.1.0

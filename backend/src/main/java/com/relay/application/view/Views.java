@@ -1,5 +1,6 @@
 package com.relay.application.view;
 
+import com.relay.application.cost.CostMeter;
 import com.relay.domain.AgentMessage;
 import com.relay.domain.Run;
 import com.relay.domain.Step;
@@ -12,7 +13,8 @@ import java.util.Map;
 /**
  * Single source of truth for the wire shape (ARCHITECTURE §5). SSE frames and REST
  * responses are built from the same functions, so they can never drift apart.
- * camelCase keys, UUIDs as strings, timestamps as ISO-8601.
+ * camelCase keys, UUIDs as strings, timestamps as ISO-8601, money through
+ * {@link CostMeter#usd(Double)} so it never leaves here as {@code 3.82E-4}.
  */
 public final class Views {
 
@@ -34,7 +36,7 @@ public final class Views {
         map.put("result", step.result());
         map.put("error", step.error());
         map.put("tokens", step.tokens());
-        map.put("costUsd", step.costUsd());
+        map.put("costUsd", CostMeter.usd(step.costUsd()));
         map.put("attempts", step.attempts());
         // Which question the gate is asking. Both pauses arrive as awaiting_approval, and a
         // screen that cannot tell them apart calls a spending limit a writing permission.
@@ -73,8 +75,8 @@ public final class Views {
         map.put("goal", run.goal());
         map.put("status", run.status().wire());
         map.put("costTokens", run.costTokens());
-        map.put("costUsd", run.costUsd());
-        map.put("budgetUsd", run.budgetUsd());
+        map.put("costUsd", CostMeter.usd(run.costUsd()));
+        map.put("budgetUsd", CostMeter.usd(run.budgetUsd()));
         map.put("budgetOverridden", run.budgetOverridden());
         map.put("stepCount", run.steps().size());
         map.put("createdAt", iso(run.createdAt()));

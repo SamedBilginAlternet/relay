@@ -1,5 +1,6 @@
 package com.relay.api;
 
+import com.relay.application.cost.CostMeter;
 import com.relay.application.stats.PanelReport;
 import com.relay.application.stats.PanelService;
 import com.relay.application.stats.PanelStatsRepository;
@@ -82,14 +83,14 @@ public class PanelController {
             item.put("toolName", usage.toolName());
             item.put("calls", usage.calls());
             item.put("tokens", usage.tokens());
-            item.put("costUsd", usage.usd());
+            item.put("costUsd", CostMeter.usd(usage.usd()));
             tools.add(item);
         }
         body.put("tools", tools);
 
         Map<String, Object> totals = new LinkedHashMap<>();
         totals.put("tokens", report.totals().tokens());
-        totals.put("costUsd", report.totals().usd());
+        totals.put("costUsd", CostMeter.usd(report.totals().usd()));
         body.put("totals", totals);
 
         return body;

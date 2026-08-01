@@ -2,6 +2,7 @@ package com.relay.application.assistant;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.relay.application.brief.BriefService;
+import com.relay.application.cost.CostMeter;
 import com.relay.application.port.ConnectionRepository;
 import com.relay.application.port.LlmClient;
 import com.relay.application.port.LlmPurpose;
@@ -619,7 +620,9 @@ public class AskService {
         map.put("resultCount", rows.size());
         map.put("mode", primary == null ? null : primary.mode());
         map.put("tokens", tokens);
-        map.put("costUsd", costUsd);
+        // Summed across the routing turn and every answer turn, so a raw double lands on
+        // 0.0006177699999999999. Money leaves Relay in one shape only (#90).
+        map.put("costUsd", CostMeter.usd(costUsd));
         map.put("sourceBreakdown", breakdown(found));
         return map;
     }
