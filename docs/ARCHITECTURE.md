@@ -226,6 +226,9 @@ duvarına çarptı ve harcayan okuma araçlarıydı. Bir WRITE aracı ise yalnı
 koşuda ~100 token tutar, kullanılmadığında sıfır. Bu yüzden `calendar.createEvent`,
 `sheets.appendRow` ve `notion.createPage` bilinçli olarak brief'e **eklenmedi** — Notion
 için okuma aracı hiç yok; sonradan eklemek bir tamamlama değil, karar olacak.
+Aynı ayrım READ tarafında da işler: `sheets.readRange` bir READ ama **yalnız
+planlayıcıya** açık, brief `SECTIONS`'ına girmedi. Pahalı olan okuma değil, brief'e giren
+okumadır; plana giren bir READ yalnız kullanan koşuda şema payını (~60–130 token) öder.
 
 ---
 
@@ -431,11 +434,11 @@ karşılığı: sağlayıcı değiştirmek ortam değişkeni, araç eklemek tek 
 (`ToolRegistryImpl` sınıf yolundaki her `Tool`'u toplar,
 `infrastructure/tools/ToolRegistryImpl.java:17-25`).
 
-Kayıtlı araçlar: **21 araç — 12 READ (auto), 9 WRITE (ask), 0 DESTRUCTIVE.**
-`jira.*` 7 (4R+3W) · `gmail.*` 4 (3R+1W: yalnız taslak) · `github.*` 3 (2R+1W) ·
-`calendar.*` 3 (2R+1W) · `slack.*` 2 (1R+1W) · `sheets.appendRow` (W) ·
-`notion.createPage` (W). Politika satırı araç başına türetilir — `GET /api/policies`
-21 satır döner (`PolicyEngine.effectivePolicies:100-112`).
+Kayıtlı araçlar: **24 araç — 13 READ (auto), 11 WRITE (ask), 0 DESTRUCTIVE.**
+`jira.*` 7 (4R+3W) · `gmail.*` 4 (3R+1W: yalnız taslak) · `github.*` 4 (2R+2W) ·
+`calendar.*` 3 (2R+1W) · `slack.*` 2 (1R+1W) · `sheets.*` 2 (1R+1W) ·
+`notion.*` 2 (2W). Politika satırı araç başına türetilir — `GET /api/policies`
+24 satır döner (`PolicyEngine.effectivePolicies:100-112`).
 
 ### Nereye bakmalı
 
