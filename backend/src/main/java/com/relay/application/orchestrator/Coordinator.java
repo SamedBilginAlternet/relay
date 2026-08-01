@@ -600,7 +600,11 @@ public class Coordinator {
             sayWhatHappened(run, status);
         }
         journal.say(run, null, AgentRole.COORDINATOR, AgentRole.USER,
-                "Akış bitti: " + status.wire() + String.format(" · %,d token · $%.4f", run.costTokens(), run.costUsd()));
+                // Through the one money formatter, not %.4f. The trail said $0.0014 while
+                // the cost bar two inches above it said $0.001390 — the same number in two
+                // precisions, on a screen whose whole claim is that the figures check out.
+                "Akış bitti: " + status.wire() + String.format(" · %,d token · $", run.costTokens())
+                        + CostMeter.usd(run.costUsd()).toPlainString());
         runs.save(run);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("status", status.wire());
