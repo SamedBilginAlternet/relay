@@ -13,6 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /** Uniform error envelope: {@code {error, message}}. */
@@ -109,8 +111,7 @@ public class ApiExceptionHandler {
      *
      * <p>Without this it fell through to the catch-all below and answered 500 "Beklenmeyen
      * bir hata oluştu" — Relay reporting itself broken for a request it understood well
-     * enough to know it was wrong. {@code DELETE /api/connections/jira} and
-     * {@code PATCH /api/runs} both did it.
+     * enough to know it was wrong. {@code PATCH /api/runs} did exactly that.
      *
      * <p>The {@code Allow} header comes back with the answer, because a 405 that does not
      * say what is allowed leaves the caller guessing.
@@ -126,6 +127,24 @@ public class ApiExceptionHandler {
         body.put("error", "method_not_allowed");
         body.put("message", "Bu uç bu metodu desteklemiyor.");
         return response.body(body);
+    }
+
+    /**
+     * A path this API does not serve under any method.
+     *
+     * <p>Also a 500 before, and for the same reason: no handler claims the URL, Spring's
+     * resource lookup fails and the exception reached the catch-all. It is worth telling
+     * apart from a 405 rather than folding into one — {@code DELETE /api/connections/jira}
+     * looks like a wrong method, but there is no {@code /api/connections/jira} to address
+     * with any method at all (connections are written with {@code PUT /api/connections}).
+     * The {@code Allow: GET, HEAD, POST, PUT, DELETE, OPTIONS, PATCH} that came back with
+     * the old 500 was the static-resource fallback's, not an endpoint's, and answering 405
+     * to it would keep the caller hunting for the right verb on a URL that does not exist.
+     */
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<Map<String, Object>> noSuchEndpoint(Exception e) {
+        LOG.log(Level.DEBUG, "no handler: {0}", e.getMessage());
+        return body(HttpStatus.NOT_FOUND, "not_found", "Böyle bir uç yok.");
     }
 
     /**

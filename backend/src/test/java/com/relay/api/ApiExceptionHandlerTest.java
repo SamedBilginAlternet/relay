@@ -14,6 +14,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * The error envelope is a product surface: the status says whose fault it is, and the
@@ -77,12 +78,31 @@ class ApiExceptionHandlerTest {
         assertThat(response.getHeaders().getAllow()).containsExactlyInAnyOrder(HttpMethod.GET, HttpMethod.PUT);
     }
 
+    /**
+     * {@code DELETE /api/connections/jira} and {@code OPTIONS} on the same path answered 500
+     * too, but not because of the method: nothing serves that URL under any method, and the
+     * Allow header the old answer carried belonged to the static-resource fallback. A caller
+     * told "wrong verb" would go on hunting for the right one.
+     */
+    @Test
+    void a_path_that_is_served_by_nothing_is_a_404_not_a_405_and_not_a_500() {
+        ResponseEntity<Map<String, Object>> response = handler.noSuchEndpoint(
+                new NoResourceFoundException(org.springframework.http.HttpMethod.DELETE,
+                        "/api/connections/jira"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(body(response).get("error")).isEqualTo("not_found");
+        assertThat(body(response).get("message")).asString().doesNotContain("/api/connections");
+    }
+
     /** Nobody reading a Relay error has a server log to look at. */
     @Test
     void no_error_sends_the_reader_somewhere_they_cannot_go() {
         List<ResponseEntity<Map<String, Object>>> answers = List.of(
                 handler.unexpected(new RuntimeException("boom")),
                 handler.methodNotAllowed(new HttpRequestMethodNotSupportedException("PATCH")),
+                handler.noSuchEndpoint(new NoResourceFoundException(
+                        org.springframework.http.HttpMethod.DELETE, "/api/connections/jira")),
                 handler.badParameter(new MethodArgumentTypeMismatchException(
                         "not-a-uuid", UUID.class, "id", null, null)));
 
