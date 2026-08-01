@@ -91,7 +91,7 @@ export class MockRunSource implements RunSource {
     throw new Error(`Akış bulunamadı: ${runId}`);
   }
 
-  async listRuns(): Promise<RunSummary[]> {
+  async listRuns(options?: { status?: RunSummary['status']; size?: number }): Promise<RunSummary[]> {
     await delay(180);
     const live = [...this.runs.values()].map((p) => p.run);
     return [...live, ...this.history]
@@ -106,7 +106,11 @@ export class MockRunSource implements RunSource {
         createdAt: r.createdAt,
         finishedAt: r.finishedAt,
         stepCount: r.steps.length,
-      }));
+      }))
+      // The API filters server-side; the mock has every run in hand, so it filters here.
+      // Same contract either way: asking for a status answers with all of it.
+      .filter((row) => !options?.status || row.status === options.status)
+      .slice(0, options?.size ?? undefined);
   }
 
   /**

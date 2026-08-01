@@ -266,8 +266,17 @@ public class RunService {
         return runs.findAll(page, size);
     }
 
+    /** The same page, narrowed to one status. */
+    public List<Run> list(RunStatus status, int page, int size) {
+        return status == null ? runs.findAll(page, size) : runs.findByStatus(status, page, size);
+    }
+
     public long count() {
         return runs.count();
+    }
+
+    public long count(RunStatus status) {
+        return status == null ? runs.count() : runs.countByStatus(status);
     }
 
     public Run approve(UUID runId, UUID stepId) {

@@ -53,11 +53,33 @@ export function HistoryScreen({ onOpen }: Props) {
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
 
+  const [parked, setParked] = useState<RunSummary[] | null>(null);
+
+  /*
+    Two requests, because they answer different questions.
+
+    The list is a page of history — twenty rows, newest first. The waiting block is a set:
+    the top bar counts every run stopped on a person and sends the reader here, and live it
+    said 29 while this screen showed the 3 that happened to fall on that page. The other 26
+    had no route in the product at all. Asking the server for the status is one request and
+    cannot race with a run finishing between pages.
+
+    The answer is filtered again here rather than trusted: a server that does not know the
+    parameter answers with the ordinary page, and the block would then claim finished runs
+    are waiting on a decision. Filtering costs nothing and makes the heading true whatever
+    comes back.
+  */
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setRows(await getRunSource().listRuns());
+      const source = getRunSource();
+      const [page, waitingRows] = await Promise.all([
+        source.listRuns(),
+        source.listRuns({ status: 'awaiting_approval', size: 100 }).catch(() => null),
+      ]);
+      setRows(page);
+      setParked(waitingRows);
     } catch (err) {
       setError(err);
     } finally {
@@ -69,7 +91,8 @@ export function HistoryScreen({ onOpen }: Props) {
     void load();
   }, [load]);
 
-  const { waiting, settled } = useMemo(() => splitByDecision(rows ?? []), [rows]);
+  const { waiting: onPage, settled } = useMemo(() => splitByDecision(rows ?? []), [rows]);
+  const waiting = parked ? parked.filter((row) => row.status === WAITING) : onPage;
   const repeated = useMemo(() => repeatedGoals(rows ?? []), [rows]);
 
   return (

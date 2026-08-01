@@ -120,8 +120,24 @@ public class JpaRunRepository implements RunRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Run> findByStatus(com.relay.domain.RunStatus status, int page, int size) {
+        return runs.findByStatus(status.wire(),
+                        PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100),
+                                Sort.by(Sort.Direction.DESC, "createdAt")))
+                .map(JpaRunRepository::toDomain)
+                .getContent();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public long count() {
         return runs.count();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByStatus(com.relay.domain.RunStatus status) {
+        return runs.countByStatus(status.wire());
     }
 
     // -----------------------------------------------------------------------

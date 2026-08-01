@@ -136,19 +136,39 @@ public class RunController {
      */
     @GetMapping
     public Map<String, Object> list(@RequestParam(defaultValue = "0") int page,
-                                    @RequestParam(defaultValue = "20") int size) {
+                                    @RequestParam(defaultValue = "20") int size,
+                                    @RequestParam(required = false) String status) {
         if (page < 0) {
             throw new IllegalArgumentException("Sayfa numarası 0 ya da daha büyük olmalı.");
         }
+        // `total` is the total for what was asked for, not for the table: a filtered page
+        // whose total counted every run would tell the caller there are more pages of
+        // waiting runs than exist.
+        com.relay.domain.RunStatus wanted = runStatus(status);
         int applied = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         List<Map<String, Object>> items = new ArrayList<>();
-        runService.list(page, applied).forEach(run -> items.add(Views.runSummary(run)));
+        runService.list(wanted, page, applied).forEach(run -> items.add(Views.runSummary(run)));
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("items", items);
         body.put("page", page);
         body.put("size", applied);
-        body.put("total", runService.count());
+        body.put("status", wanted == null ? null : wanted.wire());
+        body.put("total", runService.count(wanted));
         return body;
+    }
+
+    /** An unknown status is the caller's mistake, and answering with every run hides it. */
+    private static com.relay.domain.RunStatus runStatus(String wire) {
+        if (wire == null || wire.isBlank()) {
+            return null;
+        }
+        for (com.relay.domain.RunStatus candidate : com.relay.domain.RunStatus.values()) {
+            if (candidate.wire().equalsIgnoreCase(wire.trim())) {
+                return candidate;
+            }
+        }
+        throw new IllegalArgumentException("Bilinmeyen akış durumu: " + wire
+                + ". Beklenen: planning, awaiting_approval, running, done, failed, cancelled.");
     }
 
     @GetMapping(value = "/{id}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

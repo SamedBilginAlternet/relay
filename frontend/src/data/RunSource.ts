@@ -38,7 +38,12 @@ export interface RunSource {
 
   createRun(goal: string, budgetUsd?: number | null): Promise<{ runId: string }>;
   getRun(runId: string): Promise<Run>;
-  listRuns(): Promise<RunSummary[]>;
+  /**
+   * The history page, newest first. `status` narrows it to one status and asks the server
+   * for the whole set rather than whichever of them fell on the first page — the top bar
+   * counts runs waiting on a person, and the screen it links to has to hold all of them.
+   */
+  listRuns(options?: { status?: RunSummary['status']; size?: number }): Promise<RunSummary[]>;
   rerun(runId: string): Promise<{ runId: string }>;
   /**
    * Stops the flow. Answers with the run as it stands: already `cancelled` when it was

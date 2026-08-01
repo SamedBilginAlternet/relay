@@ -98,9 +98,13 @@ export class ApiRunSource implements RunSource {
     return this.request<Run>(`/runs/${encodeURIComponent(runId)}`);
   }
 
-  async listRuns(): Promise<RunSummary[]> {
+  async listRuns(options?: { status?: RunSummary['status']; size?: number }): Promise<RunSummary[]> {
+    const query = new URLSearchParams();
+    if (options?.status) query.set('status', options.status);
+    if (options?.size) query.set('size', String(options.size));
+    const path = query.toString() ? `/runs?${query}` : '/runs';
     // The history endpoint is paginated; accept array / {items} / Spring {content}.
-    const body = await this.request<unknown>('/runs');
+    const body = await this.request<unknown>(path);
     const rows = Array.isArray(body)
       ? body
       : ((body as { items?: unknown[]; content?: unknown[] } | null)?.items ??

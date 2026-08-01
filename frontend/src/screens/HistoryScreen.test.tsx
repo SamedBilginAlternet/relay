@@ -17,7 +17,7 @@ import type { RunSummary } from '../types/api';
  * screen still says something out loud when there is nothing to show at all.
  */
 
-const listRuns = vi.fn<() => Promise<RunSummary[]>>();
+const listRuns = vi.fn<(options?: { status?: string; size?: number }) => Promise<RunSummary[]>>();
 
 vi.mock('../data', () => ({
   getRunSource: () => ({ listRuns }),
@@ -107,4 +107,44 @@ it('a_failure_to_read_the_history_is_reported_in_turkish_with_a_way_back', async
   screen.getByRole('button', { name: 'Tekrar dene' }).click();
 
   await waitFor(() => expect(screen.getByText('ikinci denemede geldi')).toBeTruthy());
+});
+
+/**
+ * The top bar counts every run stopped on a person; this screen used to show whichever of
+ * them fell on the first page of history — 29 counted, 3 shown, and no route to the other
+ * 26 (#100). The waiting block asks for the status as a set now, and it has to keep saying
+ * only what the rows are: a server that ignores the filter must not turn finished runs into
+ * pending decisions.
+ */
+it('the_waiting_block_holds_every_parked_run_not_just_the_first_page', async () => {
+  listRuns.mockImplementation(async (options?: { status?: string }) =>
+    options?.status === 'awaiting_approval'
+      ? [
+          run({ id: 'w-1', goal: 'birinci onay', status: 'awaiting_approval' }),
+          run({ id: 'w-2', goal: 'ikinci onay', status: 'awaiting_approval' }),
+          run({ id: 'w-3', goal: 'üçüncü onay', status: 'awaiting_approval' }),
+        ]
+      : [
+          run({ id: 'w-1', goal: 'birinci onay', status: 'awaiting_approval' }),
+          run({ id: 'd-1', goal: 'biten iş', status: 'done' }),
+        ],
+  );
+
+  render(<HistoryScreen onOpen={() => {}} />);
+
+  expect(await screen.findByText('Onayını bekleyen 3 çalıştırma')).toBeTruthy();
+  expect(screen.getByText('üçüncü onay')).toBeTruthy();
+  // On the page but not waiting: it belongs under the records, once.
+  expect(screen.getAllByText('biten iş')).toHaveLength(1);
+});
+
+it('a_server_that_ignores_the_filter_does_not_turn_records_into_decisions', async () => {
+  listRuns.mockResolvedValue([
+    run({ id: 'w-1', goal: 'bekleyen', status: 'awaiting_approval' }),
+    run({ id: 'd-1', goal: 'biten iş', status: 'done' }),
+  ]);
+
+  render(<HistoryScreen onOpen={() => {}} />);
+
+  expect(await screen.findByText('Onayını bekleyen 1 çalıştırma')).toBeTruthy();
 });

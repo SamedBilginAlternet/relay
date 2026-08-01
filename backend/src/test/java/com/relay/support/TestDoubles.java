@@ -73,8 +73,22 @@ public final class TestDoubles {
         }
 
         @Override
+        public List<Run> findByStatus(com.relay.domain.RunStatus status, int page, int size) {
+            List<Run> all = new ArrayList<>(runs.values());
+            all.removeIf(run -> run.status() != status);
+            all.sort(Comparator.comparing(Run::createdAt).reversed());
+            int from = Math.min(page * size, all.size());
+            return all.subList(from, Math.min(from + size, all.size()));
+        }
+
+        @Override
         public long count() {
             return runs.size();
+        }
+
+        @Override
+        public long countByStatus(com.relay.domain.RunStatus status) {
+            return runs.values().stream().filter(run -> run.status() == status).count();
         }
     }
 
