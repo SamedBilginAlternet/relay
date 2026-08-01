@@ -112,7 +112,6 @@ public class Step {
         this.decision = Decision.REJECTED;
         this.rejectReason = reason;
         this.status = StepStatus.REJECTED;
-        this.finishedAt = this.finishedAt == null ? null : this.finishedAt;
     }
 
     public void markDone(Object result, Instant now) {
