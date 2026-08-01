@@ -2,11 +2,11 @@ import { ChevronUp, ListChecks } from 'lucide-react';
 import { useEffect } from 'react';
 import { BottomSheet } from '../components/BottomSheet';
 import { ChatPanel } from '../components/ChatPanel';
-import { Landing } from '../components/Landing';
 import { WorkflowPanel } from '../components/WorkflowPanel';
 import { RUN_SOURCE_KIND } from '../data';
 import { useHashRoute } from '../lib/router';
 import { useRunStore } from '../store/runStore';
+import { ChatStart } from './ChatStart';
 
 export function ChatScreen() {
   const [route, navigate] = useHashRoute();
@@ -75,7 +75,7 @@ export function ChatScreen() {
 
   if (!run && phase === 'idle') {
     return (
-      <Landing
+      <ChatStart
         onSubmit={(goal) => void startRun(goal)}
         busy={phase !== 'idle'}
         sourceKind={RUN_SOURCE_KIND}
