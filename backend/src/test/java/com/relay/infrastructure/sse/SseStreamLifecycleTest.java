@@ -20,6 +20,7 @@ import com.relay.infrastructure.tools.FixtureStore;
 import com.relay.infrastructure.tools.JiraTool;
 import com.relay.infrastructure.tools.ToolRegistryImpl;
 import com.relay.support.TestDoubles;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -59,14 +60,17 @@ class SseStreamLifecycleTest {
 
     @Test
     void a_client_that_arrives_after_the_end_gets_the_story_and_then_a_closed_stream() {
-        SseEventPublisher publisher = new SseEventPublisher();
-        UUID runId = UUID.randomUUID();
+        TestDoubles.InMemoryRunRepository runs = new TestDoubles.InMemoryRunRepository();
+        Run run = Run.create("Jira'da blocker'ları bul", Instant.parse("2026-08-01T09:00:00Z"), 0.5);
+        run.status(RunStatus.DONE);
+        runs.save(run);
+        SseEventPublisher publisher = new SseEventPublisher(runs);
 
-        publisher.publish(runId, RunEvent.of(RunEvent.STEP_STARTED, Map.of("stepId", "1")));
-        publisher.publish(runId, RunEvent.of(RunEvent.RUN_FINISHED, Map.of("status", "done")));
-        publisher.closed(runId);
+        publisher.publish(run.id(), RunEvent.of(RunEvent.STEP_STARTED, Map.of("stepId", "1")));
+        publisher.publish(run.id(), RunEvent.of(RunEvent.RUN_FINISHED, Map.of("status", "done")));
+        publisher.closed(run.id());
 
-        publisher.subscribe(runId);
+        publisher.subscribe(run.id());
 
         assertThat(publisher.subscriberCount())
                 .as("replaying the story to a latecomer is a feature; leaving the line open is not")

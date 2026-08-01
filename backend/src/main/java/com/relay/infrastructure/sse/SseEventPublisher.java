@@ -98,9 +98,15 @@ public class SseEventPublisher implements EventPublisher {
      * @param resumeFrom the last frame id the client says it already has, or {@code null}
      */
     SseEmitter subscribe(UUID runId, SseEmitter emitter, Long resumeFrom) {
-        Channel channel = channels.computeIfAbsent(runId, key -> new Channel());
-        rebuildIfForgotten(runId, channel);
         Watcher watcher = new Watcher(emitter);
+        // Claimed inside the map's own lock, before anything else can decide this run is
+        // over and let its channel go: a watcher on the list is what keeps it alive.
+        Channel channel = channels.compute(runId, (key, current) -> {
+            Channel live = current == null ? new Channel() : current;
+            live.watchers.add(watcher);
+            return live;
+        });
+        rebuildIfForgotten(runId, channel);
         List<Frame> replay;
         boolean over;
         boolean restarted;
@@ -110,12 +116,12 @@ public class SseEventPublisher implements EventPublisher {
                     && resumeFrom >= kept.get(0).id() - 1 && resumeFrom <= channel.lastId;
             replay = resumable ? kept.stream().filter(frame -> frame.id() > resumeFrom).toList() : kept;
             restarted = resumeFrom != null && !resumable;
-            // The cursor and the registration are set in the same breath as the snapshot is
-            // taken. A frame published between "what have I missed" and "count me in" used to
-            // fall into the gap between them: it was not in the replay and not yet on the
-            // watcher list, and nobody ever wrote it.
+            // The cursor is set in the same breath as the snapshot is taken, and the watcher
+            // was on the list before either. A frame published between "what have I missed"
+            // and "count me in" used to fall into the gap between them: not in the replay,
+            // not yet on the watcher list, written by nobody. Now it lands on a watcher whose
+            // cursor is not set yet, waits its turn, and goes out exactly once.
             watcher.expect(replay.isEmpty() ? channel.lastId + 1 : replay.get(0).id());
-            channel.watchers.add(watcher);
             over = channel.over;
         }
         emitter.onCompletion(() -> remove(runId, watcher));
@@ -142,11 +148,15 @@ public class SseEventPublisher implements EventPublisher {
     }
 
     /**
-     * The run is finished: hang up on everyone watching it.
+     * The run is finished: hang up on everyone watching it, and let its frames go.
      *
-     * <p>Only the ending is announced, not the backlog: replaying the story to a late
-     * arrival is a deliberate feature (docs/NASIL-CALISIYOR.md), and the run detail screen
-     * relies on it.
+     * <p>Replaying the story to a late arrival is a deliberate feature and the run detail
+     * screen relies on it — but it does not have to be replayed out of this process. The
+     * steps and the chatter are on disk, so a channel nobody is listening to any more is
+     * memory held for a story {@link RunReplay} can tell again from the rows.
+     *
+     * <p>Without this the map only ever grew: four hundred frames per run, kept for the
+     * lifetime of the process, whether the run ended an hour ago or in March.
      */
     @Override
     public void closed(UUID runId) {
@@ -159,10 +169,16 @@ public class SseEventPublisher implements EventPublisher {
         for (Watcher watcher : targets) {
             complete(runId, watcher);
         }
+        forgetIfDone(runId, channel);
     }
 
     public int subscriberCount() {
         return channels.values().stream().mapToInt(channel -> channel.watchers.size()).sum();
+    }
+
+    /** Is this run's story still being held in memory? Package-private: an assertion needs it. */
+    boolean remembers(UUID runId) {
+        return channels.containsKey(runId);
     }
 
     // -----------------------------------------------------------------------
@@ -312,7 +328,24 @@ public class SseEventPublisher implements EventPublisher {
         Channel channel = channels.get(runId);
         if (channel != null) {
             channel.watchers.remove(watcher);
+            forgetIfDone(runId, channel);
         }
+    }
+
+    /** A finished run with nobody left on it keeps nothing: the database has the story. */
+    private void forgetIfDone(UUID runId, Channel channel) {
+        channels.computeIfPresent(runId, (key, current) -> {
+            if (current != channel) {
+                return current;
+            }
+            synchronized (current) {
+                if (!current.over || !current.watchers.isEmpty()) {
+                    return current;
+                }
+                current.history.clear();
+                return null;
+            }
+        });
     }
 
     /** One run's live channel: the frames worth repeating and whoever is listening. */

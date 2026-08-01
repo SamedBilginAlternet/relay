@@ -155,6 +155,40 @@ class SseEventPublisherTest {
                         IntStream.rangeClosed(seen.get(0), total).boxed().toList());
     }
 
+    /**
+     * The backlog was never emptied. Four hundred frames per run, held for the lifetime of
+     * the process, whether the run ended a minute ago or in March — memory that grew in a
+     * straight line with the number of runs ever started.
+     */
+    @Test
+    void a_finished_run_stops_holding_its_events_in_memory() {
+        TestDoubles.InMemoryRunRepository runs = new TestDoubles.InMemoryRunRepository();
+        Run run = Run.create("Jira'da blocker'ları bul", Instant.parse("2026-08-01T09:00:00Z"), 0.5);
+        Step step = Step.create(run.id(), 1, "Blocker'ları ara", "jira-agent", "jira.searchIssues", Map.of());
+        step.markDone(Map.of("issues", List.of()), Instant.parse("2026-08-01T09:00:04Z"));
+        run.addStep(step);
+        run.status(RunStatus.DONE);
+        runs.save(run);
+        SseEventPublisher publisher = new SseEventPublisher(runs);
+
+        RecordingEmitter watching = new RecordingEmitter();
+        publisher.subscribe(run.id(), watching);
+        publisher.publish(run.id(), RunEvent.of(RunEvent.RUN_FINISHED, Map.of("status", "done")));
+        publisher.closed(run.id());
+
+        assertThat(publisher.remembers(run.id()))
+                .as("the run is over and nobody is watching: the database has the story now")
+                .isFalse();
+
+        RecordingEmitter latecomer = new RecordingEmitter();
+        publisher.subscribe(run.id(), latecomer);
+        assertThat(latecomer.names())
+                .as("and a latecomer is still told it, out of the rows")
+                .containsExactly(RunEvent.RUN_PLANNED, RunEvent.STEP_FINISHED,
+                        RunEvent.RUN_COST, RunEvent.RUN_FINISHED);
+        assertThat(publisher.subscriberCount()).isZero();
+    }
+
     @Test
     void sse_events_carry_monotonic_ids() {
         SseEventPublisher publisher = new SseEventPublisher();
