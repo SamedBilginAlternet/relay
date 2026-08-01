@@ -2735,6 +2735,32 @@ a.btn {
 .shelf__item:disabled:not(.shelf__item--off) {
   opacity: 0.6;
 }
+/*
+  The apps the flow touches, at the trailing edge of the pill so the title still
+  starts at the same x on every row. Two or three small marks read as a group at
+  a glance; the count that replaces a fourth is a machine fact and is set like
+  one.
+*/
+.shelf__marks {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding-left: var(--s-8);
+}
+.shelf__more {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-faint);
+}
+/* A flow that cannot run yet says so with tone, not with opacity — but its
+   marks are advertising a connection that is not there, so they step back. */
+.shelf__item--off .shelf__marks {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
 
 /* ---- the opened section ------------------------------------------- */
 

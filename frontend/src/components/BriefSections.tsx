@@ -1,6 +1,8 @@
 import { motion, useReducedMotion } from 'motion/react';
 import { ChevronDown, ExternalLink, Play, Plug, TriangleAlert, Workflow, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { BrandMark, providerOf } from './BrandMark';
+import type { Provider } from './BrandMark';
 import type { Playbook } from '../data/PlaybookSource';
 import { enterProps } from '../lib/motion';
 import type { BriefSection } from '../types/brief';
@@ -220,6 +222,22 @@ export function SectionPanel({
   );
 }
 
+/**
+ * How many marks a chip is allowed to show, and what happens past that.
+ *
+ * <p>Three, because that is what the written-down flows actually touch: read
+ * from one system, read from a second, write to a third. A fourth would be the
+ * chip growing wider than its own title, and the shelf is one wrapping row —
+ * the whole reason it is a shelf and not a card grid.
+ *
+ * <p>Past three the extra ones are counted rather than drawn. Not dropped: a
+ * flow that quietly showed three of its five providers would be understating
+ * what it is about to do, and this is the surface a write gets started from.
+ * Not spelled out either — the second line of the chip already names every
+ * provider in `subtitle`, which is what a screen reader gets.
+ */
+const MARK_CAP = 3;
+
 const PROVIDER_LABEL: Record<string, string> = {
   jira: 'Jira',
   github: 'GitHub',
@@ -230,6 +248,29 @@ const PROVIDER_LABEL: Record<string, string> = {
 function missingText(missing: string[]): string {
   const names = missing.map((p) => PROVIDER_LABEL[p] ?? p);
   return `${names.join(', ')} bağlı değil`;
+}
+
+/**
+ * Which apps a flow actually touches, read off its own steps.
+ *
+ * <p>Derived rather than tabulated on purpose. A playbook-id → icon map is
+ * correct exactly until someone edits a step, and then it is wrong silently and
+ * on the surface where a write gets started — the chip would claim the flow
+ * reads Jira long after the Jira step was replaced. `steps[].tool` is on the
+ * payload already, and `providerOf` is the same reading the run view and the
+ * approval gate use, so a chip cannot disagree with the run it starts.
+ *
+ * <p>Order is the steps' own, first mention wins: a flow reads before it writes,
+ * so the marks come out in the order the work happens. A tool from a provider
+ * with no mark contributes nothing rather than a placeholder.
+ */
+function providersOf(steps: Playbook['steps']): Provider[] {
+  const seen: Provider[] = [];
+  for (const step of steps) {
+    const provider = providerOf(step.tool);
+    if (provider && !seen.includes(provider)) seen.push(provider);
+  }
+  return seen;
 }
 
 type ShelfProps = {
@@ -276,6 +317,8 @@ export function PlaybookShelf({ playbooks, loading, error, starting, onRun }: Sh
       {playbooks.map((playbook) => {
         const blocked = !playbook.runnable;
         const busy = starting === playbook.id;
+        const providers = providersOf(playbook.steps);
+        const overflow = providers.length - MARK_CAP;
         return (
           <button
             key={playbook.id}
@@ -294,6 +337,18 @@ export function PlaybookShelf({ playbooks, loading, error, starting, onRun }: Sh
                 <span className="shelf__sub shelf__sub--warn">{missingText(playbook.missing)}</span>
               )}
             </span>
+            {/* Which apps this touches, in the order it touches them. Silent to
+                a screen reader: the subtitle below already writes the provider
+                names out, and a logo repeating a word costs a listener a beat
+                and tells them nothing. */}
+            {providers.length > 0 && (
+              <span className="shelf__marks" aria-hidden>
+                {providers.slice(0, MARK_CAP).map((provider) => (
+                  <BrandMark key={provider} provider={provider} size={13} />
+                ))}
+                {overflow > 0 && <span className="shelf__more">+{overflow}</span>}
+              </span>
+            )}
             {/* The steps are what makes a playbook worth trusting; they do not fit
                 on a pill, but they belong in the accessible name. */}
             <span className="sr-only">
