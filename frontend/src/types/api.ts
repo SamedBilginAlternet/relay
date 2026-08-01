@@ -115,6 +115,12 @@ export type StepFinishedEvent = {
   error?: string | null;
   rejectReason?: string | null;
   decision?: StepDecision;
+  /**
+   * The server's own copy of the step, timestamps included. The reducer prefers these over
+   * the browser clock: the stream replays, and a replayed frame that re-dates a step erases
+   * the duration the trail is supposed to prove.
+   */
+  step?: Step;
 };
 export type AgentMessageEvent = {
   type: 'agent.message';
@@ -126,7 +132,12 @@ export type AgentMessageEvent = {
   createdAt?: string;
 };
 export type RunCostEvent = { type: 'run.cost'; tokens: number; costUsd: number };
-export type RunFinishedEvent = { type: 'run.finished'; status: string };
+export type RunFinishedEvent = {
+  type: 'run.finished';
+  status: string;
+  /** When it ended, by the clock that ended it — not by the clock that heard about it. */
+  finishedAt?: string | null;
+};
 
 export type RunEvent =
   | RunPlannedEvent

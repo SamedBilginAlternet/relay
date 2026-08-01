@@ -475,6 +475,9 @@ public class Coordinator {
         data.put("status", status.wire());
         data.put("tokens", run.costTokens());
         data.put("costUsd", run.costUsd());
+        // When it ended, from the clock that ended it. The screen used to stamp its own,
+        // which meant a replay of this frame moved the finish time to the reconnect.
+        data.put("finishedAt", Views.iso(run.finishedAt()));
         events.publish(run.id(), RunEvent.of(RunEvent.RUN_FINISHED, data));
         // Say the ending out loud to the transport as well. run.finished was the last frame
         // a client would ever get, but nothing hung up: the stream idled for half an hour,

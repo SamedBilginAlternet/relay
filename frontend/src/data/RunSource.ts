@@ -15,8 +15,12 @@ export type RunStreamHandlers = {
   onEvent: (event: RunEvent) => void;
   onStatus: (status: StreamStatus) => void;
   /**
-   * SSE has no replay. After a dropped connection the source refetches the
-   * full run and hands it back so the UI can fill the gap.
+   * After a dropped connection the source refetches the full run and hands it back.
+   *
+   * <p>The stream itself replays — the server keeps a backlog and gives every new subscriber
+   * the story from the start — but only the last 400 frames of it, so this is what closes a
+   * longer hole. It arrives late by definition: the socket goes on talking while the request
+   * is in flight, so the consumer must merge it rather than assign it.
    */
   onResync?: (run: Run) => void;
 };

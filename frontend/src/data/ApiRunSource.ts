@@ -212,7 +212,9 @@ export class ApiRunSource implements RunSource {
       es.onopen = () => {
         attempt = 0;
         handlers.onStatus('live');
-        // SSE has no replay — refetch the full run to fill whatever we missed.
+        // The server does replay its backlog on reconnect, but only the last 400 frames of
+        // it, so a long outage can still leave a hole. The refetch closes that hole; the
+        // reducer is what makes the overlap harmless.
         if (hadDrop) resync();
       };
 

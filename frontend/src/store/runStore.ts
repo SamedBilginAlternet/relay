@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { getRunSource } from '../data';
 import { ApiError } from '../data/ApiRunSource';
-import { applyEvent } from '../data/applyEvent';
+import { applyEvent, isTerminal, mergeRun } from '../data/applyEvent';
 import type { StreamStatus, Unsubscribe } from '../data/RunSource';
 import type { Run } from '../types/api';
 
@@ -58,6 +58,8 @@ function errorText(err: unknown): string {
   return 'Beklenmeyen bir hata oldu.';
 }
 
+export { isTerminal };
+
 export const useRunStore = create<RunState>((set, get) => {
   const attachStream = (runId: string): void => {
     stopStream();
@@ -77,8 +79,11 @@ export const useRunStore = create<RunState>((set, get) => {
         }
       },
       onResync: (fresh) => {
-        // SSE has no replay — this is the gap fill after a reconnect.
-        if (get().run?.id === fresh.id) set({ run: fresh });
+        // The gap fill after a reconnect. It is a request in flight and the socket keeps
+        // talking meanwhile, so it is merged rather than assigned: replacing the run
+        // wholesale silently undid every frame that landed while it was on its way.
+        const current = get().run;
+        if (current && current.id === fresh.id) set({ run: mergeRun(current, fresh) });
       },
     });
   };
@@ -265,10 +270,6 @@ export const useRunStore = create<RunState>((set, get) => {
     },
   };
 });
-
-export function isTerminal(status: string): boolean {
-  return status === 'done' || status === 'failed' || status === 'cancelled';
-}
 
 function mergeMessages(fresh: Run, local: Run) {
   const seen = new Set(fresh.messages.map((m) => m.id));
