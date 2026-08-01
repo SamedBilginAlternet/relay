@@ -22,6 +22,7 @@ import { ApiError } from '../data/ApiRunSource';
 import { getPlaybookSource } from '../data/PlaybookSource';
 import type { Playbook } from '../data/PlaybookSource';
 import { formatDayMonth } from '../lib/format';
+import { dedupeStrips, factStrip, rationReasons } from '../lib/insight';
 import { enterProps, expandProps } from '../lib/motion';
 import { EMPTY_SECTION } from '../types/brief';
 import type { Brief, BriefSectionKey, InsightCard, SuggestedAction } from '../types/brief';
@@ -262,6 +263,56 @@ export function TodayScreen({ onNavigate }: Props) {
     }
     return map;
   }, [brief?.digest]);
+
+  /*
+    How old each item is, from the section it came out of.
+
+    `BriefItem.row()` and `.view()` share an id, so the join is exact — it is the same one
+    `whyById` performs on the digest. The string is whatever the server's own `relative()`
+    wrote and it is never reformatted here: two places deciding what "4 sa önce" looks
+    like is two places for them to disagree.
+  */
+  const ageById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const key of ['inbox', 'work', 'code', 'calendar'] as const) {
+      const section = brief?.[key];
+      if (!section || section.status !== 'ok') continue;
+      for (const item of section.items) {
+        const meta = (item.meta ?? '').trim();
+        if (item.id && meta && !map.has(item.id)) map.set(item.id, meta);
+      }
+    }
+    return map;
+  }, [brief]);
+
+  /*
+    The facts each row prints, made distinct from every other row's before anything is
+    drawn. The dedupe has to see the whole visible list at once — a row cannot know it is
+    saying the same thing as the one above it — which is why it happens here and not
+    inside the row (#141).
+  */
+  const factsById = useMemo(() => {
+    const strips = dedupeStrips(
+      priority.map((card) => ({ id: card.id, tokens: factStrip(card, ageById.get(card.id)) })),
+    );
+    return new Map(strips.map((strip) => [strip.id, strip.tokens]));
+  }, [priority, ageById]);
+
+  /*
+    And the sentences, rationed the same way and for the same reason: three rows carrying
+    one sentence teach the reader that the second line of a row is never worth reading.
+  */
+  const rationedWhy = useMemo(
+    () =>
+      rationReasons(
+        priority.map((card) => ({
+          id: card.id,
+          title: card.title,
+          why: whyById.get(card.id) ?? null,
+        })),
+      ),
+    [priority, whyById],
+  );
 
   /*
     A section that could not be fetched is work too — the kind that has to be
@@ -667,10 +718,11 @@ export function TodayScreen({ onNavigate }: Props) {
                     {priority.map((card, i) => (
                       <ActionRow
                         key={card.id}
+                        facts={factsById.get(card.id) ?? []}
                         card={card}
                         index={meetingRow ? i + 1 : i}
                         primary={primaryRow === (meetingRow ? i + 1 : i)}
-                        why={whyById.get(card.id) ?? null}
+                        why={rationedWhy.get(card.id) ?? null}
                         busyTool={busy?.cardId === card.id ? busy.tool : null}
                         onAction={(c, a) => void runAction(c, a)}
                         onDismiss={(id) => setDismissed((cur) => [...cur, id])}

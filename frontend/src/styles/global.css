@@ -3431,3 +3431,64 @@ a.btn {
     animation: none !important;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* The fact strip (issue #141)                                         */
+/*                                                                     */
+/* It replaced a sentence that, on the live screen, was the same        */
+/* sentence on three consecutive rows. Machine facts, so the mono       */
+/* layer; one line, so the column reads down instead of across; and     */
+/* the same grammar on every row so what the eye catches is the values  */
+/* changing rather than the shape.                                      */
+/*                                                                     */
+/* `ACİL` is in this line but not of it. It is a warning, not a         */
+/* description, so it takes the danger colour and its own weight — and  */
+/* the word is there, because the row's left edge and a colour are not  */
+/* allowed to be the whole signal.                                      */
+/* ------------------------------------------------------------------ */
+
+.arow__facts {
+  display: block;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.arow__sep {
+  color: var(--fg-faint);
+}
+.arow__tok--acil {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
+/*
+  The chevron is an affordance, not a fact, and it was drawn on every row at all
+  times — five identical glyphs down the right edge of a list whose job is to
+  show what differs. It stays in the DOM at every state, because `aria-expanded`
+  lives on the control and a screen reader must still find it.
+*/
+.arow__chev {
+  opacity: 0;
+  transition:
+    transform 200ms ease-out,
+    opacity 200ms ease-out;
+}
+.arow:hover .arow__chev,
+.arow:focus-within .arow__chev {
+  opacity: 1;
+}
+/* A finger has no hover to reveal it with. */
+@media (hover: none) {
+  .arow__chev {
+    opacity: 1;
+  }
+}

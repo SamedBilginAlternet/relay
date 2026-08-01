@@ -294,3 +294,71 @@ it('a_current_brief_is_not_re_fetched_behind_the_readers_back', async () => {
     vi.useRealTimers();
   }
 });
+
+/**
+ * The screen is where the strip is made distinct, because a row cannot know it is saying
+ * the same thing as the row above it — the whole visible list has to be seen at once
+ * (#141). This is the wiring test for that: the same three GitHub rows that shipped with
+ * one sentence between them, drawn from a payload shaped like the live one.
+ */
+it('three_rows_that_arrived_alike_are_drawn_apart_by_their_own_facts', async () => {
+  const why = "deposuna ait bir pull request var ve senin PR'ın — incelemeye başlanabilir.";
+  getBrief.mockResolvedValue(
+    briefWith({
+      priority: [
+        {
+          id: 'github-pr:acme/pay#128',
+          source: 'github',
+          title: 'Kurulum notunu README ekle',
+          subtitle: "senin PR'ın",
+          kind: 'fyi',
+          urgency: 'normal',
+          summary: '',
+          suggestedActions: [],
+        },
+        {
+          id: 'github-pr:acme/pay#131',
+          source: 'github',
+          title: 'Retry politikası eksik',
+          subtitle: 'review bekliyor',
+          kind: 'fyi',
+          urgency: 'normal',
+          summary: '',
+          suggestedActions: [],
+        },
+      ],
+      code: {
+        status: 'ok',
+        items: [
+          { id: 'github-pr:acme/pay#128', title: 'a', meta: '262 gün' },
+          { id: 'github-pr:acme/pay#131', title: 'b', meta: '4 gün' },
+        ],
+      },
+      digest: {
+        summary: '',
+        priorities: [
+          { itemId: 'github-pr:acme/pay#128', why: `acme/pay ${why}` },
+          { itemId: 'github-pr:acme/pay#131', why: `relay-web ${why}` },
+        ],
+      },
+    }) as Brief,
+  );
+
+  render(<TodayScreen onNavigate={() => {}} />);
+
+  await screen.findByText('Kurulum notunu README ekle');
+  const strips = [...document.querySelectorAll('.arow__facts')].map((el) => el.textContent);
+  expect(strips).toHaveLength(2);
+  expect(strips[0]).toContain('acme/pay#128');
+  expect(strips[0]).toContain("senin PR'ın");
+  expect(strips[0]).toContain('262 gün');
+  expect(new Set(strips).size).toBe(strips.length);
+
+  // The sentence they shared is now on one row, not two — the other keeps its copy in
+  // the body, one press away.
+  expect(document.querySelectorAll('.arow__why')).toHaveLength(1);
+
+  // And the word beside the mark is gone: "GitHub" printed on every row said what the
+  // mark says, while the line under the title names the repository, which differs.
+  expect(document.querySelector('.src-badge')).toBeNull();
+});

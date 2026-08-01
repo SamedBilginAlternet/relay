@@ -36,8 +36,20 @@ type RowProps = {
   /**
    * `digest.priorities[].why` — why this one is here now. Often absent, and
    * shown only when it beats the title; see {@link reasonEarnsItsLine}.
+   *
+   * <p>Already rationed by the caller: when two rows' reasons say the same thing only
+   * the higher-ranked one is handed a sentence (#141).
    */
   why?: string | null;
+  /**
+   * What this row is, where it stands, how old it is — at most three machine tokens,
+   * already made distinct from every other visible row's (see {@link dedupeStrips}).
+   *
+   * <p>It replaced the explanation sentence, which on the live screen was the same
+   * sentence on three consecutive rows. Empty means this row had nothing of its own to
+   * say, and it prints nothing rather than something invented.
+   */
+  facts?: string[];
   busyTool: string | null;
   onAction: (card: InsightCard, action: SuggestedAction) => void;
   onDismiss: (cardId: string) => void;
@@ -93,7 +105,16 @@ function extraActions(card: InsightCard): SuggestedAction[] {
  * from — stays one click down, because a feed that shows everything is the
  * section grid again with different borders.
  */
-export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAction, onDismiss }: RowProps) {
+export function ActionRow({
+  card,
+  index,
+  primary: isPrimary,
+  why,
+  facts = [],
+  busyTool,
+  onAction,
+  onDismiss,
+}: RowProps) {
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
   const bodyId = useId();
@@ -113,8 +134,14 @@ export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAc
     under its title; it is not allowed to say the title twice. Whatever is
     dropped here is still one click down, in the body.
   */
-  const reason = why && reasonEarnsItsLine(card.title, why) ? why : null;
-  const line = reason ?? (reasonEarnsItsLine(card.title, card.summary) ? card.summary : null);
+  /*
+    The summary is no longer a fallback for a missing reason. It was, and it is written by
+    the same model in the same voice about the same item, so a row whose reason was
+    dropped for repeating its neighbour simply printed the neighbour's other sentence
+    instead (#141). The facts below the title carry what the row has to say; the summary
+    is in the body, once.
+  */
+  const line = why && reasonEarnsItsLine(card.title, why) ? why : null;
 
   return (
     <motion.li
@@ -135,29 +162,39 @@ export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAc
 
           <span className="arow__text">
             <span className="arow__head">
-              <span className="src-badge">
-                {/* The provider's own mark: read in a glance, where the tool id
-                    needed a beat. The word stays — a logo alone is a guess. */}
-                <BrandMark provider={card.source} size={12} />
-                {source.label}
-              </span>
-              {card.urgency === 'high' && (
-                <span className={`urgency urgency--sm ${urgency.className}`}>
-                  <urgency.Icon size={11} aria-hidden />
-                  {urgency.label}
-                </span>
-              )}
+              {/* The mark alone. The word beside it — "GitHub", "E-posta" — said what
+                  the mark says, on every row, and the line under the title now names
+                  the repository or the person, which is the part that differs. */}
+              <BrandMark provider={card.source} size={14} />
+              <span className="sr-only">{source.label} · </span>
               <span className="arow__title">{card.title}</span>
             </span>
 
+            {/* Machine facts, same grammar every row, different values. `ACİL` is drawn
+                apart from them because it is a warning rather than a description — and
+                it is a word, not only a colour, with the row's left edge behind it. */}
+            {(card.urgency === 'high' || facts.length > 0) && (
+              <span className="arow__facts t-mono">
+                {card.urgency === 'high' && (
+                  <span className="arow__tok arow__tok--acil">{urgency.label}</span>
+                )}
+                {facts.map((token, i) => (
+                  <span key={token}>
+                    {(i > 0 || card.urgency === 'high') && (
+                      <span className="arow__sep" aria-hidden>
+                        {' · '}
+                      </span>
+                    )}
+                    {token}
+                  </span>
+                ))}
+              </span>
+            )}
+
             {line && (
               <span className="arow__why">
-                {reason ? (
-                  <>
-                    <ListOrdered size={12} aria-hidden />
-                    <span className="sr-only">Neden şimdi: </span>
-                  </>
-                ) : null}
+                <ListOrdered size={12} aria-hidden />
+                <span className="sr-only">Neden şimdi: </span>
                 <span className="arow__why-text">{line}</span>
               </span>
             )}
