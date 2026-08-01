@@ -286,7 +286,7 @@ it('a_tab_counts_the_tools_behind_it_and_the_toolless_core_carries_no_number', a
 });
 
 /**
- * The rule block itself was removed at the owner's request (#164) — a paragraph of
+ * The rule block itself was removed at the owner’s request (#165) — a paragraph of
  * governance prose on a screen people visit to see who does what. The FACT it stated
  * still holds and is still enforced: membership derives from the tool registry alone.
  * What remains on screen saying so is the section head's own "araç kayıt defterinden"
