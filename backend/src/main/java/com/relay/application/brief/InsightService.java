@@ -134,9 +134,35 @@ public class InsightService {
         List<Insight> out = new ArrayList<>();
         for (BriefItem item : subject) {
             Insight insight = byItem.get(item.id());
-            out.add(demoteBulk(item, insight != null ? insight : heuristic(item, projectKey)));
+            if (insight == null) {
+                insight = heuristic(item, projectKey);
+            } else {
+                insight = withSentence(insight, item, projectKey);
+            }
+            out.add(demoteBulk(item, insight));
         }
         return new Result(out, tokens, cost, source);
+    }
+
+    /**
+     * The card's sentence has to say something the buttons do not.
+     *
+     * <p>Live, asking the model for a summary that names the next step made it answer with
+     * the next step and nothing else: three cards whose whole summary was "İlerlemeyi
+     * güncelle" — the text of the button sitting directly underneath. The card then said the
+     * same thing twice and named neither the item nor why it was on the screen. When that
+     * happens the deterministic sentence is simply better, so it is used; the model's own
+     * actions are kept.
+     */
+    private Insight withSentence(Insight insight, BriefItem item, String projectKey) {
+        String summary = insight.summary() == null ? "" : insight.summary().trim();
+        boolean echoesAButton = insight.actions().stream()
+                .anyMatch(action -> summary.equalsIgnoreCase(action.label()));
+        if (!summary.isBlank() && summary.length() >= 24 && !echoesAButton) {
+            return insight;
+        }
+        return new Insight(insight.itemId(), insight.kind(), insight.urgency(),
+                heuristic(item, projectKey).summary(), insight.actions());
     }
 
     /**
@@ -235,9 +261,10 @@ public class InsightService {
                   contain. A newsletter titled "rockstar bugs for your weekend" is not a bug
                   report; a bug report is a person describing something that broke.
                 - A real request comes from a human who expects something back from THIS user.
-                - summary: ONE short sentence, in TURKISH, saying what the user should do next and
-                  why — not what the item is. "KAN-58 sana atandı, henüz başlanmadı" beats
-                  "Bir Jira kaydı var".
+                - summary: ONE full Turkish sentence that names the item, the state it is in and
+                  the next step, e.g. "KAN-58 sana atandı ve henüz başlanmadı — bugün başlat."
+                  It is NOT the button: never answer with a bare imperative like "İlerlemeyi
+                  güncelle", and never repeat a label's words.
                 - suggestedActions: at most 3, ONLY tools from the given list, with params that fit
                   that tool's schema. Reuse the item's ref fields (issueKey, repo, number…) verbatim.
                 - An action MOVES THE WORK ON. Order them: the step that changes the state of the
@@ -249,8 +276,12 @@ public class InsightService {
                     move it to In Progress, then tell the team it has been picked up.
                   · Jira issue already in progress → write today's progress onto the issue.
                   · Jira issue blocked → take it to whoever can unblock it.
-                  · Pull request waiting for the user's review → leave the review comment; when it
-                    has been waiting for days, remind the team as well.
+                  · Pull request waiting for the user's review (detail says "review bekliyor") →
+                    leave the review comment; when it has waited days, remind the team as well.
+                  · Pull request the user opened themselves (detail says "senin PR'ın") → they are
+                    waiting on other people: ask for a reviewer, do not review it for them.
+                  · GitHub issue assigned to the user (detail says "sana atandı") → say how it will
+                    be tackled, on the issue itself.
                   · Personal mail expecting an answer → prepare a reply draft, if a tool in the list
                     above writes drafts; if none does, turn the request into a record.
                   · Mail reporting something broken → open the record first, then tell the channel.

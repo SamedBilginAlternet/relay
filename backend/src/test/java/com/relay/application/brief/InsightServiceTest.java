@@ -223,6 +223,31 @@ class InsightServiceTest {
                 .contains("Sprint planlama").contains("14:00");
     }
 
+    /**
+     * Live, asking for a summary that names the next step made the model answer with the
+     * next step and nothing else: three cards whose entire summary read "İlerlemeyi
+     * güncelle" — the text of the button directly underneath them. A card that says the
+     * same thing twice names neither the item nor why it is on the screen, so the
+     * deterministic sentence takes over while the model's own actions stay.
+     */
+    @Test
+    void a_summary_that_is_only_the_button_text_is_replaced_by_one_that_says_something() {
+        String answer = """
+                {"insights":[{"id":"github-pr:acme/pay#12","kind":"request","urgency":"normal",
+                  "summary":"İncele ve yorumla","suggestedActions":[
+                    {"tool":"github.addComment","label":"İncele ve yorumla",
+                     "params":{"repo":"acme/pay","number":12,"body":"bakıyorum"}}]}]}""";
+        InsightService service = new InsightService(new TestDoubles.StaticLlmClient(answer), tools);
+
+        InsightService.Insight insight = service.analyze(List.of(PR), "KAN").insights().get(0);
+
+        assertThat(insight.summary()).isNotEqualToIgnoringCase("İncele ve yorumla");
+        assertThat(insight.summary()).contains("acme/pay#12").contains("review");
+        // The model's action survives — only the sentence was unusable.
+        assertThat(insight.actions()).extracting(InsightService.Action::label)
+                .containsExactly("İncele ve yorumla");
+    }
+
     private static String label(InsightService.Insight insight) {
         return insight.actions().isEmpty() ? "" : insight.actions().get(0).label();
     }
