@@ -324,6 +324,15 @@ export function PanelScreen() {
                           <span className="panel-reject__step">{rejection.stepTitle ?? 'Adım'}</span>
                           {rejection.toolName && <code className="t-mono">{rejection.toolName}</code>}
                           <span>{formatDateTime(rejection.at)}</span>
+                          {/*
+                            Cancelling a run writes its unfinished steps off as rejected
+                            too, and the database keeps no mark that separates the two.
+                            Rather than guess from the wording, say which run this came
+                            from and what became of it.
+                          */}
+                          {rejection.runStatus === 'cancelled' && (
+                            <span className="panel-reject__tag">iptal edilen akış</span>
+                          )}
                         </span>
                         {rejection.runGoal && <span className="panel-reject__goal">{rejection.runGoal}</span>}
                       </a>

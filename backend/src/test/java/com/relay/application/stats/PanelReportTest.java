@@ -44,8 +44,9 @@ class PanelReportTest {
     @Test
     void a_refusal_arrives_with_its_reason_and_the_run_it_belongs_to() {
         stats.rejections.add(new PanelStatsRepository.Rejection(RUN, STEP,
-                "Sprint blocker'larını Slack'e özetle", "Slack'e mesaj gönder", "slack.postMessage",
-                "Kanal yanlış, #genel yerine #dev olmalı", Instant.parse("2026-07-30T14:12:00Z")));
+                "Sprint blocker'larını Slack'e özetle", "failed", "Slack'e mesaj gönder",
+                "slack.postMessage", "Kanal yanlış, #genel yerine #dev olmalı",
+                Instant.parse("2026-07-30T14:12:00Z")));
 
         PanelReport report = panel.report(null, null);
 
@@ -54,6 +55,10 @@ class PanelReportTest {
             // Without the run id the sentence is an anecdote; with it, it is a record.
             assertThat(rejection.runId()).isEqualTo(RUN);
             assertThat(rejection.toolName()).isEqualTo("slack.postMessage");
+            // Cancelling a run writes its unfinished steps off as rejected as well, and the
+            // schema cannot tell those apart from a refusal. The run's own status travels
+            // with the line so the screen can say which one the reader is looking at.
+            assertThat(rejection.runStatus()).isEqualTo("failed");
         });
     }
 

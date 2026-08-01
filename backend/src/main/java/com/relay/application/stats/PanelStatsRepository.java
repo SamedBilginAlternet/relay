@@ -53,9 +53,18 @@ public interface PanelStatsRepository {
     record Gate(long steps, long gated, long approved, long rejected, long pending) {
     }
 
-    /** {@code reason} may be null: a rejection without a typed sentence is still a rejection. */
-    record Rejection(UUID runId, UUID stepId, String runGoal, String stepTitle, String toolName,
-                     String reason, Instant at) {
+    /**
+     * {@code reason} may be null: a rejection without a typed sentence is still a rejection.
+     *
+     * <p>{@code runStatus} is carried because cancelling a run writes every unfinished step
+     * off as rejected too (Coordinator.stop). Those closures are indistinguishable from a
+     * refusal in the schema — same decision, same status — and the only way to tell them
+     * apart would be to pattern-match the reason text, which is a guess dressed up as a
+     * fact. So the panel reports what is recorded and hands the reader the one thing that
+     * makes the line readable: which run it belongs to, and what happened to that run.
+     */
+    record Rejection(UUID runId, UUID stepId, String runGoal, String runStatus, String stepTitle,
+                     String toolName, String reason, Instant at) {
     }
 
     record ToolUsage(String toolName, long calls, long tokens, double usd) {

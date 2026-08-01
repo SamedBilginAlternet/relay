@@ -100,7 +100,7 @@ public class JpaPanelStatsRepository implements PanelStatsRepository {
           loses a real refusal from a screen whose whole point is that none are lost.
         */
         Query query = window(em.createNativeQuery("""
-                select s.run_id, s.id, r.goal, s.title, s.tool_name, s.reject_reason,
+                select s.run_id, s.id, r.goal, r.status, s.title, s.tool_name, s.reject_reason,
                        coalesce(s.finished_at, s.started_at, r.created_at) as decided_at
                   from steps s
                   join runs r on r.id = s.run_id""" + RUN_WINDOW + """
@@ -113,7 +113,7 @@ public class JpaPanelStatsRepository implements PanelStatsRepository {
         for (Object row : query.getResultList()) {
             Object[] cells = (Object[]) row;
             out.add(new Rejection(uuid(cells[0]), uuid(cells[1]), text(cells[2]), text(cells[3]),
-                    text(cells[4]), text(cells[5]), instant(cells[6])));
+                    text(cells[4]), text(cells[5]), text(cells[6]), instant(cells[7])));
         }
         return out;
     }

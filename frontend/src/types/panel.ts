@@ -39,6 +39,12 @@ export type PanelRejection = {
   runId: string;
   stepId: string;
   runGoal: string | null;
+  /**
+   * Status of the run this refusal belongs to. Cancelling a run writes its unfinished
+   * steps off as rejected too, and nothing in the schema separates those from a real
+   * refusal — so the panel shows the run's status instead of guessing from the wording.
+   */
+  runStatus: string | null;
   stepTitle: string | null;
   toolName: string | null;
   /** Null when somebody refused without writing anything. Still a refusal. */

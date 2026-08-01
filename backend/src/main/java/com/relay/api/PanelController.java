@@ -65,6 +65,9 @@ public class PanelController {
             item.put("runId", rejection.runId() == null ? null : rejection.runId().toString());
             item.put("stepId", rejection.stepId() == null ? null : rejection.stepId().toString());
             item.put("runGoal", rejection.runGoal());
+            // A cancelled run writes its unfinished steps off as rejected too; the reader
+            // needs to see that from the line itself, not infer it from the wording.
+            item.put("runStatus", rejection.runStatus());
             item.put("stepTitle", rejection.stepTitle());
             item.put("toolName", rejection.toolName());
             item.put("reason", rejection.reason());
