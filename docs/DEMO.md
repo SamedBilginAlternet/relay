@@ -134,6 +134,15 @@ yakalanmak, kötü rakamdan daha pahalı.
 **"Panelinizde 106 akışın 50'si tamamlanmış. Akışlarınızın yarısı bitmiyor mu?"**
 > Doğru okudunuz, ve rakamın çoğu bizim tanımımız: 29 akış **onay bekliyor** — çünkü kapıyı geçmek için insan gerekiyor, ve o insan o gün geri dönmediyse akış orada durur. Bu bizim yarım kalmış işimiz değil, ürünün varsayılanı; sessizce tamamlanan bir akış bizim için başarısızlık olurdu. Geriye 23 hata kalıyor ve onları savunmuyoruz: çoğu 48 saatlik entegrasyon işi — yanlış proje anahtarı, kanala davet edilmemiş bot. Ölçtüğümüz şey de bu zaten; ölçmeseydik bu ekran olmazdı.
 
+**"Onay oranınız %89. Adımların yarısında duruyorsunuz ve insan on kararın dokuzunda 'tamam' diyor — bu kapı lastik damga değil mi?"**
+> Kapının değeri ortalamada değil, kuyrukta. Yüz kararın doksanında insan "evet" diyor, evet — ama onda birinde durduğu şey **yanlış projeye açılacak bir kayıt ya da yanlış kanala gidecek bir mesaj**, ve o mesaj gönderildikten sonra geri alınmıyor. Sigortayı yılda kaç kez attığıyla değerlendirmezsiniz. Ayrıca cevap ikili de değil: az önce gördünüz, kullanıcı reddetmeden alanı düzeltip onayladı — kapının asıl işi durdurmak değil, **gönderilen değeri insanın gördüğü değere eşitlemek**.
+
+**Üstelerse — "peki kaç kere düzelttiniz?"**
+> Bu rakamı bugün ayrı saymıyoruz, iz kaydında var ama panelde toplanmıyor; onaylandı/düzeltilerek onaylandı ayrımı sıradaki iş (#54). Rakamı uydurma; "iz kaydında satır satır duruyor, ekranda henüz toplanmıyor" cevabı dürüst ve yeterli.
+
+**"$0.05 için bütçe motoru mu yazdınız?"**
+> Bugünkü ölçekte evet, gereksiz. Bütçe kapısı LLM maliyeti için değil, **ölçüm için** var: adım başına token ve dolar zaten hesaplanıyor, tavan onun bir satırlık sonucu. Ve tavanın anlamı fiyat değil, davranış: sınıra gelen ajan sessizce harcamaya devam etmiyor, durup soruyor — bunu bir kuruşta kanıtlamak, bin dolarda kanıtlamaktan ucuz.
+
 **Söylenmeyecek:** *"o rakam test verisi"* — 106 akışın içinde jüriye gösterdiğimiz akış da var.
 Rakamı sahiplen; ölçtüğün bir sayıyı reddetmek, ölçüm iddiasını da düşürür.
 
@@ -181,6 +190,7 @@ Demodan **30 dakika önce** başla; her maddeyi sırayla işaretle.
 6. ☐ Groq: `GROQ_API_KEYS` en az 3 anahtar içeriyor; her biri bugün tek istekle doğrulandı.
 7. ☐ Akış bütçesi ayarlı (ör. $0.50) — maliyet şeridi ve bütçe davranışı anlatılabilir durumda.
 8. ☐ **Geçmiş** temiz: eski deneme akışları silindi ya da en üstte düzgün bir prova akışı duruyor (jüri Geçmiş'te çöp görmesin).
+8b. ☐ **Panel** temiz: `#/panel` → `Son 7 gün` açıldığında **Red gerekçeleri** listesindeki satırlar okunabilir ve iş anlamı taşıyor. `akış iptal edildi (…)` satırları bugün de bu listede görünüyor (`iptal edilen akış` etiketiyle işaretli ama ayrı bloğa taşınmadı — #54) ve QA test dizeleri (`"QA testi — mesaj gonderme…"`) hâlâ oradaysa jüri kapının değerini onlardan okuyacak. Pratikte: demodan önce **2–3 gerçek red üret** — bir kanal düzeltmesi, bir başlık düzeltmesi — ki listenin en üstünde gerçek gerekçeler dursun. Onay oranı ve tamamlanma yüzdesi ezberde (§3 "Panel ekranından okunan sorular").
 9. ☐ Tarayıcı: tam ekran (F11), zoom **%110**, yer imi çubuğu gizli, bildirimler kapalı (OS düzeyinde Rahatsız Etmeyin açık).
 10. ☐ Sekme düzeni soldan sağa: **1** Relay · **2** Slack `#genel` · **3** Jira KAN panosu · **4** mock frontend (`VITE_RUN_SOURCE=mock`, açık ve çalıştığı görülmüş). Başka sekme YOK.
 11. ☐ Ekran çözünürlüğü 1920×1080'e sabit; projektöre bağlanıp bir kez gerçek yansıtmada kontrol edildi.
