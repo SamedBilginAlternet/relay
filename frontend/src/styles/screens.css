@@ -281,14 +281,18 @@
   font-weight: 600;
   border-bottom-color: var(--fg);
 }
-/* The count is the state, so it keeps the accent on both tabs — the queue is
-   waiting on a person whether or not you are looking at it. */
+/*
+  The same amber, and the same pill, as the badge on the sidebar's Akışlar row —
+  because it is literally the same number. Measured live it was violet here and
+  amber there: one 28, two colours, and nothing on screen saying they were one
+  fact. Colour is the only thing that can say it at a glance.
+*/
 .tab__count {
   min-width: 20px;
   padding: 0 6px;
   border-radius: var(--r-pill);
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: rgba(180, 83, 9, 0.12);
+  color: var(--warn);
   font-size: 12px;
   font-weight: 600;
   line-height: 18px;
