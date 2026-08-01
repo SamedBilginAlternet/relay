@@ -758,7 +758,10 @@ public abstract class JiraTool extends AbstractTool {
             ObjectNode summary = props.putObject("summary");
             summary.put("type", "string");
             summary.put("minLength", 3);
-            summary.put("description", "One line title of the issue");
+            // Jira's own hard cap; encoded here so the gate refuses what the provider
+            // would (#175) instead of asking a human to approve a guaranteed 400.
+            summary.put("maxLength", 255);
+            summary.put("description", "One line title of the issue (Jira caps it at 255 chars)");
             ObjectNode description = props.putObject("description");
             description.put("type", "string");
             description.put("description", "Body text (plain text — converted to ADF)");

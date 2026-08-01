@@ -231,9 +231,17 @@ public class ToolAgent {
      * pages and Google Docs all take their body under that name, so a page whose body was
      * template filler sailed past the gate that stops the identical text in a Slack
      * {@code text} or a mail {@code body}. Same field, same reader, same rule.
+     *
+     * <p>{@code summary} and {@code title} joined even later, from the same class of
+     * incident (#175): with every model tier cooling, the stub drafted a Jira summary
+     * reading "Sonuç bulunamadı: <the whole goal>" — a filler phrase this gate already
+     * knows, standing in the one field it was not reading. A human was asked to approve
+     * it three times; Jira refused it three times for length. A record's headline is
+     * human text by any reading.
      */
     private static final java.util.Set<String> HUMAN_TEXT_FIELDS = java.util.Set.of(
-            "text", "message", "body", "comment", "description", "content");
+            "text", "message", "body", "comment", "description", "content",
+            "summary", "title");
 
     /**
      * Refuses to send a message that reports activity instead of findings.
@@ -933,15 +941,54 @@ public class ToolAgent {
      * skipped; Sheets followed for the same reason. The oldest step's bulk had crowded out
      * the newest step's result, and the newest result is precisely what a chain needs.
      *
-     * <p>An item that FITS keeps its structure — the stub's parameter synthesis and any
-     * schema-shaped reading depend on real JSON, and flattening a small result to an
-     * escaped string broke both for 8 characters' difference. Only an oversized item is
-     * clipped to text, head kept, because a read's first rows are its most relevant ones.
-     * 900 covers every single-record projection in the fixture set (largest: a read mail
-     * at 608 chars) with room; bulk reads (a mailbox page is 1.3–3k) are the ones meant
-     * to be clipped.
+     * <p>An oversized item is shrunk STRUCTURALLY — long text fields cut, long arrays
+     * headed — never flattened to an escaped string. The first draft of this fix
+     * string-previewed the overflow, and the stub's parameter synthesis (which reads real
+     * JSON, not backslash soup) stopped finding the mail subjects inside it; its honest
+     * "Sonuç bulunamadı" then met the filler gate and two playbooks failed in CI before
+     * the same pair could fail on stage. Structure is load-bearing for every reader of
+     * this block: the stub's regexes, the grounding haystack, and a real model's own
+     * attention.
+     *
+     * <p>900 covers every single-record projection whole (largest fixture: a read mail at
+     * 608 chars); a bulk read keeps its first rows with their fields intact, because a
+     * read's head is its most relevant part.
      */
     private static final int RESULT_PREVIEW = 900;
+
+    /** Longest text field an oversized result keeps; enough for any subject or key. */
+    private static final int CLIP_TEXT = 240;
+
+    /** How many elements of an oversized result's array survive. */
+    private static final int CLIP_ITEMS = 5;
+
+    private static JsonNode clipped(JsonNode node) {
+        if (node.isTextual()) {
+            String text = node.asText();
+            return text.length() <= CLIP_TEXT ? node
+                    : Json.mapper().getNodeFactory().textNode(text.substring(0, CLIP_TEXT) + "…");
+        }
+        if (node.isArray()) {
+            var out = Json.mapper().createArrayNode();
+            int kept = 0;
+            for (JsonNode child : node) {
+                if (kept == CLIP_ITEMS) {
+                    // Says what was dropped, so a model never reads five as everything.
+                    out.add("… +" + (node.size() - CLIP_ITEMS) + " öğe daha");
+                    break;
+                }
+                out.add(clipped(child));
+                kept++;
+            }
+            return out;
+        }
+        if (node.isObject()) {
+            var out = Json.object();
+            node.fields().forEachRemaining(e -> out.set(e.getKey(), clipped(e.getValue())));
+            return out;
+        }
+        return node;
+    }
 
     private List<Map<String, Object>> previousResults(Run run, Step step) {
         List<Map<String, Object>> out = new ArrayList<>();
@@ -956,7 +1003,7 @@ public class ToolAgent {
             String raw = Json.write(other.result());
             item.put("result", raw.length() <= RESULT_PREVIEW
                     ? other.result()
-                    : raw.substring(0, RESULT_PREVIEW) + "…");
+                    : clipped(Json.toNode(other.result())));
             out.add(item);
         }
         return out;

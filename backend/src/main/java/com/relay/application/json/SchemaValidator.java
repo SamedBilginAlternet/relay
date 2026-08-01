@@ -117,6 +117,17 @@ public final class SchemaValidator {
                 && value.asText().length() < schema.get("minLength").asInt()) {
             errors.add(path + " must be at least " + schema.get("minLength").asInt() + " characters");
         }
+        /*
+          The other bound, learned live (#175): Jira caps a summary at 255 and answers
+          HTTP 400 past it. Without maxLength here the gate showed a human a title the
+          provider was guaranteed to refuse — approving it bought a provider error, a
+          re-derivation and a second identical question. The gate's whole contract is
+          that what it shows can actually be sent.
+        */
+        if (value.isTextual() && schema.has("maxLength")
+                && value.asText().length() > schema.get("maxLength").asInt()) {
+            errors.add(path + " must be at most " + schema.get("maxLength").asInt() + " characters");
+        }
     }
 
     private static boolean typeMatches(String type, JsonNode value) {
