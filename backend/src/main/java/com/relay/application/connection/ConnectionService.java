@@ -11,6 +11,7 @@ import com.relay.domain.RiskLevel;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -48,10 +49,23 @@ public class ConnectionService {
         return connections.findByProvider(provider);
     }
 
-    /** Upsert; masked incoming values keep the stored secret. */
+    /**
+     * Upsert; masked incoming values keep the stored secret.
+     *
+     * <p>The provider has to be one Relay actually has tools for. {@code PUT} used to store
+     * any name at all and answer {@code {"provider":"evilcorp","configured":true}} — a
+     * credential accepted for something that can never be called, invisible in
+     * {@code GET /api/connections} (which lists the four known ones) and impossible to
+     * delete. An API that says it saved something has to have saved it somewhere the rest
+     * of the API can see.
+     */
     public Connection save(String provider, Map<String, String> incoming) {
         if (provider == null || provider.isBlank()) {
-            throw new IllegalArgumentException("provider is required");
+            throw new IllegalArgumentException("Sağlayıcı adı gerekli.");
+        }
+        if (!KNOWN_PROVIDERS.contains(provider.trim().toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("Bilinmeyen sağlayıcı: " + provider
+                    + ". Tanımlı olanlar: " + String.join(", ", KNOWN_PROVIDERS) + ".");
         }
         Connection existing = connections.findByProvider(provider).orElse(null);
         Map<String, String> merged = new LinkedHashMap<>();
