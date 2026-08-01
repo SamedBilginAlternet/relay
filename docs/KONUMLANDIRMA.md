@@ -172,7 +172,7 @@ Bu günün hiçbir adımında kod yazılmıyor. Hepsi koordinasyon.
 | `frontend/src/components/Composer.tsx` → `PLACEHOLDER_LONG` | *"Blocker etiketli Jira işlerini bul…"* | **A2 uygulandı** — aynı mail cümlesi |
 | `Playbooks.java` → `BLOCKERS`, `PR_REVIEW` | "Blocker taraması", "PR durumu" | **A3 uygulandı** — "Takılan işler", "Bekleyen incelemeler" |
 | `Playbooks.ALL` sırası | Mail akışı sonda | **A4 uygulandı** — "Maili işe çevir" rafın ilk sırasında |
-| `DEMO.md` §0.5 | Açılış insight kartı: *"Ödeme servisi staging'de patlıyor"* | **Ç1 uygulandı** — kart bir müşteri talebi (`DEMO-VERI.md` §1.1) |
+| `DEMO.md` açılış sahnesi | Açılış insight kartı: *"Ödeme servisi staging'de patlıyor"* | **Ç1 uygulandı** — kart bir müşteri talebi (`DEMO-VERI.md` §1.1) |
 
 Yani: **ürün beyaz yakalı işi yapıyordu, arayüz geliştirici diliyle konuşuyordu.** A grubu
 bittiği için bu satırlar artık bir kontrol listesi değil, "ne değişti" kaydı — sunumda
@@ -410,7 +410,7 @@ maliyeti) geçerliliğini koruyor — buradakiler **konumlandırma** soruları, 
 Aşağıdakiler **çelişki** ve karara bağlanması gerekiyor. Demo betiği bu dokümandan sonra
 güncellenmeli.
 
-**Ç1 — `DEMO.md` §0.5 açılış kartı ürünü mühendislik ürünü gibi gösteriyor.**
+**Ç1 — `DEMO.md` açılış kartı ürünü mühendislik ürünü gibi gösteriyordu.**
 Kart metni: *"Ödeme servisi staging'de patlıyor"*. Demonun 12. saniyesinde jürinin okuduğu
 tek cümle bir staging hatası. **Öneri:** kart bir **iş talebi** olsun — ör. *"Ayşe:
 Ödeme akışında müşteri şikâyeti var, kayıt açar mısın?"*. Aynı `InsightService` sınıfı
