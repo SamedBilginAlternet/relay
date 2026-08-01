@@ -64,6 +64,8 @@ function panel(awaiting: number): PanelReport {
     rejections: [],
     cancellations: [],
     tools: [],
+    models: [],
+    routing: null,
     totals: { tokens: 0, costUsd: 0 },
   };
 }

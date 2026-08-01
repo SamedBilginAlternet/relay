@@ -1,5 +1,12 @@
 import { API_BASE_URL, RUN_SOURCE_KIND } from './index';
-import type { PanelRange, PanelReport, PanelRejection, PanelToolUsage } from '../types/panel';
+import type {
+  PanelModelUsage,
+  PanelRange,
+  PanelRejection,
+  PanelReport,
+  PanelRouting,
+  PanelToolUsage,
+} from '../types/panel';
 
 export interface PanelSource {
   report(range: PanelRange): Promise<PanelReport>;
@@ -57,6 +64,52 @@ function normalizeTool(raw: unknown): PanelToolUsage {
   };
 }
 
+/**
+ * `null` survives here, and that is the point. `num()` would turn a missing
+ * counterfactual into 0, and 0 is the sentence "the strong model would have cost
+ * nothing" — the exact false claim this block exists to avoid making.
+ */
+function optionalNum(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizeModel(raw: unknown): PanelModelUsage {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {
+    model: String(r.model ?? '—'),
+    calls: num(r.calls),
+    tokens: num(r.tokens),
+    costUsd: num(r.costUsd),
+    premiumCostUsd: optionalNum(r.premiumCostUsd),
+  };
+}
+
+/**
+ * An older server sends no `routing` at all, and a newer one sends `null` when it has no
+ * counterfactual for the window. Both mean "no comparison", and both must arrive here as
+ * `null` rather than as a block of zeros the screen would print as a finding.
+ *
+ * <p>The difference is re-derived rather than trusted: the screen prints "X, Y, fark Z"
+ * on one line, and a Z that did not come out of that X and that Y is the one arithmetic
+ * error nobody would catch by reading it.
+ */
+function normalizeRouting(raw: unknown): PanelRouting | null {
+  if (raw === null || raw === undefined) return null;
+  const r = raw as Record<string, unknown>;
+  const costUsd = optionalNum(r.costUsd);
+  const premiumCostUsd = optionalNum(r.premiumCostUsd);
+  if (costUsd === null || premiumCostUsd === null) return null;
+  return {
+    calls: num(r.calls),
+    tokens: num(r.tokens),
+    costUsd,
+    premiumCostUsd,
+    differenceUsd: premiumCostUsd - costUsd,
+  };
+}
+
 function normalize(raw: unknown): PanelReport {
   const r = (raw ?? {}) as Record<string, unknown>;
   const runs = (r.runs ?? {}) as Record<string, unknown>;
@@ -82,6 +135,8 @@ function normalize(raw: unknown): PanelReport {
     rejections: Array.isArray(r.rejections) ? r.rejections.map(normalizeRejection) : [],
     cancellations: Array.isArray(r.cancellations) ? r.cancellations.map(normalizeRejection) : [],
     tools: Array.isArray(r.tools) ? r.tools.map(normalizeTool) : [],
+    models: Array.isArray(r.models) ? r.models.map(normalizeModel) : [],
+    routing: normalizeRouting(r.routing),
     totals: { tokens: num(totals.tokens), costUsd: num(totals.costUsd) },
   };
 }
@@ -186,6 +241,35 @@ class MockPanelSource implements PanelSource {
         { toolName: 'jira.addComment', calls: 3, tokens: 1500, costUsd: 0.0011 },
         { toolName: 'calendar.listToday', calls: 2, tokens: 900, costUsd: 0.0006 },
       ],
+      /*
+        Kept arithmetically consistent with everything else in this fixture, because the
+        offline twin is shown to people: the two rows add up to `routing`, `routing`
+        tokens sit under `totals` tokens (planning and summary are not on a step), and
+        the difference is the subtraction and not a rounder number someone liked better.
+      */
+      models: [
+        {
+          model: 'groq:llama-3.1-8b-instant',
+          calls: 34,
+          tokens: 18_900,
+          costUsd: 0.0043,
+          premiumCostUsd: 0.0129,
+        },
+        {
+          model: 'groq:llama-3.3-70b-versatile',
+          calls: 7,
+          tokens: 4_900,
+          costUsd: 0.0102,
+          premiumCostUsd: 0.0102,
+        },
+      ],
+      routing: {
+        calls: 41,
+        tokens: 23_800,
+        costUsd: 0.0145,
+        premiumCostUsd: 0.0231,
+        differenceUsd: 0.0086,
+      },
       totals: { tokens: 24_800, costUsd: 0.0192 },
     };
   }

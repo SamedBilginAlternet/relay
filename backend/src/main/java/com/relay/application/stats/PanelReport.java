@@ -21,6 +21,8 @@ public record PanelReport(
         List<PanelStatsRepository.Rejection> rejections,
         List<PanelStatsRepository.Rejection> cancellations,
         List<PanelStatsRepository.ToolUsage> tools,
+        List<PanelStatsRepository.ModelUsage> models,
+        Routing routing,
         Totals totals) {
 
     /**
@@ -56,6 +58,30 @@ public record PanelReport(
                             long approved, long approvedAsIs, long approvedWithEdit,
                             long rejected, long cancelled, long pending,
                             double approvalRate, double editRate) {
+    }
+
+    /**
+     * The one comparison the routing claim is allowed to make, and nothing beyond it.
+     *
+     * <p>Three numbers, all of them sums the database produced over the same rows: what
+     * the window actually cost, what those same recorded tokens would have cost priced
+     * entirely on the strong model, and the gap. There is no time saved here, no
+     * multiplier and no percentage — none of those can be derived from a token count and
+     * a price list, so none of them are on the screen.
+     *
+     * <p>{@code null} for the whole record when no step in the window carries a premium
+     * price. An absent counterfactual is absent; it is not a saving of zero.
+     *
+     * @param calls      steps behind both sides — the same set, not two populations
+     * @param tokens     tokens behind both sides
+     * @param usd        what was billed
+     * @param premiumUsd what the same tokens cost on the strong model's price list
+     * @param differenceUsd {@code premiumUsd - usd}. Signed and printed as it comes out:
+     *                   if the strong model answered everything the difference is 0, and
+     *                   if it somehow came out negative the screen has to say so rather
+     *                   than show an absolute value that reads as a win
+     */
+    public record Routing(long calls, long tokens, double usd, double premiumUsd, double differenceUsd) {
     }
 
     public record Totals(long tokens, double usd) {

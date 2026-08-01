@@ -84,6 +84,27 @@ public interface PanelStatsRepository {
     /** Calls and cost per tool. A call is a step that actually reached the provider. */
     List<ToolUsage> toolUsage(Instant from, Instant to);
 
+    /**
+     * Calls, tokens and money per answering model, newest columns permitting.
+     *
+     * <p>This is the query the routing claim rests on: the product is sold on "the cheap
+     * tier carries the volume, the strong one is reached for", and until now the panel
+     * printed one total that could not tell those two apart.
+     *
+     * <p>Two things about it are deliberate. A row is counted when {@code steps.model} is
+     * set — that column <em>is</em> the evidence a model answered, which is a narrower and
+     * more direct test than the {@code status in ('done','failed')} that
+     * {@link #toolUsage(Instant, Instant)} uses, so the call counts on the two tables are
+     * not meant to match. And {@code premiumUsd} is read over exactly the same rows, so
+     * the per-model column sums and the comparison line are arithmetic on one population
+     * rather than two.
+     *
+     * <p>The list is empty when {@code steps.model} does not exist yet. That is not a
+     * defensive habit, it is the deploy order: the column arrives in a migration, and a
+     * panel that answers 500 until it lands is worse than a panel without this block.
+     */
+    List<ModelUsage> modelUsage(Instant from, Instant to);
+
     /** {@code (status, how many)}. */
     record Count(String key, long count) {
     }
@@ -124,5 +145,23 @@ public interface PanelStatsRepository {
     }
 
     record ToolUsage(String toolName, long calls, long tokens, double usd) {
+    }
+
+    /**
+     * One answering model, and what it actually cost.
+     *
+     * @param model      whatever the orchestrator recorded, e.g. {@code groq:llama-3.1-8b-instant}.
+     *                   Passed through untouched: prettifying it here would mean this file
+     *                   holding an opinion about which model names exist
+     * @param calls      steps whose answer came from this model
+     * @param tokens     tokens those steps recorded
+     * @param usd        what those tokens were billed at
+     * @param premiumUsd what the same tokens would have cost priced entirely on the strong
+     *                   model, summed from {@code steps.premium_cost_usd}. {@code null} —
+     *                   not zero — when that column does not exist yet. Zero is a claim
+     *                   ("the counterfactual is free"), null is the absence of one, and the
+     *                   difference decides whether a comparison may be printed at all
+     */
+    record ModelUsage(String model, long calls, long tokens, double usd, Double premiumUsd) {
     }
 }

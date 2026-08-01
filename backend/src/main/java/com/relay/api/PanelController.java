@@ -83,6 +83,39 @@ public class PanelController {
         }
         body.put("tools", tools);
 
+        // Which model answered, and what it cost. Empty until the column that records it
+        // is deployed — the screen says so in words rather than drawing a chart of zeros.
+        List<Map<String, Object>> models = new ArrayList<>();
+        for (PanelStatsRepository.ModelUsage usage : report.models()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("model", usage.model());
+            item.put("calls", usage.calls());
+            item.put("tokens", usage.tokens());
+            item.put("costUsd", CostMeter.usd(usage.usd()));
+            // Same money helper, same six decimals. A counterfactual that printed in a
+            // second format would read as a second kind of number, and the whole point of
+            // the line below is that the two are directly comparable.
+            item.put("premiumCostUsd", CostMeter.usd(usage.premiumUsd()));
+            models.add(item);
+        }
+        body.put("models", models);
+
+        PanelReport.Routing routing = report.routing();
+        // null, not a block of zeros. "We did not record the counterfactual for this
+        // window" and "the counterfactual cost nothing" are different sentences, and only
+        // one of them is true.
+        if (routing == null) {
+            body.put("routing", null);
+        } else {
+            Map<String, Object> saved = new LinkedHashMap<>();
+            saved.put("calls", routing.calls());
+            saved.put("tokens", routing.tokens());
+            saved.put("costUsd", CostMeter.usd(routing.usd()));
+            saved.put("premiumCostUsd", CostMeter.usd(routing.premiumUsd()));
+            saved.put("differenceUsd", CostMeter.usd(routing.differenceUsd()));
+            body.put("routing", saved);
+        }
+
         Map<String, Object> totals = new LinkedHashMap<>();
         totals.put("tokens", report.totals().tokens());
         totals.put("costUsd", CostMeter.usd(report.totals().usd()));

@@ -171,6 +171,56 @@
   }
 }
 
+/* --- routing comparison -------------------------------------------- */
+
+/*
+  Three figures on one line: what was paid, what the strong model would have
+  cost, and the gap. They are equal-width and equal-weight on purpose — the
+  reader is being shown a subtraction, and styling the third one as a headline
+  would turn a checkable arithmetic into a boast.
+*/
+.panel-routing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  margin-top: var(--s-4);
+  padding: var(--s-16);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-subtle);
+}
+.panel-routing__figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-12);
+  margin: 0;
+}
+.panel-routing__figure {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.panel-routing__value {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  /* tabular figures so the three amounts line up digit under digit */
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+/*
+  The gap gets a left rule, not a colour. A green number would be the screen
+  telling the reader what to feel about a figure that can also be zero — and it
+  is zero, honestly, whenever the strong model answered everything.
+*/
+.panel-routing__figure--diff {
+  padding-left: var(--s-12);
+  border-left: 2px solid var(--accent-line);
+}
+
 /* --- reject reasons ------------------------------------------------ */
 
 .panel-rejects {
@@ -271,6 +321,16 @@
   .panel-bar {
     grid-template-columns: minmax(0, 1fr);
     gap: 4px;
+  }
+  /* stacked, because three money figures side by side at 520px are three ellipses */
+  .panel-routing__figures {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .panel-routing__figure--diff {
+    padding-left: 0;
+    padding-top: var(--s-8);
+    border-left: 0;
+    border-top: 2px solid var(--accent-line);
   }
   .panel-bar__value {
     justify-self: start;

@@ -1,4 +1,12 @@
-import { BarChart3, CircleSlash, MessageSquareX, PencilLine, RefreshCw, Wrench } from 'lucide-react';
+import {
+  BarChart3,
+  CircleSlash,
+  Cpu,
+  MessageSquareX,
+  PencilLine,
+  RefreshCw,
+  Wrench,
+} from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
@@ -7,7 +15,7 @@ import { LoadError } from '../components/LoadError';
 import { getPanelSource } from '../data/PanelSource';
 import { formatTokens, formatUsd } from '../lib/format';
 import { enterProps } from '../lib/motion';
-import type { PanelRange, PanelRejection, PanelReport } from '../types/panel';
+import type { PanelRange, PanelRejection, PanelReport, PanelRouting } from '../types/panel';
 import '../styles/panel.css';
 import '../styles/screens.css';
 
@@ -344,10 +352,48 @@ export function PanelScreen() {
               )}
             </motion.section>
 
+            {/*
+              Where the money went, and what the routing did about it. The panel used to
+              print one total — true, and silent on the claim the product is sold on. Both
+              halves come out of the same rows (`steps.model is not null`), so the column
+              adds up to the line under it and a reader can check the subtraction by eye.
+            */}
+            <motion.section className="card panel-card" aria-labelledby="panel-models-h" {...enterProps(4, reduce)}>
+              <h2 className="t-label" id="panel-models-h">
+                Model başına çağrı ve maliyet
+              </h2>
+              {report.models.length === 0 ? (
+                /*
+                  The honest empty state. `steps.model` may not be deployed yet, and there
+                  is no chart to draw out of that — saying which model answered is not
+                  something this screen can infer.
+                */
+                <p className="t-caption panel-note">
+                  <Cpu size={14} aria-hidden />
+                  Bu aralıkta hangi modelin cevapladığı kayıtlı değil.
+                </p>
+              ) : (
+                <>
+                  <Bars
+                    rows={report.models.map((model) => ({
+                      key: model.model,
+                      label: model.model,
+                      mono: true,
+                      color: 'var(--accent)',
+                      value: model.calls,
+                      display: `${model.calls} çağrı · ${formatTokens(model.tokens)} token · ${formatUsd(model.costUsd)}`,
+                    }))}
+                    caption="Modelin cevapladığı kaydedilmiş adımlar. Adıma bağlı olmayan model kullanımı (planlama, özet) bu tabloda görünmez — üstteki toplam maliyet onu da içerir."
+                  />
+                  <Routing routing={report.routing} />
+                </>
+              )}
+            </motion.section>
+
             <motion.section
               className="card panel-card"
               aria-labelledby="panel-rejections-h"
-              {...enterProps(4, reduce)}
+              {...enterProps(5, reduce)}
             >
               <h2 className="t-label" id="panel-rejections-h">
                 Red gerekçeleri
@@ -376,7 +422,7 @@ export function PanelScreen() {
               <motion.section
                 className="card panel-card"
                 aria-labelledby="panel-cancels-h"
-                {...enterProps(5, reduce)}
+                {...enterProps(6, reduce)}
               >
                 <h2 className="t-label" id="panel-cancels-h">
                   Durdurulan akışlarda kapanan adımlar
@@ -454,6 +500,53 @@ function DecisionList({
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * The one comparison line: what the window cost, what the same tokens would have cost
+ * priced entirely on the strong model, and the gap between them.
+ *
+ * <p>Everything it is tempting to put here is missing on purpose. No time saved, no
+ * productivity multiplier, no "%N cheaper" — none of those can be derived from a token
+ * count and a price list, and this screen is only worth opening because every figure on
+ * it can be traced back to a row. The three numbers are printed next to each other so the
+ * subtraction is visible; the reader is not asked to trust it.
+ *
+ * <p>The difference is signed. If the strong model answered everything it is $0.000000,
+ * and it says so rather than hiding the line.
+ */
+function Routing({ routing }: { routing: PanelRouting | null }) {
+  if (!routing) {
+    return (
+      <p className="t-caption panel-note">
+        <Cpu size={14} aria-hidden />
+        Bu aralık için güçlü model karşılaştırması kayıtlı değil.
+      </p>
+    );
+  }
+  return (
+    <div className="panel-routing">
+      <dl className="panel-routing__figures">
+        <div className="panel-routing__figure">
+          <dt className="t-label">Bu aralıkta ödenen</dt>
+          <dd className="panel-routing__value">{formatUsd(routing.costUsd)}</dd>
+        </div>
+        <div className="panel-routing__figure">
+          <dt className="t-label">Tamamı güçlü modelde olsaydı</dt>
+          <dd className="panel-routing__value">{formatUsd(routing.premiumCostUsd)}</dd>
+        </div>
+        <div className="panel-routing__figure panel-routing__figure--diff">
+          <dt className="t-label">Fark</dt>
+          <dd className="panel-routing__value">{formatUsd(routing.differenceUsd)}</dd>
+        </div>
+      </dl>
+      <p className="t-caption">
+        Aynı {routing.calls} çağrının aynı {formatTokens(routing.tokens)} tokenı üzerinden, iki
+        fiyat listesiyle. Kaydedilen token sayısı ve yapılandırılmış fiyat dışında bir şey
+        hesaba girmez.
+      </p>
+    </div>
   );
 }
 

@@ -18,6 +18,13 @@ import type { PanelRejection, PanelReport } from '../types/panel';
  * the part that is easy to get wrong in the other direction — a step a person really did
  * refuse, on a run that was stopped later, is still a refusal and must not be swept into
  * the cancellations block to make a list look cleaner.
+ *
+ * <p>The money block (#110) is here for the same reason. It answers "where did the money
+ * go, and what did the routing save", and every honest version of that answer is one
+ * comment away from a dishonest one: printing a comparison the server did not record,
+ * keeping the difference when the counterfactual covers only some of the rows, or drawing
+ * bars out of a window where nothing recorded which model answered. The tests below hold
+ * the screen to saying nothing rather than saying something flattering.
  */
 
 const report = vi.fn<() => Promise<PanelReport>>();
@@ -66,6 +73,8 @@ function panel(overrides: Partial<PanelReport> = {}): PanelReport {
     rejections: [],
     cancellations: [],
     tools: [],
+    models: [],
+    routing: null,
     totals: { tokens: 262_139, costUsd: 0.0537 },
     ...overrides,
   };
@@ -178,6 +187,111 @@ it('no_decisions_means_no_intervention_rate_rather_than_a_confident_zero', async
 
   const gate = await screen.findByRole('region', { name: /Onay kapısı/i });
   expect(within(gate).queryByText(/gönderilecek değeri değiştirdi/)).toBeNull();
+});
+
+const CHEAP = {
+  model: 'groq:llama-3.1-8b-instant',
+  calls: 34,
+  tokens: 18_900,
+  costUsd: 0.0043,
+  premiumCostUsd: 0.0129,
+};
+const STRONG = {
+  model: 'groq:llama-3.3-70b-versatile',
+  calls: 7,
+  tokens: 4_900,
+  costUsd: 0.0102,
+  premiumCostUsd: 0.0102,
+};
+
+it('the_model_that_carried_the_volume_is_named_with_its_own_calls_and_cost', async () => {
+  // The claim the product is sold on, and until #110 the panel could not show it: one
+  // total cannot say that 34 of 41 calls were answered by the cheap tier.
+  report.mockResolvedValue(panel({ models: [CHEAP, STRONG] }));
+
+  render(<PanelScreen />);
+
+  const models = await screen.findByRole('region', { name: /Model başına çağrı ve maliyet/i });
+  expect(within(models).getByLabelText(/^groq:llama-3\.1-8b-instant: 34 çağrı/)).toBeTruthy();
+  expect(within(models).getByLabelText(/^groq:llama-3\.3-70b-versatile: 7 çağrı/)).toBeTruthy();
+});
+
+it('the_comparison_prints_both_prices_beside_the_difference_it_came_from', async () => {
+  report.mockResolvedValue(
+    panel({
+      models: [CHEAP, STRONG],
+      routing: {
+        calls: 41,
+        tokens: 23_800,
+        costUsd: 0.0145,
+        premiumCostUsd: 0.0231,
+        differenceUsd: 0.0086,
+      },
+    }),
+  );
+
+  render(<PanelScreen />);
+
+  const models = await screen.findByRole('region', { name: /Model başına çağrı ve maliyet/i });
+  // All three, side by side. A difference shown on its own is a number nobody can check —
+  // the point of the line is that the subtraction is visible.
+  expect(within(models).getByText(/\$0\.0145/)).toBeTruthy();
+  expect(within(models).getByText(/\$0\.0231/)).toBeTruthy();
+  expect(within(models).getByText(/\$0\.0086/)).toBeTruthy();
+  // And what it is a comparison of: the same calls and the same tokens, priced twice.
+  expect(within(models).getByText(/41 çağrının aynı 23\.800 tokenı/)).toBeTruthy();
+});
+
+it('nothing_on_this_block_claims_time_saved_or_a_productivity_multiplier', async () => {
+  // The metrics that cannot be derived from a token count and a price list, and are
+  // therefore the ones a dashboard invents first.
+  report.mockResolvedValue(
+    panel({
+      models: [CHEAP, STRONG],
+      routing: {
+        calls: 41,
+        tokens: 23_800,
+        costUsd: 0.0145,
+        premiumCostUsd: 0.0231,
+        differenceUsd: 0.0086,
+      },
+    }),
+  );
+
+  render(<PanelScreen />);
+
+  const models = await screen.findByRole('region', { name: /Model başına çağrı ve maliyet/i });
+  expect(within(models).queryByText(/kazanılan süre|zaman kazan|verimlilik|kat daha|× daha/i)).toBeNull();
+  // Not even a tidy percentage: %63 ucuz reads as a finding and is a ratio of two sums
+  // whose denominator the reader cannot see.
+  expect(within(models).queryByText(/%\d/)).toBeNull();
+});
+
+it('a_window_with_no_recorded_model_says_so_instead_of_drawing_empty_bars', async () => {
+  // What the live panel answers until the migration that adds `steps.model` lands.
+  report.mockResolvedValue(panel({ models: [], routing: null }));
+
+  render(<PanelScreen />);
+
+  const models = await screen.findByRole('region', { name: /Model başına çağrı ve maliyet/i });
+  expect(within(models).getByText(/hangi modelin cevapladığı kayıtlı değil/i)).toBeTruthy();
+  // No bar, and above all no comparison: there is nothing to compare.
+  expect(within(models).queryByRole('img')).toBeNull();
+  expect(within(models).queryByText(/Tamamı güçlü modelde olsaydı/)).toBeNull();
+});
+
+it('a_missing_counterfactual_drops_the_comparison_and_keeps_the_table', async () => {
+  // Which model carried the volume is knowable without a counterfactual. Hiding the table
+  // to protect the claim would lose a fact; printing the claim anyway would invent one.
+  report.mockResolvedValue(
+    panel({ models: [{ ...CHEAP, premiumCostUsd: null }], routing: null }),
+  );
+
+  render(<PanelScreen />);
+
+  const models = await screen.findByRole('region', { name: /Model başına çağrı ve maliyet/i });
+  expect(within(models).getByLabelText(/^groq:llama-3\.1-8b-instant: 34 çağrı/)).toBeTruthy();
+  expect(within(models).getByText(/güçlü model karşılaştırması kayıtlı değil/i)).toBeTruthy();
 });
 
 it('an_empty_range_says_so_instead_of_drawing_a_chart_out_of_zeros', async () => {

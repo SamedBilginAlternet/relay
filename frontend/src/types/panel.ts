@@ -87,6 +87,38 @@ export type PanelToolUsage = {
   costUsd: number;
 };
 
+/** One answering model over the window. `model` is whatever the server recorded. */
+export type PanelModelUsage = {
+  model: string;
+  /** Steps whose answer came from this model. */
+  calls: number;
+  tokens: number;
+  costUsd: number;
+  /**
+   * What the same tokens would have cost on the strong model. `null` when the server has
+   * no counterfactual for these rows — not 0, which would read as "it was free".
+   */
+  premiumCostUsd: number | null;
+};
+
+/**
+ * The single comparison the panel is allowed to draw: what the window cost, what the same
+ * recorded tokens would have cost priced entirely on the strong model, and the gap.
+ *
+ * `null` when the counterfactual is not recorded for every row in the window. There is no
+ * partial version of this line — a difference computed over some of the rows is a claim
+ * about a window nobody asked for.
+ */
+export type PanelRouting = {
+  /** Steps behind both sides. The same rows, so the two sums are comparable. */
+  calls: number;
+  tokens: number;
+  costUsd: number;
+  premiumCostUsd: number;
+  /** `premiumCostUsd - costUsd`, signed. Never an absolute value. */
+  differenceUsd: number;
+};
+
 export type PanelReport = {
   /** ISO-8601, inclusive. */
   from: string;
@@ -99,6 +131,10 @@ export type PanelReport = {
   /** Steps closed by stopping a run. Same shape, different question. */
   cancellations: PanelRejection[];
   tools: PanelToolUsage[];
+  /** Empty when the server does not record which model answered. */
+  models: PanelModelUsage[];
+  /** Null when the window has no counterfactual to compare against. */
+  routing: PanelRouting | null;
   totals: { tokens: number; costUsd: number };
 };
 

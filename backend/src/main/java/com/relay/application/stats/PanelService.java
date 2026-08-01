@@ -75,6 +75,7 @@ public class PanelService {
         // they can. The invariant is asserted in PanelReportTest.
         long approvedWithEdit = Math.min(gate.approvedWithEdit(), gate.approved());
         long decisions = gate.approved() + gate.rejected();
+        List<PanelStatsRepository.ModelUsage> models = stats.modelUsage(from, to);
 
         return new PanelReport(
                 from,
@@ -95,10 +96,45 @@ public class PanelService {
                 stats.rejections(from, to, REJECTION_LIMIT),
                 stats.cancellations(from, to, REJECTION_LIMIT),
                 stats.toolUsage(from, to),
+                models,
+                routing(models),
                 new PanelReport.Totals(totals.tokens(), totals.usd()));
     }
 
     // -----------------------------------------------------------------------
+
+    /**
+     * Folds the per-model rows into the one comparison line, or refuses to.
+     *
+     * <p>It is a sum of the same rows the table above it prints — not a second query with
+     * a second predicate — so the column adds up to the line and a reader can check it by
+     * eye. Nothing is scaled, extrapolated to the rows that carry no model, or projected
+     * onto a month.
+     *
+     * <p>Returns {@code null} unless <em>every</em> row carries a premium price. A partial
+     * comparison is the failure worth guarding: sum the real cost of ten steps against the
+     * counterfactual of the three that happen to have one and the difference is not wrong
+     * by a rounding, it is about a different window than the one on the header.
+     */
+    private static PanelReport.Routing routing(List<PanelStatsRepository.ModelUsage> models) {
+        if (models.isEmpty()) {
+            return null;
+        }
+        long calls = 0;
+        long tokens = 0;
+        double usd = 0;
+        double premium = 0;
+        for (PanelStatsRepository.ModelUsage model : models) {
+            if (model.premiumUsd() == null) {
+                return null;
+            }
+            calls += model.calls();
+            tokens += model.tokens();
+            usd += model.usd();
+            premium += model.premiumUsd();
+        }
+        return new PanelReport.Routing(calls, tokens, usd, premium, premium - usd);
+    }
 
     /**
      * Every status in the enum's own order, so the bars keep their places between two

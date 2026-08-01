@@ -31,6 +31,13 @@ import org.junit.jupiter.api.Test;
  * token per view would be the fastest way to exhaust the quota it is reporting on. The
  * reflection test below is blunt on purpose: it fails the build the day somebody hands
  * this service a model.
+ *
+ * <p>The third is newer and is the one most likely to be "improved" into a lie. The
+ * routing comparison is a subtraction between two sums of the <em>same</em> rows, and
+ * every tempting change to it — filling a missing counterfactual with zero, scaling it up
+ * to the steps that carry no model, keeping the difference when only half the rows are
+ * priced — makes the number bigger and makes it false. The tests below hold the shape
+ * that keeps it checkable.
  */
 class PanelReportTest {
 
@@ -122,6 +129,60 @@ class PanelReportTest {
         assertThat(approvals.approvedWithEdit()).isEqualTo(2);
     }
 
+    /**
+     * The comparison line is the one number on this screen a buyer will repeat out loud,
+     * so it may only ever be a subtraction between two sums of the same rows.
+     */
+    @Test
+    void the_routing_comparison_is_the_per_model_rows_added_up_and_nothing_else() {
+        stats.models.add(new PanelStatsRepository.ModelUsage(
+                "groq:llama-3.1-8b-instant", 180, 320_000, 0.045, 0.221));
+        stats.models.add(new PanelStatsRepository.ModelUsage(
+                "groq:llama-3.3-70b-versatile", 12, 40_000, 0.028, 0.028));
+
+        PanelReport.Routing routing = panel.report(null, null).routing();
+
+        assertThat(routing.calls()).isEqualTo(192);
+        assertThat(routing.tokens()).isEqualTo(360_000);
+        assertThat(routing.usd()).isCloseTo(0.073, within(1e-9));
+        assertThat(routing.premiumUsd()).isCloseTo(0.249, within(1e-9));
+        // The whole claim, and it is a subtraction: 0.249 - 0.073. Nothing is scaled up to
+        // the steps that carry no model, and nothing is projected onto a month.
+        assertThat(routing.differenceUsd()).isCloseTo(0.249 - 0.073, within(1e-9));
+    }
+
+    /**
+     * The step that answered on the strong model is priced at what it cost, on both sides.
+     * A "saving" that counted it twice would grow with every expensive call.
+     */
+    @Test
+    void a_step_the_strong_model_answered_contributes_no_difference() {
+        stats.models.add(new PanelStatsRepository.ModelUsage(
+                "groq:llama-3.3-70b-versatile", 5, 20_000, 0.019, 0.019));
+
+        assertThat(panel.report(null, null).routing().differenceUsd()).isZero();
+    }
+
+    /**
+     * Half a comparison is worse than none. If some rows have a counterfactual and some do
+     * not, the subtraction stops being about the window printed on the header — so it is
+     * not printed at all.
+     */
+    @Test
+    void a_window_where_only_some_rows_carry_a_premium_price_makes_no_claim() {
+        stats.models.add(new PanelStatsRepository.ModelUsage(
+                "groq:llama-3.1-8b-instant", 180, 320_000, 0.045, 0.221));
+        stats.models.add(new PanelStatsRepository.ModelUsage(
+                "groq:llama-3.3-70b-versatile", 12, 40_000, 0.028, null));
+
+        PanelReport report = panel.report(null, null);
+
+        assertThat(report.routing()).isNull();
+        // The table still stands: which model carried the volume is knowable without the
+        // counterfactual, and dropping it would hide a fact to protect a claim.
+        assertThat(report.models()).hasSize(2);
+    }
+
     @Test
     void a_cancelled_runs_write_offs_are_kept_out_of_the_reasons_list() {
         stats.rejections.add(new PanelStatsRepository.Rejection(RUN, STEP, "Özeti gönder", "done",
@@ -148,6 +209,10 @@ class PanelReportTest {
         assertThat(report.rejections()).isEmpty();
         assertThat(report.cancellations()).isEmpty();
         assertThat(report.tools()).isEmpty();
+        assertThat(report.models()).isEmpty();
+        // Not a Routing of zeros: a window with no recorded model has no counterfactual,
+        // and "$0.000000 saved" is a measurement where the truth is "not measured".
+        assertThat(report.routing()).isNull();
         assertThat(report.totals().tokens()).isZero();
         // An undefined ratio is zero, never NaN — NaN is not JSON and would blank the screen.
         assertThat(report.approvals().approvalRate()).isZero();
@@ -224,6 +289,7 @@ class PanelReportTest {
         private final List<Rejection> rejections = new ArrayList<>();
         private final List<Rejection> cancellations = new ArrayList<>();
         private final List<ToolUsage> tools = new ArrayList<>();
+        private final List<ModelUsage> models = new ArrayList<>();
         private Gate gate = new Gate(0, 0, 0, 0, 0, 0, 0);
         private long runs;
         private Instant askedFrom;
@@ -263,6 +329,12 @@ class PanelReportTest {
         public List<ToolUsage> toolUsage(Instant from, Instant to) {
             record(from, to);
             return tools;
+        }
+
+        @Override
+        public List<ModelUsage> modelUsage(Instant from, Instant to) {
+            record(from, to);
+            return models;
         }
 
         private void record(Instant from, Instant to) {

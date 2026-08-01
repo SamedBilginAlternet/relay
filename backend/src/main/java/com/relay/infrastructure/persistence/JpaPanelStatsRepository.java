@@ -209,7 +209,74 @@ public class JpaPanelStatsRepository implements PanelStatsRepository {
         return out;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ModelUsage> modelUsage(Instant from, Instant to) {
+        if (!hasStepColumn("model")) {
+            return List.of();
+        }
+        /*
+          `s.model is not null` is the whole predicate, and it is doing two jobs. It is the
+          most direct statement that a model answered this step — narrower than the
+          `status in ('done','failed')` toolUsage uses, which counts a step that reached a
+          provider whether or not a model was involved. And it is the same predicate the
+          premium column is summed under, so the money on the per-model rows and the money
+          on the comparison line are two views of one set of rows. A judge can add the
+          column up and get the total; that is the property this block is sold on.
+
+          Rows written before the migration carry no model and are therefore absent from
+          both sides at once. They are not silently priced at zero on one side.
+        */
+        boolean priced = hasStepColumn("premium_cost_usd");
+        String premium = priced ? ", coalesce(sum(s.premium_cost_usd), 0)" : "";
+        List<?> rows = window(em.createNativeQuery("""
+                select s.model, count(*), coalesce(sum(s.tokens), 0), coalesce(sum(s.cost_usd), 0)"""
+                + premium + """
+
+                  from steps s
+                  join runs r on r.id = s.run_id""" + RUN_WINDOW + """
+                   and s.model is not null
+                 group by s.model
+                 order by count(*) desc, s.model asc
+                """), from, to).getResultList();
+        List<ModelUsage> out = new ArrayList<>();
+        for (Object row : rows) {
+            Object[] cells = (Object[]) row;
+            out.add(new ModelUsage(text(cells[0]), number(cells[1]), number(cells[2]), money(cells[3]),
+                    priced ? money(cells[4]) : null));
+        }
+        return out;
+    }
+
     // -----------------------------------------------------------------------
+
+    /**
+     * Does {@code steps} carry this column on the box we are actually running against?
+     *
+     * <p>The two columns this block reads arrive in a migration, and this query is the
+     * only reason the panel keeps answering on a deploy where the code is ahead of the
+     * schema. Asking the catalogue is cheaper than the alternative and much better
+     * behaved: a missing column raises a {@code SQLException} that Postgres reports by
+     * poisoning the transaction, so every later statement in the same read-only
+     * transaction would fail too — one broken block would take the whole screen down.
+     *
+     * <p>Not cached, on purpose. The answer changes exactly once, at the moment the
+     * migration runs, and a cached {@code false} would keep the block dark until somebody
+     * restarted the API and worked out why. One catalogue lookup per panel load is not a
+     * cost worth that.
+     */
+    private boolean hasStepColumn(String column) {
+        return !em.createNativeQuery("""
+                select 1
+                  from information_schema.columns
+                 where table_schema = current_schema()
+                   and table_name = 'steps'
+                   and column_name = :column
+                """)
+                .setParameter("column", column)
+                .getResultList()
+                .isEmpty();
+    }
 
     private static Query window(Query query, Instant from, Instant to) {
         return query.setParameter("from", from).setParameter("to", to);
