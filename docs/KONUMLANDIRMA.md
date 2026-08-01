@@ -132,7 +132,7 @@ sahibi, teknik proje yöneticisi ya da engineering manager olabilir; ortak yanı
 yapmıyor, işin akmasını sağlıyor** olması.
 
 **Hangi işi:** Gelen talebi işe çevirmek, işin nerede takıldığını görmek, ve ekibi/paydaşı
-haberdar etmek. Üç fiil: **çevir, gör, haber ver.** Bugünkü dört hazır akış birebir bunlar.
+haberdar etmek. Üç fiil: **çevir, gör, haber ver.** Bugünkü beş hazır akış birebir bunlar.
 
 **Hangi sıklıkta:** Günde 2–4 kez. Sabah (ne var), öğle (ne takıldı), akşam (ne oldu). Bu
 ritim `Bugün` ekranının varlık sebebi ve `MORNING` playbook'unun adı.
@@ -143,8 +143,8 @@ ritim `Bugün` ekranının varlık sebebi ve `MORNING` playbook'unun adı.
 |---|---|---|
 | **09:10** | Laptop açılır, `Bugün` ekranı zaten dolu: günün özeti + 4 öncelikli kart. | `BriefService` — Jira/GitHub/Gmail/Takvim paralel okundu, `DigestService` özeti yazdı |
 | **09:12** | Kart: *"Ayşe: Ödeme akışında müşteri şikâyeti var"* → **"Bu bir iş talebi gibi görünüyor"** + `Jira kaydı aç` pili. Basar. | `InsightService` sınıflandırdı; `POST /api/runs/from-suggestion` akışı başlattı |
-| **09:13** | Plan çıkar, `jira.createIssue` **onay kapısında bekler**. Parametreleri görür, proje anahtarını düzeltmek için reddeder, gerekçe yazar. | `PolicyEngine`: WRITE → `ask`. Red gerekçesi `AgentJournal` üzerinden Koordinatör'e gider, adım revize edilir |
-| **09:15** | Revize adımı onaylar. Kayıt açılır, `#urun` kanalına bildirim düşer. | `jira.createIssue` → `slack.postMessage`, ikisi de ayrı onaydan geçti |
+| **09:13** | Plan çıkar, `jira.createIssue` **onay kapısında bekler**. Parametreleri görür, proje anahtarı yanlış — alanı ekranda düzeltir ve **Düzelt ve onayla**'ya basar. | `PolicyEngine`: WRITE → `ask`. `Step.paramsLocked` düzenlemeyi kilitler, iz kaydına `projectKey: "RELAY" → "KAN"` satırı düşer |
+| **09:15** | Sıradaki adımda mesaj metnini beğenmez, gerekçeyle **reddeder**. O adım orada biter; akış devam eder. | Red gerekçesi adımın ajanına yazılır ve sonraki adımların bağlamına girer — adım revize edilip geri gelmez (§4.5 kararı) |
 | **11:40** | "Ne takıldı?" — **Takılan işler** akışını çalıştırır. | `Playbooks.BLOCKERS`: JQL taraması otomatik akar, Slack özeti onay bekler |
 | **14:30** | 2 gündür bekleyen PR'ları hatırlatır. | `Playbooks.PR_REVIEW` — raftaki adı **Bekleyen incelemeler** |
 | **17:50** | **Günün özeti** akışı: Jira + PR + toplantılar → ekibe kapanış mesajı. | `Playbooks.MORNING` |
@@ -245,7 +245,8 @@ Bu bölüm sunumda **kelimesi kelimesine** uyulacak sınırı çiziyor.
 | **Bilinmeyen aracın reddi** | Kayıtlı olmayan araç adı doğrudan `FORBIDDEN` — model uydurduğu bir aracı çağıramaz |
 | **Denetim izi** | `Step`: araç, parametre, sonuç, hata, süre, `decision`, `rejectReason`, token, USD + `AgentMessage` günlüğü. `Geçmiş` ekranında açılabilir |
 | **Maliyet ölçümü** | Adım başına token + USD, akış toplamı canlı; `CostMeter.budgetExceeded()` bütçe aşınca **durdurup sorar** |
-| **Reddin plana dönmesi** | Red gerekçesi `AgentJournal` üzerinden Koordinatör'e gider, adım revize edilip tekrar onaya gelir — iptal butonu değil |
+| **Reddin kayda geçmesi** | Red gerekçesi `AgentJournal` üzerinden adımın kendi ajanına yazılır, iz kaydında kalır ve sonraki adımların bağlamına girer. Adım orada **biter** — revize edilip geri gelmez (bilinçli karar, `SIRADAKI-FIKIRLER.md` §4.5) |
+| **Reddin alternatifi** | Kullanıcı reddetmek zorunda değil: onay kapısındaki parametreyi ekranda düzeltip **Düzelt ve onayla** diyebilir; giden değer gördüğü değerdir (`Step.paramsLocked`) ve düzenleme iz kaydına eski/yeni hâliyle düşer |
 | **Kimlik bilgisi güvenliği** | `Connection.config` AES-GCM ile şifreli; log'a yazılmaz; API/arayüzde maskeli (`xoxb-****1234`) |
 | **İptal edilebilir oturum** | Opak token, DB'de yalnız SHA-256'sı; çıkışta satır silinir, token o an ölür |
 | **Giriş ≠ veri erişimi** | Google ile giriş yalnızca `openid email profile`; posta kutusu erişimi **ayrı** bir onay akışı (`/api/oauth/google/*`) |
@@ -442,7 +443,15 @@ uygulanıyor (bilinmeyen araç → `FORBIDDEN`), yani iddia korunuyor ve doğru 
 savunulamaz. **Öneri:** yedekten çıkarılıp ana listeye alınsın ve §7'deki 4 numaralı
 cevapla değiştirilsin ("ekip başına + kullanım", izolasyon kısıtı açıkça söylenerek).
 
-**Çelişki olmayan, teyit edilen kısımlar:** onay kapısı anı (1:05), red gerekçesinin plana
-dönmesi (1:25), maliyet şeridi, `Geçmiş` denetim izi ve replay sigortası — dördü de kodda
-karşılığı olan, olduğu gibi anlatılabilecek iddialar. Demonun kalbi doğru yerde duruyor;
-değişmesi gereken şey **çerçeve metni**, akış değil.
+**Ç6 — "red → revize → tekrar onay" hiç var olmadı, ve olmayacak.**
+Bu dokümanın §2 (09:13) ve §4 satırları ile `DEMO.md` §1'in 1:25 anı, reddedilen bir adımın
+gerekçeye göre revize edilip onaya geri geldiğini söylüyordu. Kodda böyle bir yol yok:
+`Coordinator.rejectStep` adımı terminal yapıyor, tek revizyon yolu (`retryWithProviderFeedback`)
+**sağlayıcı hatası** için. **Karar (#42): revizyon döngüsü yazılmayacak** — gerekçesi
+`SIRADAKI-FIKIRLER.md` §4.5'te. Üç metin de düzeltildi; reddin yerine geçen jest
+**onayla-ve-düzelt**, ve o gerçekten çalışıyor.
+
+**Çelişki olmayan, teyit edilen kısımlar:** onay kapısı anı (1:05), parametrenin ekranda
+düzeltilip onaylanması (1:25), maliyet şeridi, `Geçmiş` denetim izi ve replay sigortası —
+beşi de kodda karşılığı olan, olduğu gibi anlatılabilecek iddialar. Demonun kalbi doğru yerde
+duruyor; değişmesi gereken şey **çerçeve metni**, akış değil.

@@ -483,6 +483,47 @@ gerçekten beş üyeli ve gerçekten kolay — ama üretilen kodun risk seviyesi
 yine üreten belirler. `PolicyEngine`, kendi izin seviyesini kendi yazan bir araç karşısında bir
 tiyatro dekorudur.
 
+### 4.5 Reddi bir revizyon döngüsüne çevirmek — **karar: hayır** (#42)
+
+**Cazip görünüyor:** Kullanıcı bir yazma adımını gerekçeyle reddediyor, koordinatör gerekçeyi
+okuyup adımı revize ediyor, revize adım **tekrar onaya geliyor**. "İptal butonu değil, ajanla
+pazarlık." Üç doküman bunu zaten vaat etmişti (`DEMO.md` §1 1:25, `KONUMLANDIRMA.md` §2 09:13
+ve §4) ve kod hiç yapmadı. Yapılması da pahalı değil: `Coordinator.rejectStep`, adımı terminal
+yapmadan önce `ToolAgent.refreshParams` çağırsın, `decision = null` ile kapıya geri dönsün —
+sağlayıcı hatası yolunun (`retryWithProviderFeedback`) birebir aynısı, 3–4 saat.
+
+**Neden yapmıyoruz.**
+
+1. **Aynı anı zaten çözen bir şey var, ve deterministik.** F-2 (onayla-ve-düzelt) canlıda
+   çalışıyor: kullanıcı alanı ekranda değiştirir, `Düzelt ve onayla`'ya basar, `paramsLocked`
+   sayesinde giden değer gördüğü değerdir. Revizyon döngüsü aynı ihtiyacı **bir model turu,
+   bir gecikme ve bir belirsizlikle** çözer — "belki bu sefer doğru gelir". İki mekanizmadan
+   biri kesin, diğeri şans. İkisini birden sunmak kullanıcıya "hangisi?" sorusunu sordurur.
+2. **Döngünün doğal bir sonu yok.** Red → revize → red → revize. `Step.MAX_RETRIES` bir tavan
+   verir, ama o tavana çarptığında kullanıcı ne görecek? Ürünün en hassas anı — insanın hayır
+   dediği an — bir "deneme hakkın bitti" mesajıyla kapanır. Bu, kapıyı savunulabilir olmaktan
+   çıkarır: bugün red **kesin**, ve kesinlik onay kapısının en güçlü özelliği.
+3. **Reddin anlamı bulanıklaşıyor.** Bugün red tek bir şey demek: *bu adım çalışmayacak.*
+   Revizyon eklendiğinde red "bunu başka türlü yap" demeye başlar, ve "hiç yapma" demenin
+   yolu kalmaz. Üçüncü bir jest (iptal) eklemeden bu ayrım kurulamaz — yani iş 3-4 saat değil,
+   yeni bir kavram.
+4. **Kapsam.** 48 saatlik bir üründe demonun kalbindeki mekanizmayı sunumdan önce değiştirmek,
+   kazanılacak şeyden fazlasını riske atar. Değişen kod `Coordinator`'ın döngüsü — yani her
+   akışın geçtiği yer.
+
+**Bunun yerine yapılan:** vaat metinden çıkarıldı. `DEMO.md` §1 1:25 artık gerçekten olan şeyi
+gösteriyor (*düzelt ve onayla*), `KONUMLANDIRMA.md` §4'teki "Reddin plana dönmesi" satırı
+"Red gerekçesi iz kaydına ve sonraki adımların bağlamına girer" olarak daraltıldı. Gerekçe
+kaybolmuyor: `Coordinator.rejectStep` onu adımın kendi ajanına yazıyor ve sonraki adımların
+prompt bağlamına giriyor — sadece **o adımı** geri getirmiyor.
+
+**Açık kalan ve gerçekten sorun olan kısım — ayrı iş:** reddedilen bir adımın çıktısına
+bağımlı sonraki adım bugün yine onay kapısına geliyor. Canlıda `jira.createIssue` reddedildi,
+ardından `slack.postMessage` *"Yeni iş talebi var"* metniyle onay istedi — hiç açılmamış bir
+kaydı ekibe duyurmaya hazırdı. Bu revizyon döngüsünden bağımsız bir davranış hatası ve ayrı
+bir issue olarak açıldı; çözümü ya bağımlı adımı düşürmek ya da onay kartında "3. adım
+reddedildi, bu adım onun sonucunu bekliyordu" uyarısı göstermek.
+
 ---
 
 ## 5. Tek öneri: **F-2 — Onayla-ve-düzelt**
