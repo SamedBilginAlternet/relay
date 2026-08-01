@@ -16,6 +16,29 @@ function at(hour: number, minute = 0): string {
 function buildBrief(): Brief {
   return {
     date: new Date().toISOString(),
+    /* Counted, not written — and the numbers below are the ones the sections
+       further down actually contain, because a summary that disagrees with the
+       evidence under it is worse than no summary. Three of the four mails are
+       from a person (the cost report is automatic), four records, three code
+       items, calendar unavailable so it contributes nothing, and one of the
+       three insight cards came back `high`. */
+    today: {
+      headline: 'Bugün 10 iş seni bekliyor, 1 tanesi acil.',
+      lines: [
+        '3 mail bir kişiden geldi (1 bülten ayrıldı)',
+        '4 kayıt üstünde',
+        '3 PR ve issue sende',
+      ],
+      counts: {
+        inbox: 4,
+        inboxPersonal: 3,
+        inboxBulk: 1,
+        work: 4,
+        code: 3,
+        calendar: 0,
+        urgent: 1,
+      },
+    },
     /* `priorities[].itemId` is the *card* id — the backend keys both off the same
        BriefItem, so the mock has to as well or the reasons match nothing. The third
        card is deliberately left out: the model writes at most five reasons and skips

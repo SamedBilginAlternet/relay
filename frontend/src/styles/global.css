@@ -1546,6 +1546,37 @@ a.btn {
   color: var(--fg-muted);
   font-weight: 500;
 }
+/*
+  The counted day (issue #24). Deliberately unboxed: a panel here would be
+  the fake density the count exists to avoid, and it would compete with the
+  one card below that can actually be acted on. Weight and position carry
+  it instead — first thing under the date, heavier than everything around.
+*/
+.tally {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 6px 0 5px;
+}
+.tally__headline {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--fg);
+}
+/* One wrapping line, not a chip row: chips would need boxes, and the phrases
+   are a sentence's worth of facts, not four separate controls. */
+.tally__lines {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+.tally__line + .tally__line::before {
+  content: '·';
+  margin: 0 8px;
+  color: var(--fg-faint);
+}
+
 /* Where the old header badge lives now: the data source describes the
    brief, not the whole product chrome. */
 .brief-top__meta {

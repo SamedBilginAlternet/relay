@@ -4,6 +4,7 @@ import type {
   BriefItem,
   BriefSection,
   BriefSectionStatus,
+  BriefToday,
   InsightCard,
   InsightSource,
   InsightUrgency,
@@ -112,10 +113,42 @@ function normalizeDigest(raw: unknown): BriefDigest | null {
   return { summary, priorities, advice: advice || undefined };
 }
 
+function asCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
+}
+
+/**
+ * Absent means an older backend that never counted the day — the screen then
+ * renders exactly what it rendered before. A headline is the one part that
+ * cannot be reconstructed, so without it there is nothing to show.
+ */
+function normalizeToday(raw: unknown): BriefToday | null {
+  const r = asRecord(raw);
+  const headline = asString(r.headline).trim();
+  if (!headline) return null;
+  const c = asRecord(r.counts);
+  return {
+    headline,
+    lines: Array.isArray(r.lines)
+      ? r.lines.map((line) => asString(line).trim()).filter(Boolean)
+      : [],
+    counts: {
+      inbox: asCount(c.inbox),
+      inboxPersonal: asCount(c.inboxPersonal),
+      inboxBulk: asCount(c.inboxBulk),
+      work: asCount(c.work),
+      code: asCount(c.code),
+      calendar: asCount(c.calendar),
+      urgent: asCount(c.urgent),
+    },
+  };
+}
+
 export function normalizeBrief(raw: unknown): Brief {
   const r = asRecord(raw);
   return {
     date: asString(r.date) || new Date().toISOString(),
+    today: normalizeToday(r.today),
     digest: normalizeDigest(r.digest),
     priority: Array.isArray(r.priority) ? r.priority.map(normalizeCard) : [],
     inbox: normalizeSection(r.inbox, 'Gelen kutusu'),

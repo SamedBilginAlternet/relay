@@ -214,7 +214,7 @@ export function TodayScreen({ onNavigate }: Props) {
         : phase === 'error'
           ? (error ?? 'Brifing yüklenemedi.')
           : brief
-            ? `Brifing hazır. ${priority.length} öncelikli kart.`
+            ? `Brifing hazır. ${brief.today ? `${brief.today.headline} ` : ''}${priority.length} öncelikli kart.`
             : '';
 
   return (
@@ -226,6 +226,33 @@ export function TodayScreen({ onNavigate }: Props) {
               Bugün <span className="brief-top__dot" aria-hidden>·</span>{' '}
               <span className="brief-top__date">{formatDayMonth(brief?.date ?? null)}</span>
             </h1>
+
+            {/*
+              The counted day, directly under the date — the first sentence on
+              the screen, and the only one that is there whether or not a model
+              could write anything. It sits inside the header block on purpose:
+              a section of its own would have cost the 24px body gap on top of
+              its own height, and Bugün has to keep fitting one viewport.
+
+              No box, no tinted panel. On a quiet day the headline says so in
+              one line and there is nothing else to draw — framing zeros would
+              be exactly the fake density the count exists to avoid.
+            */}
+            {brief?.today ? (
+              <div className="tally">
+                <p className="tally__headline">{brief.today.headline}</p>
+                {brief.today.lines.length > 0 && (
+                  <p className="tally__lines">
+                    {brief.today.lines.map((line) => (
+                      <span className="tally__line" key={line}>
+                        {line}
+                      </span>
+                    ))}
+                  </p>
+                )}
+              </div>
+            ) : null}
+
             <p className="brief-top__meta">
               <span
                 className={`src-dot src-dot--${RUN_SOURCE_KIND}${phase === 'error' ? ' src-dot--down' : ''}`}
@@ -282,7 +309,10 @@ export function TodayScreen({ onNavigate }: Props) {
           <div className="brief-body">
             {/* ---------------- GÜNÜN ÖZETİ ---------------- */}
             {/* Absent whenever the model could not write it — an honest gap beats a
-                sentence that sounds like a summary and says nothing. */}
+                sentence that sounds like a summary and says nothing. It rides UNDER
+                the counted headline above and never replaces it: the count says how
+                much is waiting, this says what it means. Two different claims, so
+                they get two different voices and never sit on top of each other. */}
             {brief?.digest ? (
               <motion.section className="digest" aria-labelledby="digest-h" {...enterProps(0, reduce)}>
                 <h2 className="sr-only" id="digest-h">

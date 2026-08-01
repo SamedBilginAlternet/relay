@@ -60,8 +60,39 @@ export type BriefDigest = {
   advice?: string;
 };
 
+/** The countable half of the day, from `today.counts`. */
+export type BriefTodayCounts = {
+  inbox: number;
+  /** Mail from a person — a mailing list is not work. */
+  inboxPersonal: number;
+  inboxBulk: number;
+  work: number;
+  code: number;
+  calendar: number;
+  /** Insight cards that came back `high` urgency. */
+  urgent: number;
+};
+
+/**
+ * The day in counted facts: arithmetic over what the providers already returned,
+ * with no model involved.
+ *
+ * This is the opposite half of {@link BriefDigest}. The digest says what the day
+ * *means* and is the first thing to vanish when the token budget is spent; this
+ * one is always there on a current backend. Still optional in the type, because
+ * a backend from before it existed simply does not send the field.
+ */
+export type BriefToday = {
+  /** One sentence. On an empty day it says so instead of dressing up zeros. */
+  headline: string;
+  /** Short counted phrases; empty on a quiet day. */
+  lines: string[];
+  counts: BriefTodayCounts;
+};
+
 export type Brief = {
   date: string;
+  today?: BriefToday | null;
   digest?: BriefDigest | null;
   priority: InsightCard[];
   inbox: BriefSection;
