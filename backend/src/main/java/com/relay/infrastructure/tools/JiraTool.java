@@ -114,6 +114,31 @@ public abstract class JiraTool extends AbstractTool {
         return null;
     }
 
+    /**
+     * Resolves who should own an issue.
+     *
+     * <p>A record nobody owns does not show up in "üstümdeki işler" — Jira answers
+     * {@code assignee = currentUser()} with nothing — so an issue Relay opens on the user's
+     * behalf and leaves unassigned is invisible to the very screen that asked for it.
+     *
+     * <p>{@code "me"} is resolved against the connected account rather than trusted from the
+     * model, which cannot know an accountId and would invent one.
+     *
+     * @return the accountId, or {@code null} when the caller asked for nothing
+     */
+    protected String accountIdFor(Connection connection, String assignee) throws Exception {
+        String wanted = assignee == null ? "" : assignee.trim();
+        if (wanted.isEmpty()) {
+            return null;
+        }
+        if (!wanted.equalsIgnoreCase("me") && !wanted.equalsIgnoreCase("ben")) {
+            return wanted;
+        }
+        JsonNode self = jira("GET", base(connection) + "/rest/api/3/myself", headers(connection), null);
+        String accountId = self.path("accountId").asText("");
+        return accountId.isEmpty() ? null : accountId;
+    }
+
     /** What the board actually offers right now — shown to the user when nothing matched. */
     private static String names(JsonNode transitions) {
         List<String> out = new ArrayList<>();
@@ -621,6 +646,10 @@ public abstract class JiraTool extends AbstractTool {
             ObjectNode priority = props.putObject("priority");
             priority.put("type", "string");
             priority.put("description", "Priority name, e.g. Highest / High / Medium — omit for the project default");
+            ObjectNode assignee = props.putObject("assignee");
+            assignee.put("type", "string");
+            assignee.put("description", "Who owns it: \"me\" for the connected account, or an accountId. "
+                    + "Omit to leave it unassigned.");
             return schema;
         }
 
@@ -670,6 +699,10 @@ public abstract class JiraTool extends AbstractTool {
             }
             if (params.hasNonNull("priority") && !params.path("priority").asText().isBlank()) {
                 fields.putObject("priority").put("name", params.path("priority").asText());
+            }
+            String owner = accountIdFor(connection, params.path("assignee").asText(""));
+            if (owner != null) {
+                fields.putObject("assignee").put("accountId", owner);
             }
 
             JsonNode response = create(connection, fields);
@@ -953,6 +986,9 @@ public abstract class JiraTool extends AbstractTool {
             ObjectNode summary = props.putObject("summary");
             summary.put("type", "string");
             summary.put("description", "New summary — omit to keep the current one");
+            ObjectNode assignee = props.putObject("assignee");
+            assignee.put("type", "string");
+            assignee.put("description", "Reassign: \"me\" for the connected account, or an accountId");
             return schema;
         }
 
@@ -968,6 +1004,14 @@ public abstract class JiraTool extends AbstractTool {
                 body.putObject("fields").put("summary", params.path("summary").asText());
                 jira("PUT", issueUrl, headers(connection), body);
                 result.put("summaryUpdated", true);
+            }
+
+            String owner = accountIdFor(connection, params.path("assignee").asText(""));
+            if (owner != null) {
+                ObjectNode body = Json.object();
+                body.putObject("fields").putObject("assignee").put("accountId", owner);
+                jira("PUT", issueUrl, headers(connection), body);
+                result.put("assigned", true);
             }
 
             if (params.hasNonNull("status")) {
