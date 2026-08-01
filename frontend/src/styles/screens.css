@@ -962,6 +962,12 @@
   .int-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+  /* The clamp exists to level footers across a two-tile row. In one column
+     there is no row to level, and a sentence cut mid-word is the worse trade. */
+  .int__blurb {
+    display: block;
+    -webkit-line-clamp: none;
+  }
 }
 
 /* ------------------------------------------------------------------ */
