@@ -5,7 +5,7 @@ import type { CSSProperties } from 'react';
 import { EmptyState } from '../components/EmptyState';
 import { LoadError } from '../components/LoadError';
 import { getPanelSource } from '../data/PanelSource';
-import { formatDateTime, formatTokens, formatUsd } from '../lib/format';
+import { formatTokens, formatUsd } from '../lib/format';
 import { enterProps } from '../lib/motion';
 import type { PanelRange, PanelReport } from '../types/panel';
 import '../styles/panel.css';
@@ -31,7 +31,7 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: 'var(--fg-muted)',
 };
 
-type Preset = '7' | '30' | 'today' | 'custom';
+type Preset = '7' | '30' | 'today';
 
 function localDay(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -40,6 +40,25 @@ function localDay(date: Date): string {
 
 function daysAgo(days: number): string {
   return localDay(new Date(Date.now() - days * 86_400_000));
+}
+
+/**
+ * One date format on the screen, and it is the product's own.
+ *
+ * <p>The native `input[type=date]` drew `07/25/2026` next to the app's own
+ * "25 Tem", because the control follows `navigator.language` (en-US on the demo
+ * machine) and not `lang="tr"`. Those inputs are gone; this is what is left.
+ */
+function panelDate(iso: string | null, withTime = false): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('tr-TR', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}),
+  });
 }
 
 function percent(ratio: number): string {
@@ -96,18 +115,6 @@ export function PanelScreen() {
     else if (next === 'today') setRange({ from: localDay(new Date()), to: localDay(new Date()) });
   };
 
-  const editBound = (key: 'from' | 'to', value: string) => {
-    setPreset('custom');
-    setRange((current) => {
-      const next = { ...current, [key]: value || undefined };
-      // A half-open custom range is legal on the server, but a screen that sends only
-      // one bound quietly falls back to "last 7 days" for the other one; spell it out.
-      if (key === 'from' && !next.to) next.to = localDay(new Date());
-      if (key === 'to' && !next.from) next.from = daysAgo(7);
-      return next;
-    });
-  };
-
   const statuses = useMemo(() => {
     const byStatus = report?.runs.byStatus ?? {};
     const keys = [...Object.keys(STATUS_LABEL), ...Object.keys(byStatus).filter((k) => !(k in STATUS_LABEL))];
@@ -120,12 +127,12 @@ export function PanelScreen() {
   }, [report]);
 
   const empty = !!report && report.runs.total === 0 && report.approvals.steps === 0;
-  const fromLabel = report ? formatDateTime(report.from) : '';
+  const fromLabel = report ? panelDate(report.from) : '';
   // `to` is exclusive on the wire. Printing it as-is turns "up to and including 31 July"
   // into "1 August 00:00", which reads as a day the reader did not ask for.
   const toLabel = useMemo(() => {
     const end = Date.parse(report?.to ?? '');
-    return Number.isNaN(end) ? '' : formatDateTime(new Date(end - 1000).toISOString());
+    return Number.isNaN(end) ? '' : panelDate(new Date(end - 1000).toISOString());
   }, [report]);
 
   return (
@@ -170,26 +177,7 @@ export function PanelScreen() {
               </button>
             ))}
           </div>
-          <div className="panel-range__custom">
-            <label className="panel-range__field">
-              <span className="t-label">Başlangıç</span>
-              <input
-                type="date"
-                value={range.from ?? daysAgo(7)}
-                max={range.to ?? localDay(new Date())}
-                onChange={(e) => editBound('from', e.target.value)}
-              />
-            </label>
-            <label className="panel-range__field">
-              <span className="t-label">Bitiş</span>
-              <input
-                type="date"
-                value={range.to ?? localDay(new Date())}
-                min={range.from}
-                onChange={(e) => editBound('to', e.target.value)}
-              />
-            </label>
-          </div>
+          <p className="t-caption panel-range__label">{fromLabel} – {toLabel}</p>
         </div>
 
         {error != null && <LoadError error={error} onRetry={() => void load(range)} />}
@@ -238,7 +226,7 @@ export function PanelScreen() {
                 {...enterProps(1, reduce)}
               >
                 <h2 className="t-label" id="panel-status-h">
-                  Durum kırılımı
+                  Durum kırılımı — {report.runs.total} akış
                 </h2>
                 <Bars
                   rows={statuses.map((s) => ({
@@ -258,17 +246,41 @@ export function PanelScreen() {
                 {...enterProps(2, reduce)}
               >
                 <h2 className="t-label" id="panel-gate-h">
-                  Onay kapısı
+                  Onay kapısı — {report.approvals.steps} adım
                 </h2>
-                <Donut
-                  slices={[
-                    { key: 'approved', label: 'Onaylandı', value: report.approvals.approved, color: 'var(--success)' },
-                    { key: 'rejected', label: 'Reddedildi', value: report.approvals.rejected, color: 'var(--danger)' },
-                    { key: 'pending', label: 'Bekliyor', value: report.approvals.pending, color: 'var(--warn)' },
-                  ]}
-                  centerValue={percent(report.approvals.approvalRate)}
-                  centerLabel="onay oranı"
-                />
+                {report.approvals.gated === 0 ? (
+                  <p className="t-caption panel-note">
+                    <BarChart3 size={14} aria-hidden />
+                    Bu aralıkta hiçbir adım onaya düşmedi.
+                  </p>
+                ) : (
+                  <Bars
+                    rows={[
+                      {
+                        key: 'approved',
+                        label: 'Onaylandı',
+                        color: 'var(--success)',
+                        value: report.approvals.approved,
+                        display: String(report.approvals.approved),
+                      },
+                      {
+                        key: 'rejected',
+                        label: 'Reddedildi',
+                        color: 'var(--danger)',
+                        value: report.approvals.rejected,
+                        display: String(report.approvals.rejected),
+                      },
+                      {
+                        key: 'pending',
+                        label: 'Kararını bekliyor',
+                        color: 'var(--warn)',
+                        value: report.approvals.pending,
+                        display: String(report.approvals.pending),
+                      },
+                    ]}
+                    caption={`Onaya düşen ${report.approvals.gated} adım, kararlarına göre.`}
+                  />
+                )}
               </motion.section>
             </div>
 
@@ -320,7 +332,7 @@ export function PanelScreen() {
                         <span className="panel-reject__meta">
                           <span className="panel-reject__step">{rejection.stepTitle ?? 'Adım'}</span>
                           {rejection.toolName && <code className="t-mono">{rejection.toolName}</code>}
-                          <span>{formatDateTime(rejection.at)}</span>
+                          <span>{panelDate(rejection.at, true)}</span>
                           {/*
                             Cancelling a run writes its unfinished steps off as rejected
                             too, and the database keeps no mark that separates the two.
@@ -399,90 +411,6 @@ function Bars({ rows, caption }: { rows: BarRow[]; caption: string }) {
         </div>
       ))}
       <p className="t-caption panel-bars__caption">{caption}</p>
-    </div>
-  );
-}
-
-type Slice = { key: string; label: string; value: number; color: string };
-
-/**
- * Hand-drawn ring. `r = 15.9155` makes the circumference exactly 100, so a slice is
- * `stroke-dasharray="<percent> <rest>"` and the offset is the running total — no
- * trigonometry and no library.
- *
- * It fades in rather than sweeping: `stroke-dashoffset` is neither transform nor
- * opacity, and DESIGN.md §4 only allows those two.
- */
-function Donut({
-  slices,
-  centerValue,
-  centerLabel,
-}: {
-  slices: Slice[];
-  centerValue: string;
-  centerLabel: string;
-}) {
-  const total = slices.reduce((sum, slice) => sum + slice.value, 0);
-  let cursor = 0;
-  const arcs = slices
-    .filter((slice) => slice.value > 0)
-    .map((slice) => {
-      const share = (slice.value / total) * 100;
-      const arc = { ...slice, share, offset: 25 - cursor };
-      cursor += share;
-      return arc;
-    });
-
-  return (
-    <div className="panel-donut">
-      <div className="panel-donut__ring">
-        <svg
-          viewBox="0 0 42 42"
-          className="panel-donut__svg"
-          role="img"
-          aria-label={
-            total === 0
-              ? 'Onay kapısına düşen adım yok'
-              : slices.map((slice) => `${slice.label}: ${slice.value}`).join(', ')
-          }
-        >
-          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--bg-subtle)" strokeWidth="4" />
-          {arcs.map((arc, index) => (
-            <circle
-              key={arc.key}
-              className="panel-donut__arc"
-              style={delay(index)}
-              cx="21"
-              cy="21"
-              r="15.9155"
-              fill="none"
-              stroke={arc.color}
-              strokeWidth="4"
-              strokeDasharray={`${arc.share} ${100 - arc.share}`}
-              strokeDashoffset={arc.offset}
-            />
-          ))}
-        </svg>
-        <div className="panel-donut__center" aria-hidden>
-          <strong>{total === 0 ? '—' : centerValue}</strong>
-          <span>{centerLabel}</span>
-        </div>
-      </div>
-      <ul className="panel-legend">
-        {slices.map((slice) => (
-          <li key={slice.key}>
-            <span className="panel-legend__dot" style={{ background: slice.color }} aria-hidden />
-            <span className="panel-legend__label">{slice.label}</span>
-            <span className="panel-legend__value">{slice.value}</span>
-          </li>
-        ))}
-      </ul>
-      {total === 0 && (
-        <p className="t-caption panel-note">
-          <BarChart3 size={14} aria-hidden />
-          Bu aralıkta hiçbir adım onaya düşmedi.
-        </p>
-      )}
     </div>
   );
 }

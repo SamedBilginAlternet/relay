@@ -49,30 +49,11 @@
   border-color: var(--accent-line);
   color: var(--accent);
 }
-.panel-range__custom {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-8);
+/* The range, in the app's own words. The native date inputs that used to sit
+   here drew MM/DD/YYYY next to it — see PanelScreen.panelDate. */
+.panel-range__label {
   margin-left: auto;
-}
-.panel-range__field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.panel-range__field input {
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-btn);
-  background: var(--surface);
-  color: var(--fg);
-  font: inherit;
-  font-size: 14px;
-}
-.panel-range__field input:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  align-self: center;
 }
 
 .panel-skeletons {
@@ -181,80 +162,6 @@
   }
 }
 
-/* --- hand-drawn ring ----------------------------------------------- */
-
-.panel-donut {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--s-12);
-}
-.panel-donut__ring {
-  position: relative;
-  width: 168px;
-  max-width: 100%;
-}
-.panel-donut__svg {
-  width: 100%;
-  height: auto;
-  display: block;
-  /* the first slice starts at 12 o'clock, like a clock face */
-  transform: rotate(0deg);
-}
-.panel-donut__arc {
-  animation: panel-fade 260ms ease-out both;
-  animation-delay: var(--panel-delay, 0ms);
-}
-.panel-donut__center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  pointer-events: none;
-}
-.panel-donut__center strong {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-.panel-donut__center span {
-  font-size: 11px;
-  color: var(--fg-muted);
-}
-
-.panel-legend {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-}
-.panel-legend li {
-  display: flex;
-  align-items: center;
-  gap: var(--s-8);
-  font-size: 13px;
-}
-.panel-legend__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  flex: 0 0 auto;
-}
-.panel-legend__label {
-  flex: 1 1 auto;
-  min-width: 0;
-  color: var(--fg-muted);
-}
-.panel-legend__value {
-  font-weight: 600;
-}
-
 @keyframes panel-fade {
   from {
     opacity: 0;
@@ -350,7 +257,7 @@
   .panel-kpis {
     grid-template-columns: minmax(0, 1fr);
   }
-  .panel-range__custom {
+  .panel-range__label {
     margin-left: 0;
   }
   .panel-bar {
@@ -363,8 +270,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .panel-bar__fill,
-  .panel-donut__arc {
+  .panel-bar__fill {
     animation: panel-fade 120ms ease-out both;
     animation-delay: 0ms;
   }
