@@ -200,4 +200,57 @@ class GroundedWriteTest {
 
         assertThat(toolAgent.execute(run, create).ok()).isTrue();
     }
+
+    private static Step createStep(String projectKey) {
+        return Step.create(java.util.UUID.randomUUID(), 1, "Kayıt aç", AgentRole.COORDINATOR,
+                "jira.createIssue", Map.of("projectKey", projectKey, "issueType", "Bug",
+                        "summary", "Ödeme adımında hata alınıyor"));
+    }
+
+    private ToolAgent agentWithJiraProject(String projectKey) {
+        TestDoubles.InMemoryConnectionRepository connections = new TestDoubles.InMemoryConnectionRepository();
+        connections.save(new com.relay.domain.Connection(java.util.UUID.randomUUID(), "jira",
+                Map.of("projectKey", projectKey), java.time.Instant.parse("2026-07-31T09:00:00Z")));
+        return new ToolAgent(tools, llm, connections,
+                new AgentJournal(new TestDoubles.RecordingEventPublisher(), clock), clock);
+    }
+
+    /**
+     * A container is not refused, but it is not believed either. Live, a run started from
+     * chat filed under {@code RELAY} — a key that exists nowhere — while the connection was
+     * set up with {@code KAN}. The user's own setup wins over the model's guess.
+     */
+    @Test
+    void an_invented_project_key_is_replaced_by_the_configured_one() {
+        Run run = runWith("Bu mailden bir hata kaydı aç", createStep("RELAY"));
+        Step create = run.steps().get(0);
+
+        assertThat(agentWithJiraProject("KAN").execute(run, create).ok()).isTrue();
+        assertThat(create.params()).containsEntry("projectKey", "KAN");
+    }
+
+    /** The connection's key, offered by the model, is the same value — nothing to correct. */
+    @Test
+    void the_configured_project_key_survives_untouched() {
+        Run run = runWith("Bu mailden bir hata kaydı aç", createStep("KAN"));
+        Step create = run.steps().get(0);
+
+        assertThat(agentWithJiraProject("KAN").execute(run, create).ok()).isTrue();
+        assertThat(create.params()).containsEntry("projectKey", "KAN");
+    }
+
+    /**
+     * With no default to fall back to there is nothing better to offer, and a blank
+     * destination is worse than a wrong one: the provider's "no such project" names the
+     * problem, an empty field produces a malformed call.
+     */
+    @Test
+    void a_project_key_stays_when_the_connection_has_no_default() {
+        Run run = runWith("Bu mailden bir hata kaydı aç", createStep("RELAY"));
+        Step create = run.steps().get(0);
+
+        toolAgent.execute(run, create);
+
+        assertThat(create.params()).containsEntry("projectKey", "RELAY");
+    }
 }

@@ -287,24 +287,42 @@ public class ToolAgent {
     }
 
     /**
-     * Fields that name <em>where</em> a write lands. Wrong ones are not dangerous the way a
-     * wrong issue key is, but they are not harmless either: a run kept posting to {@code
-     * #genel}, then {@code C046F7R6UE9}, then {@code #general} — three plausible inventions,
-     * three {@code channel_not_found}s — while {@code #all-samed} sat configured on the
-     * connection. Unlike a record key, an address has a safe answer to fall back to.
+     * Where a container's real value lives on the connection, per parameter name.
+     *
+     * <p>Only same-concept mappings belong here. {@code owner} is deliberately not filled
+     * from {@code login}: an owner may be an organisation, and swapping in the connected
+     * account would be another guess wearing the clothes of a default.
      */
-    private static final java.util.Set<String> ADDRESS_FIELDS = java.util.Set.of("channel", "channelid");
+    private static final Map<String, List<String>> CONTAINER_DEFAULTS = Map.of(
+            "projectkey", List.of("projectKey", "defaultProject"),
+            "project", List.of("projectKey", "defaultProject"),
+            "channel", List.of("defaultChannel"),
+            "channelid", List.of("defaultChannel"),
+            "repo", List.of("repo", "defaultRepo"),
+            "repository", List.of("repo", "defaultRepo"));
+
+    /** One field the model addressed wrongly, and what was done about it. */
+    private record Grounding(JsonNode params, String note) {
+    }
 
     /**
-     * Replaces an address the model invented with the one the user configured.
+     * Replaces a container the model invented with the one the user configured.
      *
-     * <p>Blanking the field and letting the tool re-apply its own defaults keeps the
-     * knowledge of "what is the default channel" inside the Slack tool, where it belongs;
-     * this method only decides that the current value cannot be trusted.
+     * <p>A run kept posting to {@code #genel}, then {@code C046F7R6UE9}, then {@code
+     * #general} — three plausible inventions, three {@code channel_not_found}s — while
+     * {@code #all-samed} sat configured on the connection. The same hole was open one field
+     * over: a run started from chat could file a Jira record under an invented {@code
+     * projectKey} while the connection knew the real one. Unlike a record key, a container
+     * has a safe answer to fall back to, so this corrects rather than refuses.
      *
-     * @return the corrected parameters, or {@code null} when nothing needed correcting
+     * <p>Three sources, in order: the tool's own defaults, then the connection setting that
+     * names the same thing, then — when neither can help — the model's value is put back.
+     * Blanking a field nobody can fill would turn a wrong destination into no destination,
+     * and the provider's "repo not found" says more than a malformed URL does.
+     *
+     * @return the correction and the line to journal, or {@code null} when nothing needed it
      */
-    private JsonNode groundAddresses(Run run, Step step, Tool tool, JsonNode params, Connection connection) {
+    private Grounding groundContainers(Run run, Step step, Tool tool, JsonNode params, Connection connection) {
         if (!params.isObject()) {
             return null;
         }
@@ -313,11 +331,11 @@ public class ToolAgent {
                 .toLowerCase(Locale.ROOT);
 
         ObjectNode corrected = ((ObjectNode) params).deepCopy();
-        boolean changed = false;
+        List<String> suspect = new ArrayList<>();
         var fields = params.fields();
         while (fields.hasNext()) {
             var field = fields.next();
-            if (!ADDRESS_FIELDS.contains(field.getKey().toLowerCase(Locale.ROOT)) || !field.getValue().isTextual()) {
+            if (!CONTAINER_FIELDS.contains(field.getKey().toLowerCase(Locale.ROOT)) || !field.getValue().isTextual()) {
                 continue;
             }
             String value = field.getValue().asText().trim();
@@ -325,13 +343,43 @@ public class ToolAgent {
                 continue;
             }
             corrected.put(field.getKey(), "");
-            changed = true;
+            suspect.add(field.getKey());
         }
-        if (!changed) {
+        if (suspect.isEmpty()) {
             return null;
         }
-        JsonNode resolved = tool.withDefaults(corrected, connection);
-        return resolved.path("channel").asText("").isBlank() ? null : resolved;
+
+        JsonNode filled = tool.withDefaults(corrected, connection);
+        ObjectNode out = filled.isObject() ? ((ObjectNode) filled).deepCopy() : corrected;
+        List<String> notes = new ArrayList<>();
+        for (String name : suspect) {
+            String was = params.path(name).asText("").trim();
+            String now = out.path(name).asText("").trim();
+            if (now.isEmpty()) {
+                now = configured(connection, name);
+            }
+            if (now == null || now.isEmpty()) {
+                out.put(name, was);
+                continue;
+            }
+            out.put(name, now);
+            notes.add(name + " doğrulanamadı (" + was + "), bağlantıdaki varsayılana çevrildi: " + now);
+        }
+        return notes.isEmpty() ? null : new Grounding(out, String.join(" · ", notes));
+    }
+
+    /** The connection's own value for a container field, or {@code null} when it has none. */
+    private static String configured(Connection connection, String field) {
+        if (connection == null) {
+            return null;
+        }
+        for (String key : CONTAINER_DEFAULTS.getOrDefault(field.toLowerCase(Locale.ROOT), List.of())) {
+            String value = connection.get(key);
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     /**
@@ -542,12 +590,11 @@ public class ToolAgent {
         // a channel silently corrected after approval would be a different message than the
         // one shown.
         JsonNode finalised = tool.withDefaults(candidate, connection);
-        JsonNode grounded = groundAddresses(run, step, tool, finalised, connection);
+        Grounding grounded = groundContainers(run, step, tool, finalised, connection);
         if (grounded != null) {
             journal.say(run, step.id(), AgentRole.toolAgent(tool.name()), AgentRole.COORDINATOR,
-                    "Adres doğrulanamadı (" + finalised.path("channel").asText("") + "),"
-                            + " bağlantıdaki varsayılana çevrildi: " + grounded.path("channel").asText(""));
-            finalised = grounded;
+                    grounded.note());
+            finalised = grounded.params();
         }
         return new ParamOutcome(true, finalised, null, tokens, cost);
     }
