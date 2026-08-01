@@ -530,11 +530,17 @@ a.btn {
 .suggestion:active {
   transform: scale(0.99);
 }
+/* The tool call chain is a receipt, not a headline. At 12px muted it still read
+   as the card's second line of copy — same rhythm, same importance — so the
+   first thing anyone parsed on the landing screen was `jira.searchIssues`.
+   It stays (transparency is the pitch) but it is now demoted to a footnote. */
 .suggestion__tools {
   display: block;
-  margin-top: 8px;
-  font-size: 12px;
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.4;
   color: var(--fg-muted);
+  opacity: 0.72;
 }
 
 /* ------------------------------------------------------------------ */

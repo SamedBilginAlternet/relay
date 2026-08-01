@@ -184,9 +184,14 @@ function Welcome({ name }: { name: string }) {
   return (
     <>
       <h1 className="onb__title">{name ? `Hoş geldin, ${name}.` : 'Hoş geldin.'}</h1>
+      {/* The greeting used to open with a vendor list — "Jira · GitHub · Slack ·
+          Google" — which told a new user what we integrate with before telling
+          them what we do for them (KONUMLANDIRMA.md §3, A5). Which tools are
+          reachable is the NEXT step's whole subject; this one is the job. */}
       <p className="onb__lead">
-        Relay, Jira · GitHub · Slack · Google üzerindeki günlük işleri senin adına yürüten bir ajan
-        ekibi. Farkı şurada: ne yaptığını gizlemez.
+        Relay, gün içinde çıkan işi senin adına yürüten bir ajan ekibi: mailden gelen talebi kayda
+        çevirir, işin nerede takıldığını gösterir, ekibi haberdar eder. Farkı şurada: ne yaptığını
+        gizlemez.
       </p>
       <ul className="onb__points">
         <li>

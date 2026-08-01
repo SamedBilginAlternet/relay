@@ -10,8 +10,11 @@ type Props = {
   value?: string;
 };
 
+/* Same sentence as the first landing example, on purpose: the empty box and the
+   first suggestion are the two places a stranger learns what to ask for, and
+   they used to teach two different products (KONUMLANDIRMA.md §3, A2). */
 const PLACEHOLDER_LONG =
-  'Ne yapmamı istersin? Örn: “Blocker etiketli Jira işlerini bul, durumlarını güncelle, ekibe Slack’ten özet at.”';
+  'Ne yapmamı istersin? Örn: “Bugünkü maillerime bak, iş talebi gibi görünenler için Jira kaydı aç ve ilgili kanaldan ekibe haber ver.”';
 /** A 3-line placeholder gets clipped in a 1-row textarea on small phones. */
 const PLACEHOLDER_SHORT = 'Ne yapmamı istersin?';
 

@@ -8,18 +8,30 @@ type Props = {
   sourceKind: 'api' | 'mock';
 };
 
+/*
+  The first screen a stranger sees, so it decides what they think the product is
+  (KONUMLANDIRMA.md §3, A1). It used to open with "Jira'daki blocker etiketli
+  işleri bul" and two more sentences in the same voice — three engineering
+  errands, and the jury filed the whole thing under "developer tool".
+
+  The rule now: the sentence names the JOB, not the vendor. The first example
+  starts in the mailbox because "turn the request that just landed into a
+  record" is the flow that belongs to everyone, not to one craft. The mono tool
+  line stays — transparency is the pitch (DESIGN.md) — but it reads as a
+  footnote, not as a second headline.
+*/
 const SUGGESTIONS: { text: string; tools: string }[] = [
   {
-    text: 'Jira’daki blocker etiketli işleri bul, durumlarını güncelle, ekibe Slack’ten özet at.',
-    tools: 'jira.searchIssues · jira.updateIssue · slack.postMessage',
+    text: 'Bugünkü maillerime bak, iş talebi gibi görünenler için Jira kaydı aç ve ilgili kanaldan ekibe haber ver.',
+    tools: 'gmail.listToday · jira.createIssue · slack.postMessage',
   },
   {
-    text: 'Bana atanmış açık ticket’ları listele ve bugün bitmesi gerekenleri #dev-sprint kanalına yaz.',
+    text: 'Bana atanmış açık işleri çıkar, bugün bitmesi gerekenleri ekibin kanalına yaz.',
     tools: 'jira.searchIssues · slack.postMessage',
   },
   {
-    text: 'RUN-42’yi incele, kök nedeni yorum olarak ekle ve sorumluya Slack’ten haber ver.',
-    tools: 'jira.getIssue · jira.addComment · slack.postMessage',
+    text: 'Üç gündür ilerlemeyen işleri bul, nerede takıldıklarını not düş ve sahiplerine haber ver.',
+    tools: 'jira.searchIssues · jira.addComment · slack.postMessage',
   },
 ];
 
