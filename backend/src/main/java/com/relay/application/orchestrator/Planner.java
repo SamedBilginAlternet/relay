@@ -22,10 +22,31 @@ import java.util.Map;
 /**
  * Goal in, ordered steps out. Nothing else.
  *
- * <p>The model answers under a JSON schema; anything unparseable degrades to a
- * single reasoning step rather than blowing up the run.
+ * <p>The model answers under a JSON schema. An answer that is not a plan stops the run;
+ * a plan that is legitimately empty degrades to one reasoning step.
  */
 public class Planner {
+
+    /**
+     * The model's answer was not a plan.
+     *
+     * <p>WHY THIS THROWS NOW. It used to degrade to a single "Hedefi özetle" step, which
+     * ran, verified — "Hedef özetlenmiştir" — and closed the run as **Tamamlandı**.
+     * Measured on the live box on 2026-08-01, with every Groq key at its daily wall and
+     * the paid tier answering: two of three goals that named a mailbox and a Jira project
+     * came back as one-step runs that touched neither, and both reported success. The
+     * goal "maillerime bak, hata bildirimi olanlar için KAN'da kayıt aç" produced
+     * `1 adımlık plan hazır: 1) Hedefi özetle` and a green tick.
+     *
+     * <p>A product whose whole claim is that you can see what it did must not be able to
+     * report success having done nothing. Failing costs a rerun; the old behaviour cost
+     * the reader's belief that a green run means anything.
+     */
+    public static class PlanUnreadableException extends RuntimeException {
+        public PlanUnreadableException(String message) {
+            super(message);
+        }
+    }
 
     private static final int MAX_STEPS = 8;
 
@@ -55,8 +76,18 @@ public class Planner {
         LlmResponse response = llm.complete(request);
         costMeter.record(run, null, response.totalTokens(), response.costUsd());
 
+        if (!readable(response.content())) {
+            throw new PlanUnreadableException(
+                    "Plan kurulamadı: modelin yanıtı adım listesi değil. Yeniden dene — "
+                    + "sağlayıcı kotası dolduğunda yedek model bu biçimi tutturamıyor.");
+        }
         List<Step> steps = parse(run, response.content());
         if (steps.isEmpty()) {
+            /*
+              A plan that parsed and holds no steps is the model saying there is nothing to
+              run — "dur", "çözümünü açıklama". That is a real answer and it gets a real
+              step. It is only the unreadable answer above that is a defect.
+            */
             steps = List.of(Step.create(run.id(), 1, "Hedefi özetle", AgentRole.COORDINATOR, null,
                     Map.of("goal", run.goal())));
         }
@@ -104,6 +135,22 @@ public class Planner {
         List<String> titles = new ArrayList<>();
         steps.forEach(s -> titles.add(s.ordinal() + ") " + s.title()));
         return String.join(" · ", titles);
+    }
+
+    /**
+     * Did the model answer with something shaped like a plan?
+     *
+     * <p>Deliberately not "did it answer with steps we like". A reasoning model that
+     * writes a paragraph, an apology, or its own thinking before giving up produces no
+     * array at all, and that is the case this separates out. An array with nothing in it
+     * has answered the question.
+     */
+    private static boolean readable(String content) {
+        JsonNode root = Json.extract(content);
+        if (root == null) {
+            return false;
+        }
+        return root.isArray() || root.path("steps").isArray();
     }
 
     private List<Step> parse(Run run, String content) {
