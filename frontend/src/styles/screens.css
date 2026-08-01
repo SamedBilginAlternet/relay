@@ -231,6 +231,13 @@
 /* the middle, and the machine columns right-aligned and monospaced so  */
 /* the digits stack. The units moved into the head, printed once, so    */
 /* the row keeps a bare figure and fits on one line at 34px.            */
+/*                                                                     */
+/* v4 hands that grid to ag-grid, to buy per-column filtering. The      */
+/* look above is unchanged and is now stated as theme params in         */
+/* components/RunsGrid.tsx — every one of them a `var()` pointing back  */
+/* at global.css, so there is still exactly one definition of what a    */
+/* hairline and a machine figure are. Only `.runs`, `.runs__note` and   */
+/* `.runs__frame` are still drawn here.                                 */
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
@@ -368,226 +375,18 @@
   background: var(--surface);
   overflow: hidden;
 }
-.runs__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
 /*
-  The one grid on this screen. Change it here and the heads follow.
+  The table inside the frame is ag-grid now (see components/RunsGrid.tsx and
+  styles/runs-grid.css). Everything that used to live here — the seven-column
+  grid template shared by the heads and the rows, the hairline between rows,
+  the two media queries that dropped Adım/Token at 1180 and reflowed to two
+  lines at 860 — is expressed there instead: the first two as theme params,
+  the third as a `hide` on the column def, because ag-grid owns its own column
+  widths and a media query cannot reach them.
 
-  Every fixed width is the measured text, not a round number (#135). Mono runs
-  0.6em per character at 13.5px, so `31 Tem 14:32` — what `formatRelative` gives
-  for anything older than a week — is 97px and was living in an 82px column with
-  `overflow: hidden` and no ellipsis: silently short a character on every run
-  over seven days old. `Onay bekliyor` at 13px/600 is ~98px and was in 96.
-
-    100  Zaman   12 chars of mono
-     40  Adım    held open by its own head, not by 1-3 digits
-     72  Token   7 figures of mono, with slack
-     84  Tutar   `$12,345.67`
-    116  Durum   the longest status word, plus the chevron
+  What stays here is the frame, which is not the table's: it is the same panel
+  the empty state and every other list on this screen sits in.
 */
-.runs__cols,
-.run-row__btn {
-  display: grid;
-  grid-template-columns:
-    16px minmax(0, 1fr)
-    100px 40px 72px 84px 116px;
-  align-items: center;
-  column-gap: var(--s-12);
-  width: 100%;
-  padding: 0 var(--s-16);
-}
-
-/* Surface three: the inset strip that names the columns. */
-.runs__cols {
-  min-height: 28px;
-  background: var(--bg-subtle);
-  border-bottom: 1px solid var(--line);
-}
-/*
-  Alignment and clipping only — the size, weight and colour are `.t-label`'s.
-  This used to override all three, down to 10.5px in `--fg-faint`: uppercase,
-  letterspaced, right-aligned text at 4.83:1, which is the least legible
-  configuration on the screen worn by its smallest type.
-*/
-.runs__cols .t-label {
-  text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/*
-  `--line`, not `--line-soft`. A 6%-alpha hairline is very nearly not there, and
-  without it forty rows read as one continuous grey field. The rhythm of a list
-  comes from its separators; it was being asked of the row height instead.
-*/
-.run-row + .run-row {
-  border-top: 1px solid var(--line);
-}
-.run-row__btn {
-  /* 15px of goal at 1.35 is 20px, plus 6px above and below. */
-  min-height: 38px;
-  padding-block: 6px;
-  border: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  color: inherit;
-  font: inherit;
-  transition: background-color 160ms ease-out;
-}
-.run-row__btn:hover {
-  background: var(--bg-subtle);
-}
-
-/* The scan column: same 16px on every row, whatever the status is. */
-.run-row__mark {
-  display: grid;
-  place-items: center;
-}
-
-.run-row__goal {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-8);
-  min-width: 0;
-  /* The row's primary content. It was 13.5px — the same size as the page's own
-     secondary caption, so the hierarchy of the screen was upside down. */
-  font-size: 15px;
-  line-height: 1.35;
-  color: var(--fg);
-}
-.run-row__text {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* Only repeated goals carry one, so it rides with the prose rather than
-   holding a column open on every row that has nothing to put in it. */
-.run-row__id {
-  flex: 0 0 auto;
-  font-size: 12px;
-  color: var(--fg-faint);
-}
-
-/* Transparent to the grid: the four figures are the row's own columns. */
-.run-row__nums {
-  display: contents;
-}
-.run-row__num {
-  font-size: var(--machine-size);
-  color: var(--fg-machine);
-  text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  /* Clipped is not the same as shortened: without this the last character is
-     cut mid-glyph and nothing on screen says a character is missing. */
-  text-overflow: ellipsis;
-}
-.run-row__end {
-  font-size: 13px;
-  font-weight: 600;
-  text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* Purple is the state, not the decoration: this row is waiting on a person. */
-.run-row__end--act {
-  color: var(--accent);
-}
-.run-row__end--act::after {
-  content: ' ›';
-}
-
-/*
-  Every row in the queue carries the same status, so its mark stops being a
-  second colour on the row and joins the state it is part of.
-
-  The frame used to wear the accent too — a violet inset bar down its edge and a
-  violet column strip. That was drawn when the queue was a section competing for
-  attention with the log below it. It is a whole tab now: nothing is next to it
-  to be louder than, and painting the panel violet spends the accent on the
-  container instead of on the rows that are actually waiting (#133).
-*/
-.runs--waiting .run-row__mark {
-  color: var(--accent);
-}
-
-/*
-  Below 1180 the sidebar is still there and the column is not: at 1024 the page
-  gets 716px, and seven columns of 532px fixed would leave the goal 184px —
-  about twenty-six characters of Turkish. Adım and Token go first because they
-  are the two facts nobody navigates by; Zaman, Tutar and Durum are what the eye
-  is actually scanning for. Every row's accessible name still reads all five.
-*/
-@media (max-width: 1180px) {
-  .runs__cols,
-  .run-row__btn {
-    grid-template-columns: 16px minmax(0, 1fr) 100px 84px 116px;
-  }
-  .runs__drop {
-    display: none;
-  }
-}
-
-@media (max-width: 860px) {
-  /*
-    Two lines rather than five columns — but the gutter keeps its column, so
-    the marks still stack and the goal still starts at the same x on every row.
-    The heads go with the columns, so the units come back onto the figures.
-
-    860, not 720. There is no sidebar below 1024, so the page gets the whole
-    window back and the columns fit for another 160px; 720 was measured against
-    a shell this screen no longer runs in.
-  */
-  .runs__drop {
-    display: revert;
-  }
-  .runs__cols {
-    display: none;
-  }
-  .run-row__btn {
-    grid-template-columns: 16px minmax(0, 1fr) auto;
-    row-gap: 1px;
-    padding-block: 6px;
-    /* `touch-target-size`: this width is a tablet, and the whole row is the
-       control. 38px is a pointer number. */
-    min-height: 44px;
-  }
-  .run-row__mark {
-    grid-area: 1 / 1;
-  }
-  .run-row__goal {
-    grid-area: 1 / 2;
-  }
-  .run-row__end {
-    grid-area: 1 / 3;
-  }
-  .run-row__nums {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px var(--s-8);
-    grid-column: 2 / -1;
-    grid-row: 2;
-    min-width: 0;
-  }
-  .run-row__num {
-    font-size: 12.5px;
-    text-align: left;
-  }
-  .run-row__num:nth-child(2)::after {
-    content: ' adım';
-  }
-  .run-row__num:nth-child(3)::after {
-    content: ' token';
-  }
-}
 
 /* ------------------------------------------------------------------ */
 /* Politikalar — a rule table, not a page of cards (issues #124, #127) */

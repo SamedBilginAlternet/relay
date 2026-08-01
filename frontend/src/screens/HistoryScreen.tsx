@@ -1,13 +1,28 @@
 import { History, ShieldQuestion, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '../components/EmptyState';
 import { LoadError } from '../components/LoadError';
 import { TabStrip } from '../components/TabStrip';
 import { getRunSource } from '../data';
-import { formatRelative, formatTokens, formatUsd } from '../lib/format';
-import { runStatusMeta } from '../lib/status';
 import type { RunSummary } from '../types/api';
 import '../styles/screens.css';
+
+/*
+  The grid arrives in its own chunk, on purpose.
+
+  ag-grid community is ~190KB gzipped before a single column is defined —
+  larger than the entire rest of this product put together. Bundled with
+  everything else it would be paid for by the chat screen, the approval gate
+  and the landing page, none of which have a table on them. Split out, the
+  first paint of the app is unchanged and the cost falls only on the screen
+  that asked for it, in parallel with the request for the rows it will hold.
+
+  The fallback is the same skeleton the fetch already shows, so on a cold visit
+  the reader sees one loading state rather than two in a row.
+*/
+const RunsGrid = lazy(() =>
+  import('../components/RunsGrid').then((module) => ({ default: module.RunsGrid })),
+);
 
 type Props = { onOpen: (runId: string) => void };
 
@@ -81,10 +96,6 @@ export function repeatedGoals(rows: RunSummary[]): Set<string> {
   const seen = new Map<string, number>();
   for (const row of rows) seen.set(row.goal, (seen.get(row.goal) ?? 0) + 1);
   return new Set([...seen.entries()].filter(([, count]) => count > 1).map(([goal]) => goal));
-}
-
-function shortId(id: string): string {
-  return id.replace(/-/g, '').slice(0, 6);
 }
 
 /**
@@ -179,6 +190,23 @@ export function HistoryScreen({ onOpen }: Props) {
   const shown = tab === 'bekleyen' ? waiting : all;
   const nothingAtAll = !loading && rows != null && all.length === 0 && waiting.length === 0;
 
+  /*
+    How many rows a column filter is currently hiding.
+
+    A table that quietly drops half its rows because a filter is set two
+    scrolls up is how a reader concludes the data is gone. The count above the
+    table is the one line on screen that can say otherwise, so it says it —
+    and it is reset whenever the list underneath changes, because a leftover
+    "12 / 40" against a different list is worse than none.
+  */
+  const [hiddenBy, setHiddenBy] = useState<{ shownRows: number; total: number } | null>(null);
+  useEffect(() => setHiddenBy(null), [tab]);
+  const onFilterChange = useCallback(
+    (shownRows: number, total: number) =>
+      setHiddenBy(shownRows === total ? null : { shownRows, total }),
+    [],
+  );
+
   return (
     <div className="page">
       <div className="page__inner page__inner--app">
@@ -231,7 +259,7 @@ export function HistoryScreen({ onOpen }: Props) {
             />
 
             <section
-              className={`runs${tab === 'bekleyen' ? ' runs--waiting' : ''}`}
+              className="runs"
               role="tabpanel"
               id={`tabpanel-${tab}`}
               aria-labelledby={`tab-${tab}`}
@@ -252,25 +280,30 @@ export function HistoryScreen({ onOpen }: Props) {
                 <>
                   {/* What the list is a list of. `N kayıt` used to sit here and it was a
                       page size wearing the clothes of a total: the server holds 182 runs
-                      and the caption said 20. */}
-                  <p className="runs__note">
-                    {tab === 'bekleyen'
-                      ? `Bu ${shown.length} akış durdu; devam etmesi senin kararına bağlı.`
-                      : `En yeni ${shown.length} çalıştırma, yeniden eskiye.`}
+                      and the caption said 20.
+
+                      It is also where a column filter has to own up to what it is
+                      hiding — announced, because the rows it removed vanish without a
+                      word for anyone not looking at the funnel in the header. */}
+                  <p className="runs__note" aria-live="polite">
+                    {hiddenBy
+                      ? `${hiddenBy.total} kayıttan ${hiddenBy.shownRows} tanesi gösteriliyor — sütun filtresi etkin.`
+                      : tab === 'bekleyen'
+                        ? `Bu ${shown.length} akış durdu; devam etmesi senin kararına bağlı.`
+                        : `En yeni ${shown.length} çalıştırma, yeniden eskiye.`}
                   </p>
                   <div className="runs__frame">
-                    <ColumnHeads last={tab === 'bekleyen' ? 'Karar' : 'Durum'} />
-                    <ul className="runs__list">
-                      {shown.map((row) => (
-                        <RunRow
-                          key={row.id}
-                          row={row}
-                          withId={repeated.has(row.goal)}
-                          action={tab === 'bekleyen' ? 'Karar ver' : undefined}
-                          onOpen={onOpen}
-                        />
-                      ))}
-                    </ul>
+                    <Suspense fallback={<div className="skeleton" style={{ height: 240 }} />}>
+                      <RunsGrid
+                        rows={shown}
+                        repeated={repeated}
+                        onOpen={onOpen}
+                        lastHeader={tab === 'bekleyen' ? 'Karar' : 'Durum'}
+                        action={tab === 'bekleyen' ? 'Karar ver' : undefined}
+                        waiting={tab === 'bekleyen'}
+                        onFilterChange={onFilterChange}
+                      />
+                    </Suspense>
                   </div>
                 </>
               )}
@@ -279,99 +312,5 @@ export function HistoryScreen({ onOpen }: Props) {
         )}
       </div>
     </div>
-  );
-}
-
-/**
- * The names of the machine columns, written once at the top of the list.
- *
- * <p>Every row used to carry its own units — `4 adım`, `4.246 token` — which is
- * the same three words printed forty-five times and the reason the numbers had
- * to be packed left instead of aligned. Naming the column once buys the row a
- * bare, right-aligned figure that lines up with the one above it.
- *
- * <p>Presentation only: it is a `div`, not a table head and not a list item, so
- * the lists on this screen stay lists of runs.
- */
-function ColumnHeads({ last }: { last: string }) {
-  return (
-    <div className="runs__cols" aria-hidden>
-      <span />
-      <span />
-      <span className="t-label">Zaman</span>
-      {/* The two the narrow layout drops: neither decides anything, and the
-          screen-reader label on every row still spells both out. */}
-      <span className="t-label runs__drop">Adım</span>
-      <span className="t-label runs__drop">Token</span>
-      <span className="t-label">Tutar</span>
-      <span className="t-label">{last}</span>
-    </div>
-  );
-}
-
-function RunRow({
-  row,
-  withId,
-  action,
-  onOpen,
-}: {
-  row: RunSummary;
-  withId: boolean;
-  action?: string;
-  onOpen: (runId: string) => void;
-}) {
-  const status = runStatusMeta(row.status);
-  const Icon = status.Icon;
-  /*
-    The button's own label replaces everything inside it for a screen reader, so
-    the facts the columns carry have to be spelled out here — with the units the
-    row no longer prints, because a bare "3" read out loud is not a step count.
-    It also survives the two columns the narrow layout drops.
-  */
-  const label = [
-    `${row.goal} — ${action ?? status.label}`,
-    formatRelative(row.createdAt),
-    `${row.stepCount} adım`,
-    `${formatTokens(row.costTokens)} token`,
-    formatUsd(row.costUsd),
-  ].join(', ');
-  return (
-    <li className="run-row">
-      <button type="button" className="run-row__btn" onClick={() => onOpen(row.id)} aria-label={label}>
-        {/*
-          The left gutter is the only column the eye has to walk to find a
-          failure in a page of finished runs, so the mark stays in it whatever
-          the row says on the right. Colour is never the whole signal: the glyph
-          differs per status and the button's label spells it out.
-        */}
-        <span className={`run-row__mark ${status.className}`} aria-hidden>
-          <Icon size={15} />
-        </span>
-        <span className="run-row__goal">
-          {/* The goal is what gives way when the column is short — the id is the
-              only thing telling two runs of the same prompt apart, so it never
-              leaves the row with it. */}
-          <span className="run-row__text">{row.goal}</span>
-          {withId && <code className="run-row__id t-mono">#{shortId(row.id)}</code>}
-        </span>
-        {/* `display: contents` on wide screens, so these four sit in the row's
-            own grid and line up with the heads; a wrapped strip under the goal
-            once the columns no longer fit. */}
-        <span className="run-row__nums">
-          <span className="run-row__num t-mono">{formatRelative(row.createdAt)}</span>
-          <span className="run-row__num t-mono">{row.stepCount}</span>
-          <span className="run-row__num t-mono">
-            {formatTokens(row.costTokens)}
-          </span>
-          <span className="run-row__num t-mono">{formatUsd(row.costUsd)}</span>
-        </span>
-        {/* Every run in the waiting tab carries the same status, so the last
-            column says the thing that is not already in the tab: what the
-            reader is being asked to do. */}
-        <span className={`run-row__end${action ? ' run-row__end--act' : ` ${status.className}`}`}>
-          {action ?? status.label}
-        </span>
-      </button>
-    </li>
   );
 }
