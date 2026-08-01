@@ -51,10 +51,15 @@ export function PointerHalo() {
     const leave = () => opacity.set(0);
 
     window.addEventListener('pointermove', move, { passive: true });
+    // Some environments (remote control, older synthetic input) raise `mousemove`
+    // without a matching `pointermove`. Both write the same motion values, so a
+    // duplicate costs a transform and never a re-render.
+    window.addEventListener('mousemove', move as EventListener, { passive: true });
     document.addEventListener('pointerleave', leave);
     window.addEventListener('blur', leave);
     return () => {
       window.removeEventListener('pointermove', move);
+      window.removeEventListener('mousemove', move as EventListener);
       document.removeEventListener('pointerleave', leave);
       window.removeEventListener('blur', leave);
     };
