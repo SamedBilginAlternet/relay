@@ -67,6 +67,30 @@ public class Planner {
         return steps;
     }
 
+    /** The crew, as the timeline names them. Anything else is not a name, it is noise. */
+    private static final java.util.Set<String> CREW = java.util.Set.of(
+            AgentRole.USER, AgentRole.PLANNER, AgentRole.COORDINATOR,
+            AgentRole.VERIFIER, AgentRole.POLICY, AgentRole.COST);
+
+    /**
+     * Who is doing this step — decided by the tool, not by the model.
+     *
+     * <p>The model kept writing {@code "role": "assistant"}, which is OpenAI's word for the
+     * side of a chat it is speaking on and means nothing here. It was taken at face value, so
+     * every row on the flow panel and every line in the transcript read "assistant" next to
+     * {@code gmail.listToday} — while the product's second claim is that you can read who
+     * told whom what. The tool is known at this point; the specialist follows from it.
+     *
+     * <p>A role the model wrote is only kept when it is one of the crew we actually have.
+     */
+    private static String crewName(String proposed, String toolName) {
+        if (toolName != null && !toolName.isBlank()) {
+            return AgentRole.toolAgent(toolName);
+        }
+        String named = proposed == null ? "" : proposed.trim().toLowerCase(java.util.Locale.ROOT);
+        return CREW.contains(named) ? named : AgentRole.toolAgent(null);
+    }
+
     /**
      * The plan as a sentence for the timeline.
      *
@@ -103,10 +127,7 @@ public class Planner {
                 // A hallucinated tool becomes a reasoning step instead of a hard failure.
                 toolName = null;
             }
-            String role = node.path("role").asText(null);
-            if (role == null || role.isBlank()) {
-                role = AgentRole.toolAgent(toolName);
-            }
+            String role = crewName(node.path("role").asText(null), toolName);
             Map<String, Object> params = Json.toMap(node.get("params"));
             steps.add(Step.create(run.id(), ordinal, title, role, toolName, params));
         }

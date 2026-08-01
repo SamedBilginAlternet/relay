@@ -150,4 +150,22 @@ class PlanRepairTest {
         assertThat(run.messages()).anySatisfy(message ->
                 assertThat(message.content()).contains("jira.searchIssues adımı eklendi"));
     }
+
+    /**
+     * Who is on a step is decided by the tool, not by the model.
+     *
+     * <p>Live, every row on the flow panel and every line in the transcript read "assistant"
+     * next to {@code gmail.listToday}: the model writes {@code "role": "assistant"} — OpenAI's
+     * word for the side of a chat it speaks on — and it was taken at face value. The product's
+     * second claim is that you can read who told whom what, and "assistant" tells nobody
+     * anything.
+     */
+    @Test
+    void the_model_does_not_get_to_name_the_crew() {
+        Run run = runGoal("Ödeme servisi staging'de patlıyor, bunu kapat");
+
+        assertThat(run.steps()).extracting(Step::role)
+                .containsExactly("jira-agent", "jira-agent")
+                .doesNotContain("assistant");
+    }
 }
