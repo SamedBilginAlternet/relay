@@ -689,7 +689,10 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 40px;
+  /* 44px, like every other target in the product. It was 40 while this menu
+     held two rare rows; `Postana sor` moved in here from the main bar (issue
+     #59), so it is now a place people navigate from, not only sign out from. */
+  min-height: 44px;
   padding: 8px 12px;
   font: inherit;
   font-size: 14px;

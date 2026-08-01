@@ -1,4 +1,4 @@
-import { BarChart3, History, MessageSquare, Plug, Search, ShieldCheck, Sun } from 'lucide-react';
+import { BarChart3, History, MessageSquare, Plug, ShieldCheck, Sun } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useLayoutEffect, useRef } from 'react';
 import type { Route } from '../lib/router';
@@ -8,9 +8,20 @@ type Props = {
   onNavigate: (hash: string) => void;
 };
 
+/*
+  The top bar is the product's table of contents, so what is on it is a claim
+  about what the product is: it finishes work in the tools, writes, and asks
+  before it writes.
+
+  `Postana sor` (`#/sor`) does none of those three — its own copy says "Okur,
+  yazmaz" — and it sat second, ahead of the screens the pitch is actually
+  about. Seven destinations is more than three minutes can carry, and a tab
+  nobody demonstrates still gets clicked. So it comes off the bar; the route,
+  the screen and `POST /api/ask` all stay exactly where they are, and the
+  account menu keeps a way in. Removing it from the map, not from the product.
+*/
 const ITEMS: { hash: string; label: string; match: Route['name'][]; Icon: LucideIcon }[] = [
   { hash: '#/', label: 'Bugün', match: ['today'], Icon: Sun },
-  { hash: '#/sor', label: 'Postana sor', match: ['ask'], Icon: Search },
   { hash: '#/sohbet', label: 'Sohbet', match: ['chat'], Icon: MessageSquare },
   { hash: '#/history', label: 'Geçmiş', match: ['history', 'history-detail'], Icon: History },
   { hash: '#/connections', label: 'Bağlantılar', match: ['connections'], Icon: Plug },

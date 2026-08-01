@@ -1515,16 +1515,28 @@ a.btn {
 /* icon buttons. Labels now ALWAYS stay; the strip wraps to its own    */
 /* row, and below 430px the decorative icon is dropped instead.        */
 /*                                                                     */
-/* The breakpoint moved 640 -> 980 with issue #14 and 980 -> 1080 with     */
-/* issue #26, both for the same reason: each new destination widens the    */
-/* track, and the point where it stops fitting beside the brand and the    */
-/* account chip moves with it. It is a measured number, not a taste —      */
-/* seven tabs need 785px, the cheeks and gaps another ~280px. ADD A TAB,   */
-/* RE-MEASURE THIS. Below it the nav takes a full row of its own on        */
-/* purpose, which is what keeps the bar at two rows instead of three.      */
+/* The breakpoint moved 640 -> 980 with issue #14, 980 -> 1080 with issue */
+/* #26 and 1080 -> 960 with issue #59, all for the same reason: the point */
+/* where the track stops fitting beside the brand and the account chip    */
+/* follows the track's width. It is a measured number, not a taste, and   */
+/* it moves DOWN when a tab leaves as surely as it moved up when one      */
+/* arrived — a stale breakpoint spends a second row on a bar that fits.   */
+/*                                                                        */
+/* The maths, measured at 1440. `Postana sor` came off the bar, so the    */
+/* track is 650px wide instead of 785. The nav is centred on the PAGE,    */
+/* which means both cheeks are equal and the wider side sets the limit:   */
+/* cheek = (vw - 650 - 32 padding - 32 gaps) / 2. The brand needs 92 and  */
+/* the account chip 108 for an ordinary name (173 if it runs to the       */
+/* 120px ellipsis), so the account is what binds. Just above the rule the */
+/* account gets 123px — the same room the 1080 number left when there     */
+/* were seven tabs. Verified live: 961px is one row, 960px is two.        */
+/*                                                                        */
+/* ADD OR REMOVE A TAB, RE-MEASURE THIS. Below the breakpoint the nav     */
+/* takes a full row of its own on purpose, which is what keeps the bar at */
+/* two rows instead of three.                                             */
 /* ------------------------------------------------------------------ */
 
-@media (max-width: 1080px) {
+@media (max-width: 960px) {
   .header {
     /* Two explicit rows: brand and account share the first, nav owns the
        second. Nothing is left to wrapping, so nothing can silently become

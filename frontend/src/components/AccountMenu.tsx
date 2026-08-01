@@ -1,4 +1,4 @@
-import { LogOut, Sparkles } from 'lucide-react';
+import { LogOut, Search, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Session } from '../lib/session';
@@ -70,6 +70,24 @@ export function AccountMenu({ session, onNavigate }: { session: Session; onNavig
               {user.provider === 'google' ? 'Google ile giriş' : 'E-posta ile giriş'}
             </span>
           </div>
+          {/*
+            `Postana sor` used to be the second tab on the main bar. It reads the
+            mailbox and answers; it starts no flow and asks for no approval, so
+            it was describing a different product than the one being pitched
+            (issue #59). It is not gone — this menu is where the things you reach
+            on purpose live, next to the tour, and the address still works.
+          */}
+          <button
+            type="button"
+            className="account__item"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onNavigate('#/sor');
+            }}
+          >
+            <Search size={15} aria-hidden /> Postana sor
+          </button>
           <button
             type="button"
             className="account__item"
