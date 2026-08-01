@@ -203,6 +203,10 @@ export function TodayScreen({ onNavigate }: Props) {
     one — the model writes at most five and skips what it cannot justify — and
     those rows stay exactly as they are today. An empty slot or a dash would be
     a worse answer than no answer.
+
+    Having a reason is not the same as being worth printing: the row decides
+    that for itself, against its own title, in `reasonEarnsItsLine`. This map
+    only carries the sentence to the row that can judge it.
   */
   const whyById = useMemo(() => {
     const map = new Map<string, string>();

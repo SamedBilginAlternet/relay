@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useId, useState } from 'react';
 import { actionLabel } from '../lib/actionLabels';
-import { SOURCE_META, URGENCY_META, kindLabel } from '../lib/insight';
+import { SOURCE_META, URGENCY_META, kindLabel, reasonEarnsItsLine } from '../lib/insight';
 import { expandProps, feedRowProps } from '../lib/motion';
 import type { InsightCard, SuggestedAction } from '../types/brief';
 
@@ -29,7 +29,10 @@ type RowProps = {
    * Exactly one row on the screen may say yes. See {@link primaryClass}.
    */
   primary: boolean;
-  /** `digest.priorities[].why` — why this one is here now. Often absent. */
+  /**
+   * `digest.priorities[].why` — why this one is here now. Often absent, and
+   * shown only when it beats the title; see {@link reasonEarnsItsLine}.
+   */
   why?: string | null;
   busyTool: string | null;
   onAction: (card: InsightCard, action: SuggestedAction) => void;
@@ -96,8 +99,18 @@ export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAc
   const [primary, ...rest] = card.suggestedActions;
   const others = [...rest, ...extraActions(card)];
   const primaryBusy = primary != null && busyTool === primary.tool;
-  // The reason takes the line when there is one; otherwise the summary does.
-  const line = why ?? (card.summary || null);
+  /*
+    The reason takes the line when there is one; otherwise the summary does —
+    but only if either of them says something the title above it does not.
+
+    The model writes both, and left alone it writes the title back: the row
+    "Kurulum notunu README'ye ekle" was justified with "Kurulum notunun
+    README'ye eklenmesi gerekiyor." (#67, #55). A row is allowed to say nothing
+    under its title; it is not allowed to say the title twice. Whatever is
+    dropped here is still one click down, in the body.
+  */
+  const reason = why && reasonEarnsItsLine(card.title, why) ? why : null;
+  const line = reason ?? (reasonEarnsItsLine(card.title, card.summary) ? card.summary : null);
 
   return (
     <motion.li
@@ -133,7 +146,7 @@ export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAc
 
             {line && (
               <span className="arow__why">
-                {why ? (
+                {reason ? (
                   <>
                     <ListOrdered size={12} aria-hidden />
                     <span className="sr-only">Neden şimdi: </span>
@@ -176,8 +189,12 @@ export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAc
                 {kindLabel(card.kind)}
                 {card.urgency !== 'high' ? ` · ${urgency.label} öncelik` : ''}
               </p>
-              {/* The reason displaced the summary upstairs — show it once, here. */}
-              {why && card.summary ? <p className="arow__summary">{card.summary}</p> : null}
+              {/* Whatever is not on the line upstairs — the reason displaced it,
+                  or it repeated the title and was dropped — is readable here.
+                  Once, though: a summary already showing above is not repeated. */}
+              {card.summary && card.summary !== line ? (
+                <p className="arow__summary">{card.summary}</p>
+              ) : null}
               <div className="arow__actions">
                 {others.map((action, i) => {
                   const thisBusy = busyTool === action.tool;
