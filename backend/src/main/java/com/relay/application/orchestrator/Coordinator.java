@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * The crew lead. Plans once, then walks the steps: consults the policy engine,
@@ -142,6 +143,25 @@ public class Coordinator {
             }
             stop(run);
             return true;
+        }
+    }
+
+    /**
+     * Runs a decision about a run — approve, reject — under the same lock the driver uses.
+     *
+     * <p>Without it, two people pressing Onayla on the same step both read a step that was
+     * awaiting approval, both wrote "Onaylandı" into the trail and both saved. The tool ran
+     * once (the driver's lock saw to that), so the record showed a decision that decided
+     * nothing — on a shared workspace, two names against one action. The trail's whole claim
+     * is "kim, neyi, neden", and an approval nobody acted on is none of the three.
+     *
+     * <p>It waits rather than refuses: the only long holder of this lock is a driving thread
+     * mid tool call, and a step that is sitting at a gate has no driver. Durdur still does
+     * not wait — see {@link #cancel}.
+     */
+    public <T> T decide(UUID runId, Supplier<T> decision) {
+        try (RunLocks.Lease lease = locks.acquire(runId)) {
+            return decision.get();
         }
     }
 

@@ -294,11 +294,22 @@ public class RunService {
      *                     so on a shared workspace nobody could answer the "kim".
      */
     public Run approve(UUID runId, UUID stepId, Map<String, Object> editedParams, String actor) {
+        // Under the coordinator's lock, so that two people pressing the same button produce
+        // one decision. Both requests used to read a step that was awaiting approval and both
+        // wrote "Onaylandı" into the trail, while the tool ran once — a second signature
+        // against an action that had already happened.
+        return coordinator.decide(runId, () -> approveNow(runId, stepId, editedParams, actor));
+    }
+
+    private Run approveNow(UUID runId, UUID stepId, Map<String, Object> editedParams, String actor) {
         Run run = get(runId);
         stillOpen(run);
         Step step = step(run, stepId);
         if (step.status() != StepStatus.AWAITING_APPROVAL) {
-            throw new IllegalStateException("step " + stepId + " is not awaiting approval");
+            // 409 rather than 400, for the same reason a decision on a finished run is: the
+            // button was legal when the screen drew it, and somebody else got there first.
+            throw new Conflict("step " + stepId + " is not awaiting approval; it is already "
+                    + step.status().wire());
         }
         if (editedParams != null && !editedParams.isEmpty()) {
             applyEdit(run, step, editedParams, actor);
@@ -367,11 +378,21 @@ public class RunService {
     }
 
     public Run reject(UUID runId, UUID stepId, String reason, String actor) {
+        return coordinator.decide(runId, () -> rejectNow(runId, stepId, reason, actor));
+    }
+
+    private Run rejectNow(UUID runId, UUID stepId, String reason, String actor) {
         Run run = get(runId);
         stillOpen(run);
         Step step = step(run, stepId);
         if (step.status().terminal()) {
-            throw new IllegalStateException("step " + stepId + " already finished");
+            throw new Conflict("step " + stepId + " already finished as " + step.status().wire());
+        }
+        if (step.decision() == Decision.REJECTED) {
+            // The coordinator turns a rejection into a terminal step on its next pass, so
+            // between the press and that pass the step is still PENDING and would take a
+            // second "Reddedildi" line for a decision already made.
+            throw new Conflict("step " + stepId + " has already been rejected");
         }
         String why = reason == null || reason.isBlank() ? "kullanıcı reddetti" : reason.trim();
         step.decision(Decision.REJECTED);
