@@ -282,22 +282,30 @@
   border-bottom-color: var(--fg);
 }
 /*
-  The same amber, and the same pill, as the badge on the sidebar's Akışlar row —
-  because it is literally the same number. Measured live it was violet here and
-  amber there: one 28, two colours, and nothing on screen saying they were one
-  fact. Colour is the only thing that can say it at a glance.
+  Neutral by default: on Politikalar the number is the size of a group and
+  nobody is being asked to do anything about it.
+
+  `--gate` is the same amber, and the same pill, as the badge on the sidebar's
+  Akışlar row — because there it is literally the same number. Measured live it
+  was violet here and amber there: one 28, two colours, and nothing on screen
+  saying they were one fact. Colour is the only thing that can say it at a
+  glance, and spending it on a group size would take it away from the gate.
 */
 .tab__count {
   min-width: 20px;
   padding: 0 6px;
   border-radius: var(--r-pill);
-  background: rgba(180, 83, 9, 0.12);
-  color: var(--warn);
+  background: var(--bg-subtle);
+  color: var(--fg-muted);
   font-size: 12px;
   font-weight: 600;
   line-height: 18px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+.tabs--gate .tab__count {
+  background: rgba(180, 83, 9, 0.12);
+  color: var(--warn);
 }
 
 .runs {
@@ -556,35 +564,21 @@
 /* and a segmented switch with 550px of nothing between them.           */
 /* ------------------------------------------------------------------ */
 
-/* ---- the sentence, counted: one strip, three cells ----------------- */
+/* ---- a rule is a tab, not a statistic (issue #139) ------------------ */
 
-.pol-sum {
-  gap: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--bg-subtle);
-  overflow: hidden;
+/* The row that stayed behind. It is in a list filtered to another rule
+   because you are the one who moved it, and it says where it went rather
+   than disappearing on the press. */
+.pol-row__moved {
+  justify-self: start;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--warn);
+  white-space: nowrap;
 }
-.pol-sum .pol-sum__cell {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-8);
-  padding: 7px var(--s-12);
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-.pol-sum .pol-sum__cell + .pol-sum__cell {
-  border-left: 1px solid var(--line);
-}
-.pol-sum .pol-sum__n {
-  font-size: 17px;
-}
-.pol-sum .pol-sum__hint {
-  flex: 1 1 auto;
-  min-width: 0;
-  color: var(--fg-faint);
+
+.pol-empty {
+  padding: var(--s-16);
 }
 
 /* ---- one table, a band per provider -------------------------------- */
@@ -657,7 +651,18 @@
 .pol-row__mark--destructive {
   color: var(--danger);
 }
+/*
+  In the table the id shares the prose column with the "it moved" chip, so it is
+  auto-placed like every other cell — `.pol-row__id` is pinned to column 1 in
+  global.css for the unknown-tool block, whose grid is a different one.
+*/
+.pol-list .pol-row__id {
+  grid-column: auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
 .pol-list .pol-row__name {
+  min-width: 0;
   font-size: var(--machine-size);
   color: var(--fg-machine);
   word-break: normal;
@@ -731,11 +736,6 @@
 }
 
 @media (max-width: 860px) {
-  /* global.css stacks the strip here; the divider has to turn with it. */
-  .pol-sum .pol-sum__cell + .pol-sum__cell {
-    border-left: 0;
-    border-top: 1px solid var(--line);
-  }
   .pol-list .pol-row {
     grid-template-columns: 16px minmax(0, 1fr) auto;
     padding-block: 6px;

@@ -2,6 +2,7 @@ import { History, ShieldQuestion, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '../components/EmptyState';
 import { LoadError } from '../components/LoadError';
+import { TabStrip } from '../components/TabStrip';
 import { getRunSource } from '../data';
 import { formatRelative, formatTokens, formatUsd } from '../lib/format';
 import { runStatusMeta } from '../lib/status';
@@ -218,16 +219,16 @@ export function HistoryScreen({ onOpen }: Props) {
               you are on" it would stop meaning "this is waiting on you", which is the one
               thing it means everywhere else in the product.
             */}
-            <div className="tabs" role="tablist" aria-label="Akış listeleri">
-              <TabButton id="tumu" current={tab} onChoose={choose} label="Tümü" />
-              <TabButton
-                id="bekleyen"
-                current={tab}
-                onChoose={choose}
-                label="Onay bekleyen"
-                count={waiting.length}
-              />
-            </div>
+            <TabStrip
+              label="Akış listeleri"
+              current={tab}
+              onChoose={choose}
+              tone="gate"
+              tabs={[
+                { id: 'tumu', label: 'Tümü' },
+                { id: 'bekleyen', label: 'Onay bekleyen', count: waiting.length },
+              ]}
+            />
 
             <section
               className={`runs${tab === 'bekleyen' ? ' runs--waiting' : ''}`}
@@ -278,42 +279,6 @@ export function HistoryScreen({ onOpen }: Props) {
         )}
       </div>
     </div>
-  );
-}
-
-/**
- * One tab, and the size of what is behind it.
- *
- * <p>Only the decision queue carries a count. The other tab holds a page, not a corpus,
- * and printing the page size next to a real total invites the reader to subtract them.
- */
-function TabButton({
-  id,
-  current,
-  onChoose,
-  label,
-  count,
-}: {
-  id: HistoryTab;
-  current: HistoryTab;
-  onChoose: (tab: HistoryTab) => void;
-  label: string;
-  count?: number;
-}) {
-  const selected = current === id;
-  return (
-    <button
-      type="button"
-      role="tab"
-      id={`tab-${id}`}
-      aria-selected={selected}
-      aria-controls={`tabpanel-${id}`}
-      className={`tab${selected ? ' tab--on' : ''}`}
-      onClick={() => onChoose(id)}
-    >
-      {label}
-      {count != null && count > 0 && <span className="tab__count t-mono">{count}</span>}
-    </button>
   );
 }
 

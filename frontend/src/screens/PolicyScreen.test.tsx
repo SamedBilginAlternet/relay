@@ -14,10 +14,16 @@ import type { PolicyMode, ToolPolicy } from '../data/PolicySource';
  *
  * <p>The condition is one `&&` away from coming back, and the row it hangs off
  * has now been rebuilt twice (#14, #127) without a test underneath it. These
- * are that test. The last one is the case the API actually produces: `PUT
+ * are that test. The third one is the case the API actually produces: `PUT
  * /api/policies` cannot delete a stored record, so a tool put back on its
  * default still returns `overridden: true` — the flag is not the question, the
  * effective mode is.
+ *
+ * <p>The rest are about the tabs that replaced the 12 / 6 / 0 strip (#139). One
+ * of them guards a trap the run list does not have: here the reader changes the
+ * very value the list is filtered by, so the row they just pressed would leave
+ * the screen under their cursor and a change that worked would look like one
+ * that failed.
  */
 
 let rows: ToolPolicy[] = [];
@@ -31,7 +37,7 @@ vi.mock('../data/PolicySource', async (importOriginal) => {
   };
 });
 
-const { PolicyScreen } = await import('./PolicyScreen');
+const { PolicyScreen, hashForTab, tabFromHash } = await import('./PolicyScreen');
 
 function tool(overrides: Partial<ToolPolicy> = {}): ToolPolicy {
   return {
@@ -50,6 +56,7 @@ async function rowOf(toolName: string): Promise<HTMLElement> {
 }
 
 beforeEach(() => {
+  window.location.hash = '#/politikalar';
   rows = [];
   setMode.mockReset();
 });
@@ -110,4 +117,89 @@ it('putting_a_tool_back_on_its_default_takes_the_line_away_with_it', async () =>
 
   await waitFor(() => expect(screen.queryByText(/Operatör değiştirdi/)).toBeNull());
   expect(setMode).toHaveBeenCalledWith('jira.createIssue', 'ask');
+});
+
+it('an_unknown_rule_in_the_address_falls_back_to_the_whole_table', () => {
+  expect(tabFromHash('#/politikalar')).toBe('tumu');
+  expect(tabFromHash('#/politikalar?kural=onay')).toBe('onay');
+  expect(tabFromHash('#/politikalar?kural=uydurma')).toBe('tumu');
+  expect(hashForTab('yasak')).toBe('#/politikalar?kural=yasak');
+  expect(hashForTab('tumu')).toBe('#/politikalar');
+});
+
+/**
+ * The strip this replaced printed 12 / 6 / 0 and could not be pressed. The number
+ * has to survive the move, or the screen lost a fact to gain a control.
+ */
+it('each_rule_carries_the_size_of_the_group_behind_it', async () => {
+  rows = [
+    tool({ toolName: 'jira.getIssue' }),
+    tool({ toolName: 'jira.searchIssues' }),
+    tool({ toolName: 'jira.createIssue', risk: 'write', mode: 'ask' }),
+  ];
+
+  render(<PolicyScreen />);
+  await screen.findByText('jira.getIssue');
+
+  expect(within(screen.getByRole('tab', { name: /Otomatik/ })).getByText('2')).toBeTruthy();
+  expect(within(screen.getByRole('tab', { name: /Onay ister/ })).getByText('1')).toBeTruthy();
+  // Nothing is forbidden, so the tab carries no number rather than a zero.
+  expect(within(screen.getByRole('tab', { name: /Yasak/ })).queryByText('0')).toBeNull();
+});
+
+it('a_rule_tab_draws_only_the_tools_running_under_it', async () => {
+  window.location.hash = '#/politikalar?kural=onay';
+  rows = [
+    tool({ toolName: 'jira.getIssue' }),
+    tool({ toolName: 'jira.createIssue', risk: 'write', mode: 'ask' }),
+  ];
+
+  render(<PolicyScreen />);
+
+  expect(await screen.findByText('jira.createIssue')).toBeTruthy();
+  expect(screen.queryByText('jira.getIssue')).toBeNull();
+});
+
+it('choosing_a_rule_writes_it_to_the_address_so_the_list_can_be_linked_to', async () => {
+  rows = [
+    tool({ toolName: 'jira.getIssue' }),
+    tool({ toolName: 'jira.createIssue', risk: 'write', mode: 'ask' }),
+  ];
+
+  render(<PolicyScreen />);
+  (await screen.findByRole('tab', { name: /Onay ister/ })).click();
+
+  await waitFor(() => expect(screen.queryByText('jira.getIssue')).toBeNull());
+  expect(window.location.hash).toBe('#/politikalar?kural=onay');
+});
+
+/**
+ * The trap the run list does not have. Filtered to `Otomatik`, moving a tool to
+ * `Onay ister` matches the filter no longer — and a row that disappears the
+ * instant you press it reads as a failure, not as a change that took.
+ */
+it('a_tool_moved_out_of_the_filtered_rule_keeps_its_place_and_says_where_it_went', async () => {
+  window.location.hash = '#/politikalar?kural=otomatik';
+  rows = [tool({ toolName: 'jira.createIssue', risk: 'write', mode: 'auto', overridden: true })];
+  setMode.mockResolvedValue([
+    tool({ toolName: 'jira.createIssue', risk: 'write', mode: 'ask', overridden: true }),
+  ]);
+
+  render(<PolicyScreen />);
+  const row = await rowOf('jira.createIssue');
+  within(row).getByRole('radio', { name: /Onay ister/ }).click();
+
+  await waitFor(() => expect(setMode).toHaveBeenCalledWith('jira.createIssue', 'ask'));
+  const stayed = await rowOf('jira.createIssue');
+  expect(within(stayed).getByText('→ Onay ister')).toBeTruthy();
+});
+
+it('an_empty_rule_says_what_it_is_empty_of_instead_of_drawing_nothing', async () => {
+  window.location.hash = '#/politikalar?kural=yasak';
+  rows = [tool({ toolName: 'jira.getIssue' })];
+
+  render(<PolicyScreen />);
+
+  expect(await screen.findByText('Yasak kuralında araç yok')).toBeTruthy();
+  expect(screen.queryByText('jira.getIssue')).toBeNull();
 });
