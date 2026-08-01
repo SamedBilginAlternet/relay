@@ -1,6 +1,7 @@
 package com.relay.application.policy;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.relay.application.port.ToolRegistry;
 import com.relay.domain.PolicyMode;
@@ -89,6 +90,48 @@ class PolicyEngineTest {
 
         policies.save(new ToolPolicy("jira", "jira.updateIssue", PolicyMode.AUTO));
         assertThat(engine.evaluate("jira.updateIssue").auto()).isTrue();
+    }
+
+    @Test
+    void an_operator_cannot_turn_a_destructive_tool_fully_automatic() {
+        assertThatThrownBy(() -> engine.set("jira.deleteIssue", PolicyMode.AUTO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("auto yapılamaz");
+
+        // Nothing was written: the refusal is not a half-applied policy.
+        assertThat(policies.findByToolName("jira.deleteIssue")).isEmpty();
+        assertThat(engine.evaluate("jira.deleteIssue").forbidden()).isTrue();
+    }
+
+    /** Somebody has to be able to run the delete at all — with a person in front of it. */
+    @Test
+    void an_operator_may_soften_a_destructive_tool_as_far_as_ask() {
+        engine.set("jira.deleteIssue", PolicyMode.ASK);
+
+        PolicyDecision decision = engine.evaluate("jira.deleteIssue");
+        assertThat(decision.ask()).isTrue();
+        assertThat(decision.explicit()).isTrue();
+    }
+
+    /**
+     * The rule cannot depend on the API having been used: policy rows live in a table, and one
+     * can arrive from an older build or from a hand-written UPDATE.
+     */
+    @Test
+    void a_destructive_auto_row_written_behind_the_engines_back_still_stops_for_a_human() {
+        policies.save(new ToolPolicy("jira", "jira.deleteIssue", PolicyMode.AUTO));
+
+        PolicyDecision decision = engine.evaluate("jira.deleteIssue");
+        assertThat(decision.auto()).isFalse();
+        assertThat(decision.ask()).isTrue();
+        assertThat(decision.reason()).contains("capped");
+
+        // And the policy screen shows what will really happen, not what the row says.
+        assertThat(engine.effectivePolicies()).anySatisfy(policy -> {
+            assertThat(policy.toolName()).isEqualTo("jira.deleteIssue");
+            assertThat(policy.mode()).isEqualTo(PolicyMode.ASK);
+            assertThat(policy.overridden()).isTrue();
+        });
     }
 
     @Test

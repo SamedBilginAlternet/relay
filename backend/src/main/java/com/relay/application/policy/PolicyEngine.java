@@ -40,11 +40,34 @@ public class PolicyEngine {
         RiskLevel risk = tool.get().risk();
         Optional<ToolPolicy> override = policies.findByToolName(toolName);
         if (override.isPresent()) {
-            PolicyMode mode = override.get().mode();
+            PolicyMode wanted = override.get().mode();
+            PolicyMode mode = capped(risk, wanted);
+            if (mode != wanted) {
+                return new PolicyDecision(mode, "policy override for " + toolName + " asked for "
+                        + wanted.wire() + ", capped at " + mode.wire()
+                        + ": a destructive tool never runs unwatched", true);
+            }
             return new PolicyDecision(mode, "policy override for " + toolName + ": " + mode.wire(), true);
         }
         PolicyMode mode = risk.defaultMode();
         return new PolicyDecision(mode, "default for " + risk.wire() + " risk: " + mode.wire(), false);
+    }
+
+    /**
+     * The one thing an operator may not decide: that an irreversible tool runs unwatched.
+     *
+     * <p>The override used to win unconditionally, which meant the most dangerous tool in the
+     * registry could be put on full automatic with a single {@code PUT /api/policies} — one
+     * request, no second pair of eyes, and nothing to undo afterwards. Relaxing a destructive
+     * tool to {@code ask} is a real need (someone has to be able to run the delete at all), so
+     * the override still counts; it just cannot skip the human.
+     *
+     * <p>Applied on read as well as on write. {@link #set} refuses the request in the first
+     * place, but a row can also arrive from a database written by an older build or by hand,
+     * and a guarantee that only holds when the API was used is not a guarantee.
+     */
+    private static PolicyMode capped(RiskLevel risk, PolicyMode wanted) {
+        return risk == RiskLevel.DESTRUCTIVE && wanted == PolicyMode.AUTO ? PolicyMode.ASK : wanted;
     }
 
     /** Effective policy for every registered tool — what {@code GET /api/policies} returns. */
@@ -54,15 +77,28 @@ public class PolicyEngine {
         List<EffectivePolicy> out = new ArrayList<>();
         for (Tool tool : tools.all()) {
             ToolPolicy override = overrides.get(tool.name());
-            PolicyMode mode = override != null ? override.mode() : tool.risk().defaultMode();
+            PolicyMode mode = override != null
+                    ? capped(tool.risk(), override.mode())
+                    : tool.risk().defaultMode();
             out.add(new EffectivePolicy(tool.provider(), tool.name(), tool.risk(), mode, override != null));
         }
         return out;
     }
 
+    /**
+     * Writes an operator's decision — except the one decision that is not theirs to make.
+     *
+     * @throws IllegalArgumentException when a destructive tool is asked to run automatically;
+     *                                  answered as 400, with this sentence on screen
+     */
     public ToolPolicy set(String toolName, PolicyMode mode) {
         Tool tool = tools.find(toolName)
                 .orElseThrow(() -> new IllegalArgumentException("unknown tool: " + toolName));
+        if (tool.risk() == RiskLevel.DESTRUCTIVE && mode == PolicyMode.AUTO) {
+            throw new IllegalArgumentException(toolName + " geri alınamaz bir araç (destructive):"
+                    + " ask ya da forbidden yapılabilir, auto yapılamaz — silme ile kullanıcı"
+                    + " arasında bir insan kalmalı.");
+        }
         return policies.save(new ToolPolicy(tool.provider(), toolName, mode));
     }
 

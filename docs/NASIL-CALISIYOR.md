@@ -69,6 +69,13 @@ DESTRUCTIVE → forbidden   (hiç çalışmaz)
 kaydettiği `ToolPolicy` satırı varsa **o kazanır**. Kayıtlı olmayan bir araç adı `forbidden`
 döner — yani halüsinasyon araç adı otomatik reddedilir.
 
+Override'ın tek sınırı var: **`DESTRUCTIVE` bir araç `auto` yapılamaz.** `PolicyEngine.set`
+bu isteği 400 ile reddeder, `evaluate` de elle yazılmış bir `auto` satırını `ask`'e çeker —
+kural yalnız API kullanıldığında geçerliyse kural değildir. Gevşetme yasak değil, insanı
+atlamak yasak: `forbidden → ask` serbest (birinin silmeyi hiç çalıştırabilmesi gerekir),
+`→ auto` değil. Tek bir yanlış politika isteği ile geri alınamaz bir silme arasında bir
+insan kalır.
+
 ```
 adım → PolicyEngine
         ├─ forbidden → journal'a "YASAK: <gerekçe>" + adım reddedildi, akış devam
@@ -390,8 +397,11 @@ Jüri buradan sorar; hazırlıklı olmak lazım.
 - **Koruma kapıları desen eşlemesidir.** `Filler.MARKERS` ve `Placeholder.MARKERS` sabit
   listeler; yeni bir şablon kalıbı elle eklenene kadar geçer.
 - **Yazma araçları dar.** Gmail gönderme, takvim yazma, Jira silme yok (PRD'de bilinçli
-  kapsam dışı). `DESTRUCTIVE` riskli tek bir araç bile kayıtlı değil — politika modu
-  test edilmiş ama pratikte kullanılmıyor.
+  kapsam dışı). `DESTRUCTIVE` riskli tek bir araç bile kayıtlı değil — yani mod üründe hiç
+  çalışmıyor. Modun kendisi test tarafında kayıtlı bir araçla (`TestDoubles.DestructiveTool`)
+  yürütülüyor: varsayılan `forbidden`, adım reddediliyor, iz kaydına "YASAK" satırı düşüyor,
+  araç hiç çağrılmıyor ve override `auto`'ya çekemiyor (`PolicyEngineTest`,
+  `DestructiveStepTest`).
 - **`/api/ask` en fazla üç kaynağa bakar.** `SourceRouter` soruyu kayıtlı READ araçlarına
   yönlendirir (Gmail, Jira, GitHub, Takvim), ama tek turda en çok üç arama yapar ve
   hangisinin seçildiğine karar veren tur, sorgunun yazıldığı turla aynıdır — ayrı bir
