@@ -9,6 +9,85 @@
 /* for a short fade under `prefers-reduced-motion` (DESIGN.md §4).     */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* The chart palette                                                    */
+/*                                                                      */
+/* Nothing here is a new colour. Each name below points at a token       */
+/* global.css already defines, and exists so that the meaning a colour   */
+/* carries ON THIS SCREEN is written down once instead of being          */
+/* re-derived at every call site:                                        */
+/*                                                                      */
+/*   --chart-done            it finished the way it was meant to:       */
+/*                          Tamamlandı, Olduğu gibi onaylandı           */
+/*   --chart-refused         a human or the machine said no:            */
+/*                          Hata, Reddedildi                            */
+/*   --chart-waiting         it is standing on a person:                */
+/*                          Onay bekliyor, Kararını bekliyor            */
+/*   --chart-touched         a human's hand is on it:                   */
+/*                          Çalışıyor, Düzeltilip onaylandı             */
+/*   --chart-void            closed without anybody deciding it:        */
+/*                          İptal edildi, akış durdurulduğu için kapandı*/
+/*   --chart-idle            nothing has happened to it yet:            */
+/*                          Planlanıyor                                 */
+/*   --chart-flow            the funnel body — a population narrowing,  */
+/*                          not a state                                 */
+/*   --chart-volume          a magnitude with no state at all:          */
+/*                          calls per tool, calls per model             */
+/*   --chart-paid           what was really billed                      */
+/*   --chart-counterfactual what would have been billed and was not     */
+/*                                                                      */
+/* VIOLET IS NOT IN THIS LIST. `--accent` means "this is a state you    */
+/* are in" everywhere in the product, and a slice of a pie is not one.  */
+/* Six tool bars used to be filled with it, which spent the one colour  */
+/* that has a job on the one thing on the screen that has no state.     */
+/* ------------------------------------------------------------------ */
+
+.panel-shell {
+  --chart-done: var(--success);
+  --chart-refused: var(--danger);
+  --chart-waiting: var(--warn);
+  --chart-touched: var(--info);
+  --chart-void: var(--fg-muted);
+  --chart-idle: var(--fg-faint);
+  --chart-flow: var(--fg-muted);
+  --chart-volume: var(--fg-muted);
+  --chart-paid: var(--fg);
+  --chart-counterfactual: var(--fg-faint);
+}
+
+/* ------------------------------------------------------------------ */
+/* One screen, no page scroll                                           */
+/*                                                                      */
+/* The acceptance criterion of issue #157 and the thing the user        */
+/* actually asked for: at 1440×900 no tab scrolls. The shell is fixed   */
+/* to the height of the page's content box, the head and the tab strip  */
+/* take what they need, and the view takes the rest.                    */
+/*                                                                      */
+/* Only where the two-column layout is in effect: wider than 980px and  */
+/* taller than 700px. Narrower, the grids stack — and stacking is       */
+/* precisely "taller than the window", so pinning the shell to 100%     */
+/* there would not remove the overflow, it would hide one card under    */
+/* the next. Shorter, there is no honest fixed layout either: a 560px   */
+/* window cannot hold a funnel and its legend, and squeezing it would   */
+/* trade a page scroll nobody minds for clipped text everybody does.    */
+/* In both cases the page scrolls as it always did. One screen is the   */
+/* promise at the desk size the panel is read at, not a rule the        */
+/* layout breaks itself to keep.                                        */
+/* ------------------------------------------------------------------ */
+
+@media (min-width: 981px) and (min-height: 700px) {
+  .panel-shell {
+    height: 100%;
+    gap: var(--s-12);
+  }
+  .panel-view {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+
+/* --- the range switch ---------------------------------------------- */
+
 .panel-range {
   display: flex;
   flex-wrap: wrap;
@@ -62,52 +141,272 @@
   gap: var(--s-8);
 }
 
-/* --- summary tiles ------------------------------------------------- */
+/* --- the three views ----------------------------------------------- */
 
-.panel-kpis {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--s-12);
-}
-.panel-kpi {
+.panel-view {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  padding: var(--s-16);
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  box-shadow: var(--shadow);
 }
-.panel-kpi__value {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-}
-.panel-kpi__hint {
-  font-size: 12px;
-  color: var(--fg-muted);
-  /* long ranges wrap instead of pushing the card wider — no horizontal scroll */
-  overflow-wrap: anywhere;
-}
-
-.panel-two {
+.panel-grid {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: var(--s-12);
   align-items: start;
+  min-height: 0;
+  flex: 1 1 auto;
 }
+/*
+  Pie on the left with room to be round; the four figures beside it.
+
+  The cards keep their own height and the view keeps whatever is left over. Stretching
+  them to the bottom of the window was the obvious move and it is wrong twice: a 22px
+  figure floating in the middle of a 280px tile reads as a rendering bug, and empty space
+  under a short answer is not a defect — this screen exists because the long answer took
+  5.6 screens.
+*/
+.panel-grid--flow {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+/*
+  The gate spans the top; the two evidence lists share the row under it. They are
+  the same shape on purpose — the reader is comparing two piles that used to be one
+  — so they get equal columns rather than a lead and a footnote.
+*/
+.panel-grid--gate {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  /* the two lists take the row they share, whatever length they happen to be */
+  align-items: stretch;
+}
+.panel-grid--gate > .panel-card--gate {
+  grid-column: 1 / -1;
+}
+.panel-grid--cost {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+
 .panel-card {
   gap: var(--s-12);
   min-width: 0;
+  min-height: 0;
+}
+/* A heading and the one figure that belongs to it, on the same line. */
+.panel-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-12);
+  flex-wrap: wrap;
 }
 .panel-note {
   display: flex;
   align-items: center;
   gap: 6px;
   color: var(--fg-muted);
+}
+
+/* --- figures ------------------------------------------------------- */
+
+.panel-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-12);
+  margin: 0;
+}
+.panel-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--s-16);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-subtle);
+}
+.panel-figure__value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.panel-figure__hint {
+  font-size: 12px;
+  color: var(--fg-muted);
+  /* long ranges wrap instead of pushing the card wider — no horizontal scroll */
+  overflow-wrap: anywhere;
+}
+/* The variant that rides on a card heading: no box, no background, just the number. */
+.panel-figure--tight {
+  padding: 0;
+  border: 0;
+  background: none;
+  align-items: flex-end;
+  text-align: right;
+}
+.panel-figure--tight .panel-figure__value {
+  font-size: 18px;
+}
+
+/* --- pie ----------------------------------------------------------- */
+
+.panel-pie {
+  display: grid;
+  grid-template-columns: minmax(160px, 38%) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-16);
+  min-width: 0;
+}
+.panel-pie__ring svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+/* Mono, tabular, `--machine-size` scale — the total in the hole is a machine fact
+   like every other number on this screen, only larger. */
+.panel-pie__total {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 26px;
+  font-weight: 700;
+  fill: var(--fg);
+}
+.panel-pie__unit {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  fill: var(--fg-muted);
+}
+.panel-pie__caption {
+  grid-column: 1 / -1;
+}
+
+/* --- legends ------------------------------------------------------- */
+
+/*
+  `color-not-only`: the swatch is the fast path, the words and the two numbers are
+  the record. A reader who cannot separate the green from the red loses nothing —
+  every row says what it is, how many, and what share of the whole.
+*/
+.panel-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.panel-legend__row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--s-8);
+  min-height: 22px;
+  font-size: 13px;
+}
+.panel-legend__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.panel-legend__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-legend__value,
+.panel-legend__share {
+  font-size: var(--machine-size);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.panel-legend__value {
+  color: var(--fg);
+  min-width: 3.2rem;
+}
+.panel-legend__share {
+  color: var(--fg-muted);
+  min-width: 3.4rem;
+}
+/* The row that only appears when two server queries disagree. It has no swatch and
+   no figure of its own — it is a sentence, and it spans the columns. */
+.panel-legend__row--note {
+  grid-template-columns: minmax(0, 1fr);
+  color: var(--warn);
+}
+.panel-legend__row--note .panel-legend__label {
+  white-space: normal;
+}
+/* Two columns once there is room, for the five-way split under the funnel. */
+.panel-legend--wide {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--s-16);
+}
+
+/* --- funnel -------------------------------------------------------- */
+
+.panel-funnel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  min-width: 0;
+}
+.panel-funnel__stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+.panel-funnel__stage {
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr) auto 3.6rem;
+  align-items: center;
+  gap: var(--s-12);
+  min-height: 28px;
+}
+.panel-funnel__label {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-funnel__track {
+  width: 100%;
+  height: 14px;
+  display: block;
+}
+.panel-funnel__value {
+  font-size: var(--machine-size);
+  font-variant-numeric: tabular-nums;
+  min-width: 3.2rem;
+  text-align: right;
+}
+/* What the narrowing cost at this step, as a share of the stage above. Muted:
+   it is the derived number, and the count beside it is the measured one. */
+.panel-funnel__step {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-muted);
+  text-align: right;
+}
+.panel-funnel__split {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding-top: var(--s-8);
+  border-top: 1px solid var(--line);
+}
+.panel-funnel__bar {
+  width: 100%;
+  height: 14px;
+  display: block;
 }
 
 /* --- hand-drawn bars ----------------------------------------------- */
@@ -141,16 +440,74 @@
   font-size: 12px;
   color: var(--fg-muted);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .panel-bars__caption {
   margin-top: var(--s-4);
 }
+
+/* --- paired bars: the one comparison ------------------------------- */
+
+.panel-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.panel-pair__row {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-12);
+  min-height: 24px;
+}
+.panel-pair__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-pair__track {
+  width: 100%;
+  height: 10px;
+  display: block;
+}
+.panel-pair__value {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.panel-pair__footer {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+/* --- animation ----------------------------------------------------- */
+
 /* fill-box keeps the origin on the bar itself, not on the whole viewBox */
-.panel-bar__fill {
+.panel-bar__fill,
+.panel-funnel__fill,
+.panel-funnel__seg {
   transform-box: fill-box;
-  transform-origin: left center;
   animation: panel-grow 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--panel-delay, 0ms);
+}
+.panel-bar__fill,
+.panel-funnel__seg {
+  transform-origin: left center;
+}
+/* The funnel's stage bars are centred, so they grow from the middle — anything else
+   would make a symmetric shape look like it is sliding sideways. */
+.panel-funnel__fill {
+  transform-origin: center;
+}
+.panel-pie__arc {
+  animation: panel-fade 420ms ease-out both;
+  animation-delay: var(--panel-delay, 0ms);
+}
+.panel-pie__arcs {
+  animation: panel-pie-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: center;
 }
 
 @keyframes panel-grow {
@@ -171,6 +528,18 @@
   }
 }
 
+/* Rotation only — the ring's own geometry, not a size change, so nothing reflows. */
+@keyframes panel-pie-in {
+  from {
+    transform: rotate(-16deg);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
 /* --- per-model rows ------------------------------------------------ */
 
 /*
@@ -179,65 +548,71 @@
   hides the version — that is, which price list the row was billed on. The
   block's whole job is naming the model, so the name gets the room.
 */
+.panel-models {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+  min-width: 0;
+}
 .panel-models .panel-bar {
   grid-template-columns: minmax(0, 17rem) minmax(0, 1fr) auto;
-}
-.panel-models .panel-routing {
-  margin-top: var(--s-12);
 }
 
 /* --- routing comparison -------------------------------------------- */
 
 /*
-  Three figures on one line: what was paid, what the strong model would have
-  cost, and the gap. They are equal-width and equal-weight on purpose — the
-  reader is being shown a subtraction, and styling the third one as a headline
-  would turn a checkable arithmetic into a boast.
+  What was paid, what the strong model would have cost, and the gap. The two bars
+  share one maximum so the subtraction is a visible length as well as three
+  printed figures; the reader is not asked to trust it.
 */
 .panel-routing {
   display: flex;
   flex-direction: column;
   gap: var(--s-8);
-  margin-top: var(--s-4);
   padding: var(--s-16);
   border: 1px solid var(--border);
   border-radius: var(--r-card);
   background: var(--bg-subtle);
-}
-.panel-routing__figures {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--s-12);
-  margin: 0;
-}
-.panel-routing__figure {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.panel-routing__value {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  /* tabular figures so the three amounts line up digit under digit */
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
 }
 /*
   The gap gets a left rule, not a colour. A green number would be the screen
   telling the reader what to feel about a figure that can also be zero — and it
   is zero, honestly, whenever the strong model answered everything.
 */
-.panel-routing__figure--diff {
+.panel-routing__diff {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-12);
+  margin: 0;
   padding-left: var(--s-12);
   border-left: 2px solid var(--accent-line);
+}
+.panel-routing__value {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 /* --- reject reasons ------------------------------------------------ */
 
+/*
+  The pane scrolls, the page does not. The server sends up to 50 refusals and 50
+  write-offs, and there is no honest fixed height for a list whose length is a
+  fact about the window — capping it at five would be the screen choosing which
+  refusals count. The count above the list says how many there are, so a short
+  pane never reads as a short list.
+*/
+.panel-card--list {
+  overflow: hidden;
+}
+.panel-card--list .panel-rejects {
+  flex: 1 1 auto;
+}
+.panel-list__count {
+  margin: 0;
+}
 .panel-rejects {
   list-style: none;
   margin: 0;
@@ -245,6 +620,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-8);
+  min-height: 0;
+  overflow-y: auto;
+  /* room for the focus ring of the first and last card inside a clipping box */
+  padding: 2px;
+  margin: -2px;
 }
 /*
   Every reason is a door back to the run it came from. That is the whole point
@@ -317,45 +697,52 @@
 
 /* --- narrow viewports ---------------------------------------------- */
 
-@media (max-width: 860px) {
-  .panel-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 980px) {
+  .panel-grid--flow,
+  .panel-grid--cost,
+  .panel-grid--gate {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
   }
-  .panel-two {
+  .panel-legend--wide {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-@media (max-width: 520px) {
-  .panel-kpis {
+@media (max-width: 620px) {
+  .panel-figures {
     grid-template-columns: minmax(0, 1fr);
   }
-  .panel-range__label {
-    margin-left: 0;
+  .panel-pie {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+  .panel-pie__ring {
+    width: 168px;
   }
   .panel-bar,
   /* the wider model label collapses with everything else, not instead of it */
-  .panel-models .panel-bar {
+  .panel-models .panel-bar,
+  .panel-funnel__stage,
+  .panel-pair__row {
     grid-template-columns: minmax(0, 1fr);
     gap: 4px;
   }
-  /* stacked, because three money figures side by side at 520px are three ellipses */
-  .panel-routing__figures {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .panel-routing__figure--diff {
-    padding-left: 0;
-    padding-top: var(--s-8);
-    border-left: 0;
-    border-top: 2px solid var(--accent-line);
-  }
-  .panel-bar__value {
+  .panel-bar__value,
+  .panel-funnel__value,
+  .panel-funnel__step,
+  .panel-pair__value {
     justify-self: start;
+    text-align: left;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .panel-bar__fill {
+  .panel-bar__fill,
+  .panel-funnel__fill,
+  .panel-funnel__seg,
+  .panel-pie__arc,
+  .panel-pie__arcs {
     animation: panel-fade 120ms ease-out both;
     animation-delay: 0ms;
   }
