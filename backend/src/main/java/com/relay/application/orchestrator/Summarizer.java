@@ -50,6 +50,16 @@ public class Summarizer {
                     "Relay'in kapanış özetini yazıyorsun. Kullanıcıya Türkçe, en fazla üç cümlede"
                             + " NE OLDUĞUNU söyle: hangi kayıtlar, hangi kanal, kaç tane."
                             + " Sayıları ve anahtarları sonuçlardan al, uydurma."
+                            // HEDEF is what was ASKED FOR; ADIMLAR is what HAPPENED. Live, a
+                            // run whose only step was one gmail.search closed with "#42 ve #43
+                            // üzerinde çalışıldı ... takvim etkinliği tamamlandı" — three
+                            // completion claims read straight off the goal. A model handed a
+                            // four-part goal and one step will narrate the goal unless it is
+                            // told, in as many words, that the goal is not evidence.
+                            + " HEDEF istenen iştir, ADIMLAR olan iştir. Yalnızca ADIMLAR'da"
+                            + " çalışmış bir adımın yaptığı işi anlat. Hedefte olup adımı"
+                            + " olmayan bir iş için 'yapıldı', 'incelendi', 'tamamlandı' deme —"
+                            + " o işe hiç girilmediğini söyle."
                             + (failed ? " Akış tamamlanamadı: hangi adımda neden durduğunu tek cümleyle söyle."
                                       : " Adım adım anlatma, sonucu söyle.")
                             + " Sadece düz metin yaz, JSON yazma.",
@@ -100,8 +110,58 @@ public class Summarizer {
     private static final java.util.regex.Pattern RECORD_KEY =
             java.util.regex.Pattern.compile("\\b[A-Z][A-Z0-9]{1,9}-\\d+\\b");
 
+    /** {@code #42} — how a summary refers to an issue or a pull request. */
+    private static final java.util.regex.Pattern ISSUE_REF =
+            java.util.regex.Pattern.compile("#(\\d{1,7})\\b");
+
     /**
-     * Does the closing line name a record that never appeared in the run?
+     * What the run actually produced — nothing about what it was asked to produce.
+     *
+     * <p>Deliberately NOT {@code run.goal()} and NOT the step titles. Both are the request,
+     * not the outcome, and a guard that accepts either lets the request license a claim that
+     * the work was done. Live on 2026-08-01: a run whose only step was one {@code
+     * gmail.search} closed with "#42 numaralı login yönlendirme hatası ve #43 numaralı README
+     * kurulum PR'ı üzerinde çalışıldı ... 'Hackathon takvimi incele' tamamlandı". Every one of
+     * those came out of the goal. GitHub was never called. The calendar was never read.
+     *
+     * <p>Step titles are excluded for the same reason and it is not hypothetical either: a
+     * planner that writes "GitHub #42'yi incele" and never runs it would otherwise ground the
+     * sentence saying it was examined.
+     *
+     * <p>A failed step's error is included: "#42'ye yorum eklenemedi" is a true sentence about
+     * a real attempt, and the error is where the identifier is.
+     */
+    private static String evidence(Run run) {
+        StringBuilder out = new StringBuilder();
+        for (Step step : run.steps()) {
+            if (step.status() == StepStatus.FAILED && step.error() != null) {
+                out.append(step.error()).append('\n');
+            } else if (step.result() != null) {
+                out.append(Json.preview(step.result(), MAX_RESULT_CHARS)).append('\n');
+            }
+        }
+        return out.toString();
+    }
+
+    /**
+     * Is this identifier one the run actually handled?
+     *
+     * <p>An issue is written {@code #42} in prose and {@code "number": 42} or {@code
+     * .../issues/42} in a provider's JSON, so those three forms all count. A bare {@code 42}
+     * anywhere in a payload does not: token counts, sizes and ids would make almost any
+     * number look grounded, and a guard that never fires is not a guard.
+     */
+    private static boolean seen(String evidence, String token, String digits) {
+        if (evidence.contains(token)) {
+            return true;
+        }
+        return digits != null && (evidence.contains("\"number\":" + digits)
+                || evidence.contains("\"number\": " + digits)
+                || evidence.contains("/" + digits));
+    }
+
+    /**
+     * Does the closing line name something the run never touched?
      *
      * <p>Live: a search returned KAN-11 down to KAN-1 and the summary reported them as
      * "KAN-11, KAN-12 ve KAN-13". Neither of the last two exists. The grounding guard that
@@ -112,15 +172,18 @@ public class Summarizer {
      * dropped rather than corrected — the cost line still closes the run honestly.
      */
     private static boolean invents(String text, Run run) {
+        String evidence = evidence(run);
         java.util.regex.Matcher keys = RECORD_KEY.matcher(text);
-        if (!keys.find()) {
-            return false;
-        }
-        String evidence = run.goal() + " " + steps(run);
-        keys.reset();
         while (keys.find()) {
-            if (!evidence.contains(keys.group())) {
+            if (!seen(evidence, keys.group(), null)) {
                 LOG.log(Level.WARNING, "closing summary named {0}, which the run never saw", keys.group());
+                return true;
+            }
+        }
+        java.util.regex.Matcher refs = ISSUE_REF.matcher(text);
+        while (refs.find()) {
+            if (!seen(evidence, refs.group(), refs.group(1))) {
+                LOG.log(Level.WARNING, "closing summary named {0}, which the run never saw", refs.group());
                 return true;
             }
         }
