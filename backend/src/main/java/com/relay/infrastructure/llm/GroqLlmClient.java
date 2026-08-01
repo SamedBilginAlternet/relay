@@ -125,10 +125,24 @@ public class GroqLlmClient implements LlmClient {
         return " — " + cleaned;
     }
 
+    /**
+     * The last refusal each model answered with, kept so a pool that is merely cooling down
+     * can still say why.
+     *
+     * <p>Live, the small tier reported {@code "no key available"} and nothing else — which
+     * looks identical whether the small model is out of budget or was never configured. The
+     * one is a spent quota, the other a missing {@code GROQ_SMALL_MODEL}, and they call for
+     * opposite actions.
+     */
+    private final java.util.Map<String, String> lastRefusal = new java.util.concurrent.ConcurrentHashMap<>();
+
     /** One pass over the pool for a single model. */
     private Attempt attempt(LlmRequest request, String targetModel, ApiKeyPool pool) {
         String body = requestBody(request, targetModel);
-        String lastError = "no key available";
+        String remembered = lastRefusal.get(targetModel);
+        String lastError = remembered == null
+                ? "no key available"
+                : "no key available, still cooling from: " + remembered;
 
         for (int tries = 0; tries < Math.max(1, pool.total()); tries++) {
             Optional<String> key = pool.next();
@@ -140,6 +154,7 @@ public class GroqLlmClient implements LlmClient {
                 return new Attempt(parse(reply.body(), targetModel), null);
             }
             lastError = "groq HTTP " + reply.status() + hint(reply);
+            lastRefusal.put(targetModel, lastError);
             if (reply.shouldRotate()) {
                 // A refused key (revoked, out of quota) never recovers; a rate limited one
                 // does. Parking both for 60s would keep resurrecting a dead key.

@@ -152,6 +152,27 @@ class GroqKeyRotationTest {
                 .hasMessageContaining("retry-after 45s");
     }
 
+    /**
+     * A pool whose keys are all cooling has no key to ask, so it used to report only "no key
+     * available" — which reads the same whether the model is out of budget or was never
+     * configured, and those call for opposite actions.
+     */
+    @Test
+    void aCoolingPoolStillSaysWhatRefusedItLastTime() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        FakeTransport transport = new FakeTransport(key ->
+                new HttpTransport.Reply(429, RATE_LIMITED));
+        GroqLlmClient client = client(List.of("key-1"), transport, clock);
+
+        assertThatThrownBy(() -> client.complete(request())).isInstanceOf(LlmUnavailableException.class);
+        // Second call inside the cooldown: the key is parked, so nothing is even tried.
+        assertThatThrownBy(() -> client.complete(request()))
+                .isInstanceOf(LlmUnavailableException.class)
+                .hasMessageContaining("still cooling from")
+                .hasMessageContaining("Rate limit reached");
+        assertThat(transport.calls).as("no second request went out").hasSize(1);
+    }
+
     @Test
     void routerFallsBackToTheStubWhenGroqIsGone() {
         TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
