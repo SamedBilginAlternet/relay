@@ -2,11 +2,16 @@ package com.relay.application.brief;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.relay.application.json.Json;
 import com.relay.application.port.ConnectionRepository;
 import com.relay.application.port.LlmClient;
 import com.relay.application.port.Tool;
 import com.relay.application.port.ToolRegistry;
+import com.relay.application.port.ToolResult;
 import com.relay.domain.Connection;
+import com.relay.domain.RiskLevel;
 import com.relay.infrastructure.llm.StubLlmClient;
 import com.relay.infrastructure.tools.FixtureStore;
 import com.relay.infrastructure.tools.GitHubTool;
@@ -20,6 +25,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -45,6 +51,72 @@ class BriefServiceTest {
         return new BriefService(registry, connections,
                 new InsightService(llm, registry), new DigestService(llm), llm, clock, Runnable::run,
                 Duration.ofSeconds(8), Duration.ofSeconds(60), "Europe/Istanbul", "RELAY");
+    }
+
+    /**
+     * The brief on a real thread pool, which is the only way its two headline properties can
+     * be observed at all: with {@code Runnable::run} every call completes on the calling
+     * thread before {@code completeOnTimeout} is ever armed, so the timeout branch is
+     * unreachable and "parallel" is unmeasurable.
+     *
+     * <p>Virtual threads, same as production ({@code ApplicationConfig}), and a timeout the
+     * test can outrun — the point is which branch fires, not how long anyone waits.
+     */
+    private BriefService parallelService(List<Tool> tools, Duration toolTimeout) {
+        ToolRegistry registry = new ToolRegistryImpl(tools);
+        LlmClient llm = new StubLlmClient(registry);
+        return new BriefService(registry, new TestDoubles.InMemoryConnectionRepository(),
+                new InsightService(llm, registry), new DigestService(llm), llm,
+                new TestDoubles.FixedClock(), Executors.newVirtualThreadPerTaskExecutor(),
+                toolTimeout, Duration.ofSeconds(60), "Europe/Istanbul", "RELAY");
+    }
+
+    /**
+     * A provider that takes its time. Answers correctly — eventually — which is exactly the
+     * case the timeout exists for: not a provider that is down, one that is slow.
+     */
+    private static class SlowTool implements Tool {
+        private final String name;
+        private final long delayMs;
+
+        SlowTool(String name, long delayMs) {
+            this.name = name;
+            this.delayMs = delayMs;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public String description() {
+            return "answers after " + delayMs + " ms";
+        }
+
+        @Override
+        public RiskLevel risk() {
+            return RiskLevel.READ;
+        }
+
+        @Override
+        public JsonNode schema() {
+            ObjectNode schema = Json.object();
+            schema.put("type", "object");
+            schema.putArray("required");
+            schema.putObject("properties");
+            return schema;
+        }
+
+        @Override
+        public ToolResult execute(JsonNode params, Connection connection) {
+            try {
+                Thread.sleep(delayMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return ToolResult.ok(Json.object(), delayMs, "replay");
+        }
     }
 
     private List<Tool> everything() {
@@ -312,6 +384,108 @@ class BriefServiceTest {
         Map<String, Object> brief = serviceWith(registry, new TestDoubles.FixedClock(), llm).brief();
 
         assertThat(brief).doesNotContainKey("digest");
+    }
+
+    /**
+     * The likeliest failure of the whole demo: conference wifi, one provider crawls. The
+     * screen must come back without it rather than waiting on it — and the other cards, in
+     * every state they can be in, must still be right.
+     */
+    @Test
+    void a_provider_that_never_answers_is_dropped_at_the_timeout() {
+        List<Tool> tools = everything();
+        tools.add(new SlowTool("gmail.listToday", 3000));
+        BriefService service = parallelService(tools, Duration.ofMillis(150));
+
+        long startedAt = System.nanoTime();
+        Map<String, Object> brief = service.brief();
+        long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000;
+
+        assertThat(section(brief, "inbox").get("status")).isEqualTo("error");
+        assertThat(section(brief, "inbox").get("reason")).asString()
+                .isEqualTo("Gmail zamanında yanıt vermedi.");
+        assertThat(rows(section(brief, "inbox"))).isEmpty();
+        assertThat(elapsedMs).as("the call returned on the timeout, not on the provider")
+                .isLessThan(2000);
+
+        // Three states at once, which is the mix a real morning produces: one provider slow,
+        // one answering, one not connected at all.
+        assertThat(section(brief, "work").get("status")).isEqualTo("ok");
+        assertThat(section(brief, "calendar").get("status")).isEqualTo("unavailable");
+    }
+
+    @Test
+    void the_brief_costs_the_slowest_provider_not_their_sum() {
+        BriefService service = parallelService(List.of(
+                new SlowTool("gmail.listToday", 200),
+                new SlowTool("jira.listMyIssues", 200),
+                new SlowTool("github.listMyPullRequests", 200),
+                new SlowTool("github.listMyIssues", 200),
+                new SlowTool("calendar.listToday", 200)), Duration.ofSeconds(5));
+
+        long startedAt = System.nanoTime();
+        Map<String, Object> brief = service.brief();
+        long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000;
+
+        for (String name : SECTIONS) {
+            assertThat(section(brief, name).get("status")).as(name).isEqualTo("ok");
+        }
+        // Serially this is a full second. Generous headroom: what would fail here is
+        // sequential execution, not a slow machine.
+        assertThat(elapsedMs).isLessThan(800);
+    }
+
+    /**
+     * Nothing came back from anywhere — every provider down at once. The screen still has to
+     * render: the insight layer is handed an empty list, {@code DayTally} counts zeros, and
+     * no field the frontend reads may be missing.
+     */
+    @Test
+    void a_day_where_every_provider_is_down_still_renders_a_screen() {
+        BriefService service = parallelService(List.of(
+                new TestDoubles.FailingTool("gmail.listToday"),
+                new TestDoubles.FailingTool("jira.listMyIssues"),
+                new TestDoubles.FailingTool("github.listMyPullRequests"),
+                new TestDoubles.FailingTool("github.listMyIssues"),
+                new TestDoubles.FailingTool("calendar.listToday")), Duration.ofSeconds(5));
+
+        Map<String, Object> brief = service.brief();
+
+        assertThat(priority(brief)).isEmpty();
+        for (String name : SECTIONS) {
+            Map<String, Object> section = section(brief, name);
+            assertThat(section.get("status")).as(name).isEqualTo("error");
+            assertThat(rows(section)).as(name).isEmpty();
+            assertThat(section.get("reason")).as(name).isNotNull();
+        }
+        Map<String, Object> today = asMap(brief.get("today"));
+        assertThat(today.get("headline")).isEqualTo("Bugün seni bekleyen bir şey görünmüyor.");
+        assertThat(asMap(today.get("counts")).values()).allSatisfy(count ->
+                assertThat(count).isEqualTo(0));
+        assertThat(brief.get("date")).isNotNull();
+        assertThat(brief.get("localDate")).isNotNull();
+        assertThat(asMap(brief.get("llm"))).isNotNull();
+    }
+
+    /** One card, two tools: whichever answered wins — and neither answering is one error. */
+    @Test
+    void both_code_tools_failing_is_still_one_error_status() {
+        BriefService service = parallelService(List.of(
+                new JiraTool.ListMyIssues("replay", FIXTURES),
+                new TestDoubles.FailingTool("github.listMyPullRequests"),
+                new TestDoubles.FailingTool("github.listMyIssues")), Duration.ofSeconds(5));
+
+        Map<String, Object> brief = service.brief();
+        Map<String, Object> code = section(brief, "code");
+
+        assertThat(code.get("status")).isEqualTo("error");
+        assertThat(code.get("reason")).asString().contains("GitHub").doesNotContain("exploded");
+        assertThat(rows(code)).isEmpty();
+        Map<?, ?> parts = (Map<?, ?>) code.get("parts");
+        assertThat(parts.get("pullRequests")).isEqualTo("error");
+        assertThat(parts.get("issues")).isEqualTo("error");
+        // The rest of the morning is untouched.
+        assertThat(section(brief, "work").get("status")).isEqualTo("ok");
     }
 
     @Test
