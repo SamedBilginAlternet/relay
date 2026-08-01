@@ -1,6 +1,7 @@
 import { motion, useReducedMotion } from 'motion/react';
-import { ChevronDown, ExternalLink, Plug, TriangleAlert, X } from 'lucide-react';
+import { ChevronDown, ExternalLink, Play, Plug, TriangleAlert, Workflow, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { Playbook } from '../data/PlaybookSource';
 import { enterProps } from '../lib/motion';
 import type { BriefSection } from '../types/brief';
 
@@ -213,5 +214,93 @@ export function SectionPanel({
         </div>
       )}
     </div>
+  );
+}
+
+const PROVIDER_LABEL: Record<string, string> = {
+  jira: 'Jira',
+  github: 'GitHub',
+  slack: 'Slack',
+  google: 'Google',
+};
+
+function missingText(missing: string[]): string {
+  const names = missing.map((p) => PROVIDER_LABEL[p] ?? p);
+  return `${names.join(', ')} bağlı değil`;
+}
+
+type ShelfProps = {
+  playbooks: Playbook[];
+  loading: boolean;
+  error: string | null;
+  /** Id of the flow being started, so only that pill says so. */
+  starting: string | null;
+  onRun: (id: string) => void;
+};
+
+/**
+ * The written-down flows, kept within reach (issue #15).
+ *
+ * They used to live in the onboarding tour and nowhere else, which meant they
+ * disappeared the moment the tour was finished — the flows the product is built
+ * around were reachable exactly once per account.
+ *
+ * The shape is a *shelf*, not a card grid, and that is the whole point: Bugün
+ * had just been cut from 2680px to 844px and a second grid would have handed
+ * that back. One wrapping row of pills, label included, costs a single 44px
+ * line. A flow whose provider is missing is not hidden and not merely greyed
+ * out — greying it out would answer "no" without answering "why" — it carries
+ * the missing connection on a second line inside the same 44px.
+ */
+export function PlaybookShelf({ playbooks, loading, error, starting, onRun }: ShelfProps) {
+  // Nothing to shelve and nothing to explain: no empty furniture on the screen.
+  if (!loading && !error && playbooks.length === 0) return null;
+
+  return (
+    <section className="shelf" aria-labelledby="shelf-h">
+      <h2 className="t-label shelf__label" id="shelf-h">
+        <Workflow size={12} aria-hidden /> Hazır akışlar
+      </h2>
+
+      {loading && <span className="shelf__note">Yükleniyor…</span>}
+      {error && (
+        <span className="shelf__note shelf__note--warn">
+          <TriangleAlert size={13} aria-hidden />
+          {error}
+        </span>
+      )}
+
+      {playbooks.map((playbook) => {
+        const blocked = !playbook.runnable;
+        const busy = starting === playbook.id;
+        return (
+          <button
+            key={playbook.id}
+            type="button"
+            className={`shelf__item${blocked ? ' shelf__item--off' : ''}`}
+            disabled={blocked || starting !== null}
+            onClick={() => onRun(playbook.id)}
+          >
+            <span className="shelf__icon" aria-hidden>
+              {blocked ? <Plug size={14} /> : <Play size={13} />}
+            </span>
+            <span className="shelf__text">
+              <span className="shelf__title">{playbook.title}</span>
+              {busy && <span className="shelf__sub">Başlatılıyor…</span>}
+              {!busy && blocked && (
+                <span className="shelf__sub shelf__sub--warn">{missingText(playbook.missing)}</span>
+              )}
+            </span>
+            {/* The steps are what makes a playbook worth trusting; they do not fit
+                on a pill, but they belong in the accessible name. */}
+            <span className="sr-only">
+              {blocked
+                ? `Çalıştırılamaz. ${playbook.subtitle}`
+                : `Çalıştır. ${playbook.subtitle}`}
+            </span>
+          </button>
+        );
+      })}
+    </section>
   );
 }

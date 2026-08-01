@@ -11,11 +11,13 @@ import {
   Undo2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { SectionPanel, SectionTile } from '../components/BriefSections';
+import { PlaybookShelf, SectionPanel, SectionTile } from '../components/BriefSections';
 import type { SectionMeta } from '../components/BriefSections';
 import { InsightCardView } from '../components/InsightCardView';
 import { PriorityRow } from '../components/PriorityRow';
 import { getBriefSource, RUN_SOURCE_KIND } from '../data';
+import { getPlaybookSource } from '../data/PlaybookSource';
+import type { Playbook } from '../data/PlaybookSource';
 import { formatDayMonth } from '../lib/format';
 import { enterProps, expandProps } from '../lib/motion';
 import { useRunStore } from '../store/runStore';
@@ -71,6 +73,10 @@ export function TodayScreen({ onNavigate }: Props) {
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [busy, setBusy] = useState<{ cardId: string; tool: string } | null>(null);
   const [openKey, setOpenKey] = useState<BriefSectionKey | null>(null);
+  const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
+  const [playbookPhase, setPlaybookPhase] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [playbookError, setPlaybookError] = useState<string | null>(null);
+  const [starting, setStarting] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const openRun = useRunStore((s) => s.openRun);
   const reduce = useReducedMotion();
@@ -105,6 +111,28 @@ export function TodayScreen({ onNavigate }: Props) {
   useEffect(() => {
     void load('initial');
   }, [load]);
+
+  /* The shelf is not part of the brief and must not wait for it: a slow
+     provider should never be the reason a written-down flow cannot be
+     started. Separate request, separate failure. */
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const rows = await getPlaybookSource().list();
+        if (!alive) return;
+        setPlaybooks(rows);
+        setPlaybookPhase('ready');
+      } catch (err) {
+        if (!alive) return;
+        setPlaybookError(err instanceof Error ? err.message : 'Hazır akışlar okunamadı.');
+        setPlaybookPhase('error');
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const priority = useMemo(
     () => (brief?.priority ?? []).filter((c) => !dismissed.includes(c.id)),
@@ -152,6 +180,24 @@ export function TodayScreen({ onNavigate }: Props) {
       setError(err instanceof Error ? err.message : 'Akış başlatılamadı.');
     } finally {
       setBusy(null);
+    }
+  };
+
+  /* Same landing as a suggestion from a card: the run screen, streaming.
+     The write step still stops at the approval gate — starting a flow from
+     Bugün changes where it was started, not what it is allowed to do. */
+  const startPlaybook = async (id: string) => {
+    if (starting) return;
+    setStarting(id);
+    setPlaybookError(null);
+    try {
+      const { runId } = await getPlaybookSource().run(id);
+      onNavigate('#/sohbet');
+      await openRun(runId);
+    } catch (err) {
+      setPlaybookError(err instanceof Error ? err.message : 'Akış başlatılamadı.');
+    } finally {
+      setStarting(null);
     }
   };
 
@@ -361,6 +407,17 @@ export function TodayScreen({ onNavigate }: Props) {
                 )}
               </AnimatePresence>
             </section>
+
+            {/* ---------------- HAZIR AKIŞLAR ---------------- */}
+            {/* Last on the screen on purpose: everything above answers "what
+                happened", this answers "what can I start". Issue #15. */}
+            <PlaybookShelf
+              playbooks={playbooks}
+              loading={playbookPhase === 'loading'}
+              error={playbookError}
+              starting={starting}
+              onRun={(id) => void startPlaybook(id)}
+            />
           </div>
         )}
       </div>

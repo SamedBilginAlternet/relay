@@ -2094,6 +2094,117 @@ a.btn {
   transform: rotate(180deg);
 }
 
+/* ---- hazır akışlar: a shelf, not a second grid (issue #15) ---------- */
+/*                                                                      */
+/* Bugün had just come down from 2680px to 844px; a card per playbook   */
+/* would have handed a chunk of that back. So: one wrapping row, label  */
+/* on the same line as the pills, and a blocked flow says WHY on a      */
+/* second line that fits inside the same 44px target.                   */
+
+.shelf {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-8) var(--s-12);
+}
+.shelf__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+}
+.shelf__note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+.shelf__note--warn {
+  color: #92400e;
+}
+
+.shelf__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-8);
+  min-height: 44px;
+  padding: 5px 16px 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 160ms ease-out, border-color 160ms ease-out,
+    transform 120ms ease-out;
+}
+.shelf__item:hover:not(:disabled) {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.shelf__item:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.shelf__icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.shelf__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.shelf__title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--fg);
+}
+.shelf__sub {
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: var(--fg-muted);
+}
+.shelf__sub--warn {
+  color: #92400e;
+}
+/*
+  A blocked flow is dimmed by TONE, not by opacity: `opacity: .5` would take
+  the one line that explains the block below AA along with everything else.
+  Dashed edge + subtle fill reads as "not now" and keeps the reason readable.
+*/
+.shelf__item--off,
+.shelf__item:disabled {
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.shelf__item--off {
+  border-style: dashed;
+  background: var(--bg-subtle);
+}
+.shelf__item--off .shelf__title {
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+.shelf__item--off .shelf__icon {
+  border-color: var(--border);
+  background: #fff;
+  color: var(--fg-faint);
+}
+/* Only the pill being started dims; the others are merely inert. */
+.shelf__item:disabled:not(.shelf__item--off) {
+  opacity: 0.6;
+}
+
 /* ---- the opened section ------------------------------------------- */
 
 .tpanel {
