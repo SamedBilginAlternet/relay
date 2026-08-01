@@ -29,9 +29,9 @@ Konumlandırma tartışmasının tamamı bu tabloya bakarak çözülüyor.
 | **Takvim** | `listToday` | **yok** |
 
 Kritik gözlem: **eylem yüzeyi Jira + Slack + GitHub'dan ibaret.** Gmail ve Takvim
-salt-okunur (`GoogleOAuth.SCOPES` = `gmail.readonly` + `calendar.readonly`). Yani Relay
-"beyaz yakalının maili" konusunda **okuyabiliyor ama cevap yazamıyor**, "takvimi" konusunda
-**görebiliyor ama toplantı kuramıyor**. Bir işi *bitirdiği* tek yer ekip araçları.
+salt-okunur. Yani Relay "beyaz yakalının maili" konusunda **taslak yazabiliyor ama
+gönderemiyor**, "takvimi" konusunda **görebiliyor ama toplantı kuramıyor**. Bir araca
+gerçekten *yazdığı* yer ekip araçları.
 
 ### Hazır akışlar (`Playbooks.java` — 4 adet)
 
@@ -69,7 +69,7 @@ yürütenin** acısı. Ve o kişi tanımı gereği beyaz yakalı.
 
 ## 1. Tek cümlelik konumlandırma
 
-> **Relay, gün içinde çıkan işi araçların içinde bitiren bir ajan ekibidir — ve hiçbir
+> **Relay, gün içinde çıkan işi araçların içinde yürüten bir ajan ekibidir — ve hiçbir
 > yazma adımını sana sormadan yapmaz.**
 
 **Neden bu cümle:**
@@ -77,8 +77,12 @@ yürütenin** acısı. Ve o kişi tanımı gereği beyaz yakalı.
 1. **"Gün içinde çıkan iş"** — n8n/Zapier'den ayrımı ilk üç kelimede kuruyor. Onlar tasarım
    zamanı, biz çalışma zamanı. Bu ayrım kodla destekli: `Planner` hedefi çalışma anında adıma
    çeviriyor, önceden kurulmuş bir graf yok.
-2. **"Araçların içinde bitiren"** — sohbet asistanlarından ayrımı. Metin üretmiyoruz, Jira'da
-   kaydı gerçekten güncelliyoruz.
+2. **"Araçların içinde yürüten"** — sohbet asistanlarından ayrımı. Metin üretmiyoruz, Jira'da
+   kaydı gerçekten güncelliyoruz. **"Bitiren" demiyoruz, ve bu bilinçli:** "bitirmek"
+   ölçülebilir bir sözdür ve ürünün kendi paneli onu tutmuyor — son 7 günde 106 akışın 50'si
+   tamamlandı (%47), 29'u onay bekliyor, 23'ü hata verdi. "Yürüten" gösterdiğimiz şeyin tam
+   karşılığı: iş araca giriyor, adımlar gerçekten koşuyor, ve duran her adımın nerede
+   durduğu görünüyor. Ekranıyla çelişen bir cümle, jürinin tıklayacağı ilk sekmede kırılır.
 3. **"Sana sormadan yapmaz"** — tek gerçek savunulabilir farkımız ve kodda somut:
    `PolicyEngine` WRITE riskli her aracı varsayılan olarak `ask` moduna alıyor, DESTRUCTIVE
    olanı `forbidden`. Bu bir slayt vaadi değil, çalışan bir kapı.
@@ -355,13 +359,14 @@ maliyeti) geçerliliğini koruyor — buradakiler **konumlandırma** soruları, 
 
 ## 8. İki cümlelik karar
 
-> **Diyoruz ki:** Relay, gün içinde çıkan işi araçların içinde bitiren bir ajan ekibi — ve
+> **Diyoruz ki:** Relay, gün içinde çıkan işi araçların içinde yürüten bir ajan ekibi — ve
 > onay kapısı, politika motoru, maliyet ölçümü ve iz kaydıyla, bir ekibin bir ajana
 > güvenebilmesi için gereken her şey ürünün varsayılanı.
 >
 > **Demiyoruz ki:** "kurumsal hazırız" (SSO, çok kiracılılık, rapor ihracı ve zamanlayıcı
-> yok) ve "her beyaz yakalı için" (Gmail ve Takvim salt-okunur; bugün işi **bitirdiğimiz**
-> yer ekip araçları).
+> yok), "her beyaz yakalı için" (Gmail ve Takvim yazma yüzeyi taslakla sınırlı; bugün
+> araca **yazdığımız** yer ekip araçları) ve "işi bitiriyoruz" (akışların yarısı onay
+> bekliyor ya da hata veriyor — bu ölçüm ürünün kendi panelinde duruyor).
 
 ---
 

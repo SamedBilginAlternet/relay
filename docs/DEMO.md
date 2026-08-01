@@ -68,7 +68,7 @@ tek bir sağlayıcı düşünce brifing çökmüyor."* Hiçbiri gelmezse `TOOLS_
 
 ### Açılış — kelimesi kelimesine
 
-> "Bir beyaz yakalının günü tek bir işten değil, araçlar arası koşuşturmadan oluşuyor: Jira'dan çıkar, Jira'da güncelle, Slack'te raporla. Dört araç, on beş tıklama, yirmi dakika — her gün. Sohbet asistanları metin üretiyor ama hiçbir şey *yapmıyor*; otomasyon araçları yapıyor ama önce saatlerce kurman gerekiyor. Relay üçüncü yol: işini bir cümleyle anlatıyorsun, Relay uzman ajanlardan bir ekip kuruyor ve işi araçların içinde bitiriyor. **Otomasyon kurmuyorsun, iş veriyorsun — ve ne yaptığını satır satır görüyorsun.** Gösterelim."
+> "Bir beyaz yakalının günü tek bir işten değil, araçlar arası koşuşturmadan oluşuyor: Jira'dan çıkar, Jira'da güncelle, Slack'te raporla. Dört araç, on beş tıklama, yirmi dakika — her gün. Sohbet asistanları metin üretiyor ama hiçbir şey *yapmıyor*; otomasyon araçları yapıyor ama önce saatlerce kurman gerekiyor. Relay üçüncü yol: işini bir cümleyle anlatıyorsun, Relay uzman ajanlardan bir ekip kuruyor — gün içinde çıkan işi araçların içinde yürüten bir ajan ekibi, ve hiçbir yazma adımını sana sormadan yapmaz. **Otomasyon kurmuyorsun, iş veriyorsun — ve ne yaptığını satır satır görüyorsun.** Gösterelim."
 
 (≈30 sn. "Gösterelim" dediğin an yazmaya başla — boşluk bırakma.)
 

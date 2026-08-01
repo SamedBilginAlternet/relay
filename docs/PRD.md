@@ -7,7 +7,11 @@
 
 ## 1. Tek cümle
 
-**Beyaz yakalı işini sohbette anlatırsın; Relay bir iş akışı kurar, araçların arasında yürütür ve her adımı gözünün önünde yapar.**
+**Relay, gün içinde çıkan işi araçların içinde yürüten bir ajan ekibidir — ve hiçbir yazma adımını sana sormadan yapmaz.**
+
+> Bu cümle `KONUMLANDIRMA.md` §1'in kararıdır ve üç dokümanda birebir aynı kelimelerle geçer
+> (burada, `KONUMLANDIRMA.md` §1/§8, `DEMO.md` §2). "Bitiren" değil **"yürüten"**: bitirme
+> ölçülebilir bir sözdür ve Panel ekranı onu tutmuyor (son 7 gün: 106 akışın 50'si tamamlandı).
 
 ---
 
