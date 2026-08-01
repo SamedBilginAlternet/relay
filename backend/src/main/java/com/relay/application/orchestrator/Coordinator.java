@@ -334,6 +334,28 @@ public class Coordinator {
 
         if (!verdict.pass()) {
             if (!step.retriesExhausted()) {
+                /*
+                  AN APPROVAL BUYS ONE ATTEMPT, NOT THE STEP.
+
+                  `sendBack` clears the result and raises the attempt count, and it used to
+                  leave `decision` alone. The gate is `policy.ask() && decision != APPROVED`,
+                  so a step a human had approved once sailed straight back through it on
+                  every retry. Measured live on 2026-08-01: one approval of a
+                  `jira.createIssue` produced KAN-24, KAN-25 and KAN-26 — three records, one
+                  consent, and the retries carried the same rejected parameters so each one
+                  was guaranteed to fail and guaranteed to write again.
+
+                  This product has exactly one promise: nothing is written without you. The
+                  tool-error path already knew it (`retryWithProviderFeedback`); the
+                  verification path did not.
+
+                  The verdict is fed back as the reason, so the next draft is built against
+                  the objection rather than repeating the sentence that was just refused.
+                */
+                if (policyEngine.evaluate(step.toolName()).ask()) {
+                    retryWithProviderFeedback(run, step, "doğrulayıcı reddetti: " + verdict.reason());
+                    return;
+                }
                 step.sendBack();
                 journal.say(run, step.id(), AgentRole.VERIFIER, step.role(),
                         "Geri gönderildi (" + step.attempts() + "/" + Step.MAX_RETRIES + "): " + verdict.reason());
