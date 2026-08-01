@@ -219,6 +219,66 @@ public final class TestDoubles {
         }
     }
 
+    /**
+     * A tool that exists only in the registry — a name, a provider and a parameter list.
+     *
+     * <p>Written for the suggestion layer, which has to behave correctly around tools that
+     * are not built yet: it looks a draft tool up by what it does and seeds its parameters
+     * from whatever schema it declares. That behaviour cannot be tested against a tool this
+     * repository already ships, because then the name could just as well be hard-coded.
+     */
+    public static class NamedTool implements com.relay.application.port.Tool {
+        private final String name;
+        private final String provider;
+        private final List<String> required;
+        private final List<String> optional;
+
+        public NamedTool(String name, String provider, List<String> required, List<String> optional) {
+            this.name = name;
+            this.provider = provider;
+            this.required = required;
+            this.optional = optional;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public String provider() {
+            return provider;
+        }
+
+        @Override
+        public String description() {
+            return "test double for " + name;
+        }
+
+        @Override
+        public com.fasterxml.jackson.databind.JsonNode schema() {
+            var schema = com.relay.application.json.Json.object();
+            schema.put("type", "object");
+            var req = schema.putArray("required");
+            required.forEach(req::add);
+            var props = schema.putObject("properties");
+            required.forEach(field -> props.putObject(field).put("type", "string"));
+            optional.forEach(field -> props.putObject(field).put("type", "string"));
+            return schema;
+        }
+
+        @Override
+        public com.relay.domain.RiskLevel risk() {
+            return com.relay.domain.RiskLevel.WRITE;
+        }
+
+        @Override
+        public com.relay.application.port.ToolResult execute(
+                com.fasterxml.jackson.databind.JsonNode params, Connection connection) {
+            return com.relay.application.port.ToolResult.ok(params, 1, "replay");
+        }
+    }
+
     /** Records every SSE frame so assertions can read the timeline. */
     public static class RecordingEventPublisher implements EventPublisher {
         public final List<RunEvent> events = new ArrayList<>();

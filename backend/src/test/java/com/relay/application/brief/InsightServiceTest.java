@@ -30,7 +30,7 @@ class InsightServiceTest {
     private static final BriefItem PR = new BriefItem("github-pr:acme/pay#12", "github", "pr",
             "acme/pay#12", "Retry politikası", "review bekliyor · ayse", "1sa önce", "ayse",
             "https://github.com/acme/pay/pull/12", "2026-07-31T06:00:00Z", BriefItem.WARN,
-            Map.of("repo", "acme/pay", "number", 12));
+            Map.of("repo", "acme/pay", "number", 12, "reason", "review_requested"));
 
     @BeforeEach
     void setUp() {
@@ -38,6 +38,7 @@ class InsightServiceTest {
         tools = new ToolRegistryImpl(List.of(
                 new JiraTool.CreateIssue("replay", fixtures),
                 new JiraTool.AddComment("replay", fixtures),
+                new JiraTool.UpdateIssue("replay", fixtures),
                 new JiraTool.ListMyIssues("replay", fixtures),
                 new GitHubTool.AddComment("replay", fixtures),
                 new GitHubTool.ListMyPullRequests("replay", fixtures),
@@ -105,10 +106,132 @@ class InsightServiceTest {
         InsightService.Insight mail = result.insights().get(0);
         assertThat(mail.kind()).isEqualTo("bug_report");
         assertThat(mail.urgency()).isEqualTo("high");
-        assertThat(mail.summary()).contains("hata bildirimi");
+        assertThat(mail.summary()).contains("arıza bildiriyor");
         assertThat(mail.actions()).isNotEmpty();
         assertThat(mail.actions()).allSatisfy(action ->
                 assertThat(tools.find(action.tool())).isPresent());
+    }
+
+    /**
+     * The heart of #28. Live, four of the five priority cards read "GitHub'a yorum yaz" /
+     * "Yorum ekle": the fallback keyed on the source alone, so every Jira row got the same
+     * button whether or not anybody had touched the issue. A screen that hands out work has
+     * to tell a record nobody started from one already being worked on.
+     */
+    @Test
+    void the_same_kind_of_item_gets_a_different_next_step_in_a_different_state() {
+        InsightService service = new InsightService(
+                new TestDoubles.StaticLlmClient("no json here"), tools);
+
+        InsightService.Insight fresh = service.heuristic(jira("KAN-58", "To Do", "Medium"), "KAN");
+        InsightService.Insight moving = service.heuristic(jira("KAN-51", "In Progress", "High"), "KAN");
+        InsightService.Insight stuck = service.heuristic(jira("KAN-42", "Blocked", "Highest"), "KAN");
+
+        // Not started: the button starts it, and only then tells anyone.
+        assertThat(fresh.actions()).extracting(InsightService.Action::tool)
+                .containsExactly("jira.updateIssue", "slack.postMessage");
+        assertThat(fresh.actions().get(0).params()).containsEntry("status", "In Progress");
+        assertThat(fresh.summary()).contains("henüz başlanmadı");
+
+        // Already in flight: nothing to start, so the step is writing the progress down.
+        assertThat(moving.actions()).extracting(InsightService.Action::tool)
+                .doesNotContain("jira.updateIssue");
+        assertThat(moving.summary()).contains("ilerlemeyi");
+
+        // Blocked: the work is not in this user's hands at all.
+        assertThat(stuck.urgency()).isEqualTo("high");
+        assertThat(stuck.summary()).contains("engelli");
+
+        assertThat(List.of(fresh.summary(), moving.summary(), stuck.summary()))
+                .doesNotHaveDuplicates();
+        assertThat(List.of(label(fresh), label(moving), label(stuck))).doesNotHaveDuplicates();
+    }
+
+    /**
+     * "Yorum ekle" was the answer to every pull request too. A review request is a job with
+     * a deadline attached; the older it is, the more people need to hear about it.
+     */
+    @Test
+    void a_review_that_has_waited_days_also_reaches_the_team() {
+        InsightService service = new InsightService(
+                new TestDoubles.StaticLlmClient("no json here"), tools);
+
+        InsightService.Insight today = service.heuristic(PR, "KAN");
+        InsightService.Insight stale = service.heuristic(new BriefItem(PR.id(), "github", "pr",
+                PR.prefix(), PR.title(), PR.subtitle(), "3g önce", PR.from(), PR.url(), PR.at(),
+                PR.tone(), PR.ref()), "KAN");
+
+        assertThat(today.actions()).extracting(InsightService.Action::tool)
+                .containsExactly("github.addComment");
+        assertThat(today.urgency()).isEqualTo("normal");
+
+        assertThat(stale.actions()).extracting(InsightService.Action::tool)
+                .containsExactly("github.addComment", "slack.postMessage");
+        assertThat(stale.urgency()).isEqualTo("high");
+        assertThat(stale.summary()).contains("3 gündür");
+    }
+
+    /**
+     * The mail draft tool was built on a branch of its own (#27) while this fallback was
+     * being written, so the fallback could not name it and does not: it asks the registry
+     * for a mail tool that writes drafts. The name below is deliberately not the one that
+     * shipped — the day the tool is renamed, or a second one appears, the suggestion has to
+     * keep working. Without such a tool the mail must fall back to something that still
+     * moves, never to a button that dead-ends.
+     */
+    @Test
+    void the_reply_draft_is_found_in_the_registry_not_named_in_the_code() {
+        BriefItem waiting = new BriefItem("gmail:2", "gmail", "mail", "",
+                "Sprint kapsamı — onayın lazım", "Deniz Arslan", "1sa önce", "Deniz Arslan",
+                "https://mail.example/2", "2026-07-31T04:58:00Z", BriefItem.WARN,
+                Map.of("messageId", "2", "threadId", "t2", "from", "deniz@alterteam.dev"));
+
+        // Nothing writes drafts here: the request becomes something trackable instead.
+        InsightService without = new InsightService(new TestDoubles.StaticLlmClient("nope"), tools);
+        assertThat(without.heuristic(waiting, "KAN").actions())
+                .extracting(InsightService.Action::tool).containsExactly("jira.createIssue");
+
+        ToolRegistry withDraft = new ToolRegistryImpl(List.of(
+                new JiraTool.CreateIssue("replay", new FixtureStore()),
+                new TestDoubles.NamedTool("gmail.draftReply", "gmail",
+                        List.of("to", "subject", "body"), List.of("threadId"))));
+        InsightService with = new InsightService(new TestDoubles.StaticLlmClient("nope"), withDraft);
+        InsightService.Insight drafted = with.heuristic(waiting, "KAN");
+
+        assertThat(drafted.actions()).extracting(InsightService.Action::tool)
+                .containsExactly("gmail.draftReply");
+        // Seeded from the tool's own schema — messageId is not one of its declared fields.
+        assertThat(drafted.actions().get(0).params())
+                .containsOnlyKeys("to", "subject", "body", "threadId");
+    }
+
+    /** A meeting starting today is the one item where the next step is other people's. */
+    @Test
+    void a_meeting_today_proposes_the_reminder_its_attendees_need() {
+        BriefItem event = new BriefItem("calendar:1", "calendar", "event", "", "Sprint planlama",
+                "Toplantı Odası 2", "14:00", "Deniz Arslan", "https://calendar.example/1",
+                "2026-07-31T11:00:00Z", BriefItem.DEFAULT,
+                Map.of("eventId", "1", "meetingUrl", "https://meet.example/abc"));
+
+        InsightService.Insight insight = new InsightService(
+                new TestDoubles.StaticLlmClient("nope"), tools).heuristic(event, "KAN");
+
+        assertThat(insight.kind()).isEqualTo("scheduling");
+        assertThat(insight.actions()).extracting(InsightService.Action::tool)
+                .containsExactly("slack.postMessage");
+        assertThat(insight.actions().get(0).params().get("text").toString())
+                .contains("Sprint planlama").contains("14:00");
+    }
+
+    private static String label(InsightService.Insight insight) {
+        return insight.actions().isEmpty() ? "" : insight.actions().get(0).label();
+    }
+
+    private static BriefItem jira(String key, String status, String priority) {
+        return new BriefItem("jira:" + key, "jira", "issue", key, "Brief uç noktası",
+                status + " · Samed Bilgin", "4sa önce", "Samed Bilgin",
+                "https://jira.example/browse/" + key, "2026-07-31T05:00:00Z", BriefItem.DEFAULT,
+                Map.of("issueKey", key, "status", status, "priority", priority, "projectKey", "KAN"));
     }
 
     @Test

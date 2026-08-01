@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The AI layer of the daily brief (BRIEF §3): classify what is waiting, and propose
@@ -30,8 +32,12 @@ import java.util.Set;
  * {@code suggestedActions[].tool} is checked against the {@link ToolRegistry} and dropped
  * when it names a tool that does not exist, because models invent plausible tool names.
  *
+ * <p>A suggestion is the next step, not a pleasantry: what it proposes is decided by the
+ * item's state, so an issue nobody started and an issue already in flight get different
+ * buttons. Nothing here runs — every action still has to be pressed and approved.
+ *
  * <p>When the model is unavailable, degraded or answers with garbage, a deterministic
- * keyword classifier takes over so the screen is never empty.
+ * classifier takes over so the screen is never empty — and it directs the same way.
  *
  * <p>Copy ({@code summary}, {@code label}) is Turkish — the UI is Turkish.
  */
@@ -53,6 +59,18 @@ public class InsightService {
         "onay", "rica", "bekliyor", "cevap", "yanıt", "dönebilir", "bakabilir", "?", "lütfen", "review"};
     private static final String[] MEETING_WORDS = {
         "toplantı", "planlama", "1:1", "sync", "görüşme", "meeting", "takvim", "davet"};
+
+    /** Jira status names that mean nobody has picked the issue up yet. */
+    private static final String[] TODO_STATES = {
+        "to do", "todo", "backlog", "open", "açık", "yapılacak", "new", "selected for development"};
+    private static final String[] BLOCKED_STATES = {"blocked", "engel"};
+    private static final String[] DONE_STATES = {
+        "done", "tamam", "closed", "kapalı", "resolved", "çözüldü"};
+
+    /** {@code 3g önce} — how long the row has been sitting there, read off the meta text. */
+    private static final Pattern DAYS_AGO = Pattern.compile("^(\\d+)g önce$");
+
+    private static final String TEAM_CHANNEL = "#engineering";
 
     private final LlmClient llm;
     private final ToolRegistry tools;
@@ -175,6 +193,10 @@ public class InsightService {
                     .append(" | kind=").append(item.kind())
                     .append(" | title=").append(item.title())
                     .append(" | detail=").append(item.subtitle())
+                    // The state is in the detail (Jira status, "review bekliyor"); how long the
+                    // item has been in that state is here, and a review that has waited two days
+                    // is a different suggestion from one opened an hour ago.
+                    .append(" | bekleme=").append(item.meta())
                     // Only the handles an action needs. The full ref carries mail snippets
                     // and provider payloads; sending fifteen of those blew through the
                     // per-minute token budget and dropped the whole layer to heuristics.
@@ -213,10 +235,28 @@ public class InsightService {
                   contain. A newsletter titled "rockstar bugs for your weekend" is not a bug
                   report; a bug report is a person describing something that broke.
                 - A real request comes from a human who expects something back from THIS user.
-                - summary: ONE short sentence, in TURKISH, saying what is being asked of the user.
-                - label: TURKISH, imperative, max 4 words, e.g. "Jira ticket aç".
+                - summary: ONE short sentence, in TURKISH, saying what the user should do next and
+                  why — not what the item is. "KAN-58 sana atandı, henüz başlanmadı" beats
+                  "Bir Jira kaydı var".
                 - suggestedActions: at most 3, ONLY tools from the given list, with params that fit
                   that tool's schema. Reuse the item's ref fields (issueKey, repo, number…) verbatim.
+                - An action MOVES THE WORK ON. Order them: the step that changes the state of the
+                  thing first, the step that tells the people who need to know second. A bare
+                  comment is not a next step when the state is what has to change.
+                - The item's own state picks the action — the same kind of item gets a different
+                  suggestion in a different state:
+                  · Jira issue assigned to the user, not started yet (To Do / Backlog / Open) →
+                    move it to In Progress, then tell the team it has been picked up.
+                  · Jira issue already in progress → write today's progress onto the issue.
+                  · Jira issue blocked → take it to whoever can unblock it.
+                  · Pull request waiting for the user's review → leave the review comment; when it
+                    has been waiting for days, remind the team as well.
+                  · Personal mail expecting an answer → prepare a reply draft, if a tool in the list
+                    above writes drafts; if none does, turn the request into a record.
+                  · Mail reporting something broken → open the record first, then tell the channel.
+                  · Meeting starting today → send the attendees a reminder.
+                - label: TURKISH, imperative, max 4 words, naming the NEXT STEP — "In Progress yap",
+                  "İncele ve yorumla", "Taslak cevap yaz" — never the tool's own name.
                 - Do not invent tool names. If nothing sensible applies, return an empty action list.
                 - Answer with JSON only, matching the schema. No prose.
                 """;
@@ -303,75 +343,288 @@ public class InsightService {
 
     // ---- deterministic fallback -------------------------------------------
 
-    /** No model, no problem: keyword rules that always produce a usable card. */
+    /**
+     * No model, no problem — and on the deployed instance this is the usual path, because
+     * the free-tier per-minute budget drops the call long before the working day is over.
+     * So the fallback has to hand out work, not describe it.
+     *
+     * <p>The previous version keyed on the source alone: every Jira row got "Yorum ekle",
+     * every GitHub row got "GitHub'a yorum yaz", and four of the five cards on the live
+     * screen carried the same sentence. A comment is a courtesy — it never moves the item.
+     * What decides the next step is the item's <em>state</em>: an issue nobody started needs
+     * starting, one already in flight needs today's progress written down, a review that has
+     * waited two days needs a reviewer rather than another polite note.
+     */
     Insight heuristic(BriefItem item, String projectKey) {
-        String text = item.text().toLowerCase(Locale.ROOT);
+        if ("event".equals(item.kind()) || "calendar".equals(item.source())) {
+            return meetingNext(item);
+        }
+        return switch (item.source() == null ? "" : item.source()) {
+            case "jira" -> jiraNext(item);
+            case "github" -> githubNext(item);
+            default -> mailNext(item, projectKey);
+        };
+    }
+
+    /** An issue with your name on it: where it stands decides what happens to it next. */
+    private Insight jiraNext(BriefItem item) {
+        String key = ref(item, "issueKey");
+        String handle = key.isBlank() ? item.title() : key;
+        String status = ref(item, "status");
+        String state = status.toLowerCase(Locale.ROOT);
+        boolean important = ref(item, "priority").toLowerCase(Locale.ROOT).contains("high");
         List<Action> actions = new ArrayList<>();
 
-        if ("event".equals(item.kind())) {
-            return new Insight(item.id(), "scheduling", "normal",
-                    "Bugünkü takvim kaydı: " + item.title() + ".", actions);
+        if (mentions(state, DONE_STATES)) {
+            return new Insight(item.id(), "fyi", "low",
+                    handle + " tamamlanmış görünüyor — bugün bir şey gerekmiyor.", List.of());
         }
+        if (mentions(state, BLOCKED_STATES)) {
+            jiraComment(actions, key, "Engeli kayda yaz",
+                    "Bu kayıt engelli. Devam edebilmek için gereken: ");
+            slack(actions, "Engeli ekibe taşı", handle + " engelli: " + item.title() + link(item));
+            return new Insight(item.id(), "request", "high",
+                    handle + " engelli — engeli kaldıracak kişiye bugün taşı.", capped(actions));
+        }
+        if (status.isBlank() || mentions(state, TODO_STATES)) {
+            transition(actions, key, "In Progress", "Başla: In Progress yap");
+            slack(actions, "Ekibe başladığını bildir",
+                    handle + " üzerinde çalışmaya başlıyorum: " + item.title() + link(item));
+            return new Insight(item.id(), "request", important ? "high" : "normal",
+                    handle + " sana atandı ve henüz başlanmadı — bugün başlat.", capped(actions));
+        }
+        int idle = daysWaiting(item.meta());
+        jiraComment(actions, key, "İlerlemeyi kayda yaz",
+                "Bugünkü ilerleme: " + item.title() + " üzerinde çalışıyorum. Son durum: ");
+        slack(actions, "Ekibe durum geç", handle + " durumu: " + item.title() + link(item));
+        return new Insight(item.id(), "request", important ? "high" : "normal",
+                handle + " " + status + " durumunda"
+                        + (idle >= 2 ? " ve " + idle + " gündür güncellenmedi" : "")
+                        + " — bugünkü ilerlemeyi yaz.", capped(actions));
+    }
 
-        boolean bug = mentions(text, BUG_WORDS);
-        boolean reply = mentions(text, REPLY_WORDS);
-        boolean meeting = mentions(text, MEETING_WORDS);
+    /** A review you owe somebody is a different job from a review somebody owes you. */
+    private Insight githubNext(BriefItem item) {
+        String repo = ref(item, "repo");
+        Object number = item.ref().getOrDefault("number", 0);
+        String handle = repo.isBlank() ? item.title() : repo + "#" + number;
+        String reason = ref(item, "reason");
+        int waiting = daysWaiting(item.meta());
+        String waited = waiting >= 1 ? " " + waiting + " gündür" : "";
+        List<Action> actions = new ArrayList<>();
 
-        String kind = bug ? "bug_report" : reply ? "needs_reply" : meeting ? "scheduling" : "fyi";
-        String urgency = bug ? "high" : reply ? "normal" : "low";
-        String summary = switch (kind) {
-            case "bug_report" -> "Bir hata bildirimi gibi görünüyor: " + item.title() + ".";
-            case "needs_reply" -> "Senden bir dönüş bekleniyor: " + item.title() + ".";
-            case "scheduling" -> "Takvimle ilgili bir konu: " + item.title() + ".";
-            default -> "Bilgilendirme: " + item.title() + ".";
-        };
-
-        // "Open a ticket" makes no sense for something that is already a ticket.
-        if (bug && !"jira".equals(item.source()) && has("jira.createIssue")) {
-            Map<String, Object> params = new LinkedHashMap<>();
-            params.put("projectKey", projectKey);
-            params.put("issueType", "Bug");
-            params.put("summary", item.title());
-            params.put("description", item.title() + "\n\nKaynak: " + item.source()
-                    + (item.url() == null || item.url().isBlank() ? "" : " — " + item.url()));
-            actions.add(new Action("jira.createIssue", "Jira ticket aç", params));
-        }
-        if ("jira".equals(item.source()) && has("jira.addComment")) {
-            Map<String, Object> params = new LinkedHashMap<>();
-            params.put("issueKey", String.valueOf(item.ref().getOrDefault("issueKey", "")));
-            params.put("body", "Relay: bugünkü brifingde öne çıktı.");
-            actions.add(new Action("jira.addComment", "Yorum ekle", params));
-        }
-        if ("github".equals(item.source()) && has("github.addComment")) {
-            Map<String, Object> params = new LinkedHashMap<>();
-            params.put("repo", String.valueOf(item.ref().getOrDefault("repo", "")));
-            params.put("number", item.ref().getOrDefault("number", 0));
-            params.put("body", "Relay: bugün bakıyorum.");
-            actions.add(new Action("github.addComment", "GitHub'a yorum yaz", params));
-        }
-        // A mail that wants an answer can be answered. The draft lands in Drafts unsent, so
-        // the suggestion offers the user's own next move rather than a ticket about it.
-        if ("gmail".equals(item.source()) && (reply || bug) && actions.size() < MAX_ACTIONS
-                && has("gmail.createDraft")) {
-            Map<String, Object> params = new LinkedHashMap<>();
-            params.put("to", String.valueOf(item.ref().getOrDefault("from", item.from())));
-            params.put("subject", "Re: " + item.title());
-            params.put("body", "Merhaba,\n\n\"" + item.title() + "\" konusunu aldım, bugün "
-                    + "içinde dönüş yapacağım.\n\nİyi çalışmalar,");
-            Object threadId = item.ref().get("threadId");
-            if (threadId != null && !String.valueOf(threadId).isBlank()) {
-                params.put("threadId", String.valueOf(threadId));
+        if ("review_requested".equals(reason)) {
+            githubComment(actions, repo, number, "İncele ve özet yaz",
+                    "\"" + item.title() + "\" değişikliğini inceledim. Özet:\n- \n\nKarar: ");
+            if (waiting >= 2) {
+                slack(actions, "Ekibe hatırlat",
+                        handle + waited + " review bekliyor: " + item.title() + link(item));
             }
-            actions.add(new Action("gmail.createDraft", "Taslak cevap yaz", params));
+            return new Insight(item.id(), "request", waiting >= 2 ? "high" : "normal",
+                    handle + waited + " senin review'unu bekliyor — incele ve kararını yaz.",
+                    capped(actions));
         }
-        if (actions.size() < MAX_ACTIONS && has("slack.postMessage") && (bug || reply)) {
-            Map<String, Object> params = new LinkedHashMap<>();
-            params.put("channel", "#engineering");
-            params.put("text", item.title() + (item.url() == null || item.url().isBlank()
-                    ? "" : " — " + item.url()));
-            actions.add(new Action("slack.postMessage", "Ekibe bildir", params));
+        if ("author".equals(reason)) {
+            slack(actions, "Review iste",
+                    handle + waited + " review bekliyor: " + item.title() + link(item));
+            githubComment(actions, repo, number, "Reviewer'a hatırlat",
+                    "Review için bakabilecek biri var mı? Bekleyen tek şey bu.");
+            return new Insight(item.id(), "request", "normal",
+                    "Senin PR'ın " + handle + waited + " review bekliyor — bir reviewer bul.",
+                    capped(actions));
         }
-        return new Insight(item.id(), kind, urgency, summary, actions);
+        boolean bug = mentions(item.text().toLowerCase(Locale.ROOT), BUG_WORDS);
+        githubComment(actions, repo, number, "Planını yorum olarak yaz",
+                "Bu kaydı üstleniyorum. Planım: ");
+        if (bug) {
+            slack(actions, "Kanala bildir", handle + ": " + item.title() + link(item));
+        }
+        return new Insight(item.id(), bug ? "bug_report" : "request", bug ? "high" : "normal",
+                handle + " sana atandı" + (waiting >= 2 ? " ve " + waiting + " gündür duruyor" : "")
+                        + " — nasıl ilerleyeceğini yaz.", capped(actions));
+    }
+
+    /** Mail splits three ways: something broke, someone is waiting on you, or neither. */
+    private Insight mailNext(BriefItem item, String projectKey) {
+        String text = item.text().toLowerCase(Locale.ROOT);
+        String who = item.from() == null || item.from().isBlank() ? "Gönderen" : item.from();
+        List<Action> actions = new ArrayList<>();
+
+        if (mentions(text, BUG_WORDS)) {
+            createIssue(actions, projectKey, item, "Jira kaydı aç");
+            slack(actions, "Kanala bildir", item.title() + link(item));
+            return new Insight(item.id(), "bug_report", "high",
+                    who + " bir arıza bildiriyor: " + item.title()
+                            + " — kaydı aç ve kanala haber ver.", capped(actions));
+        }
+        if (mentions(text, REPLY_WORDS)) {
+            if (!draft(actions, item, "Taslak cevap yaz", "Merhaba " + who + ",\n\n\""
+                    + item.title() + "\" konusunu aldım, bugün içinde dönüş yapacağım."
+                    + "\n\nİyi çalışmalar,")) {
+                // Nothing registered can write a draft yet. Rather than fall back to a
+                // courtesy action, turn the request into something that can be tracked.
+                createIssue(actions, projectKey, item, "Talebi kayda çevir");
+            }
+            return new Insight(item.id(), "needs_reply", "normal",
+                    who + " senden dönüş bekliyor: " + item.title() + " — cevabı bugün yaz.",
+                    capped(actions));
+        }
+        if (mentions(text, MEETING_WORDS)) {
+            draft(actions, item, "Uygunluğunu yaz", "Merhaba " + who + ",\n\n\"" + item.title()
+                    + "\" için bana uygun zamanlar:\n- \n\nİyi çalışmalar,");
+            return new Insight(item.id(), "scheduling", "normal",
+                    who + " bir zaman soruyor: " + item.title() + " — uygunluğunu bildir.",
+                    capped(actions));
+        }
+        return new Insight(item.id(), "fyi", "low", "Bilgilendirme: " + item.title() + ".", List.of());
+    }
+
+    /** A meeting starting today: the move that helps is telling the people who forgot. */
+    private Insight meetingNext(BriefItem item) {
+        String at = item.meta() == null || item.meta().isBlank() ? "bugün" : item.meta();
+        String where = ref(item, "meetingUrl");
+        List<Action> actions = new ArrayList<>();
+        slack(actions, "Katılımcılara hatırlat", "Hatırlatma: " + item.title() + " bugün " + at
+                + (where.isBlank() ? link(item) : " — " + where));
+        return new Insight(item.id(), "scheduling", "normal",
+                "Bugün " + at + ": " + item.title() + " — katılımcılara hatırlatma geç.",
+                capped(actions));
+    }
+
+    // ---- action builders --------------------------------------------------
+    // Each one is a no-op when its tool is not registered, so a half-connected workspace
+    // gets a shorter list rather than a button that dead-ends.
+
+    private void transition(List<Action> actions, String issueKey, String status, String label) {
+        if (issueKey.isBlank() || !has("jira.updateIssue")) {
+            return;
+        }
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("issueKey", issueKey);
+        params.put("status", status);
+        actions.add(new Action("jira.updateIssue", label, params));
+    }
+
+    private void jiraComment(List<Action> actions, String issueKey, String label, String body) {
+        if (issueKey.isBlank() || !has("jira.addComment")) {
+            return;
+        }
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("issueKey", issueKey);
+        params.put("body", body);
+        actions.add(new Action("jira.addComment", label, params));
+    }
+
+    private void githubComment(List<Action> actions, String repo, Object number, String label,
+                               String body) {
+        if (repo.isBlank() || !has("github.addComment")) {
+            return;
+        }
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("repo", repo);
+        params.put("number", number);
+        params.put("body", body);
+        actions.add(new Action("github.addComment", label, params));
+    }
+
+    private void slack(List<Action> actions, String label, String text) {
+        if (!has("slack.postMessage")) {
+            return;
+        }
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("channel", TEAM_CHANNEL);
+        params.put("text", text);
+        actions.add(new Action("slack.postMessage", label, params));
+    }
+
+    private void createIssue(List<Action> actions, String projectKey, BriefItem item, String label) {
+        // "Open a ticket" makes no sense for something that is already a ticket.
+        if ("jira".equals(item.source()) || !has("jira.createIssue")) {
+            return;
+        }
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("projectKey", projectKey);
+        params.put("issueType", "Bug");
+        params.put("summary", item.title());
+        params.put("description", item.title() + "\n\nKaynak: " + item.source()
+                + (item.url() == null || item.url().isBlank() ? "" : " — " + item.url()));
+        actions.add(new Action("jira.createIssue", label, params));
+    }
+
+    /**
+     * Offer a reply draft — if anything registered can write one.
+     *
+     * <p>The tool is found in the registry by what it does, not by a name written down here:
+     * the mail draft tool is being built on another branch (#27), and the day it registers
+     * itself this suggestion appears without anyone editing this file. Its parameters are
+     * seeded from the tool's own schema for the same reason.
+     *
+     * @return whether a draft action was added
+     */
+    private boolean draft(List<Action> actions, BriefItem item, String label, String body) {
+        Tool tool = draftTool();
+        if (tool == null) {
+            return false;
+        }
+        Map<String, Object> candidates = new LinkedHashMap<>();
+        candidates.put("to", item.ref().getOrDefault("from", item.from()));
+        candidates.put("subject", "Re: " + item.title());
+        candidates.put("body", body);
+        candidates.put("threadId", item.ref().get("threadId"));
+        candidates.put("messageId", item.ref().get("messageId"));
+        actions.add(new Action(tool.name(), label, fit(tool, candidates)));
+        return true;
+    }
+
+    /** A registered mail tool that writes a draft instead of sending anything. */
+    private Tool draftTool() {
+        for (Tool tool : tools.all()) {
+            String name = tool.name().toLowerCase(Locale.ROOT);
+            if (name.startsWith("gmail.") && name.contains("draft")) {
+                return tool;
+            }
+        }
+        return null;
+    }
+
+    /** Only the parameters the tool declares — a seed, never a guess at somebody's schema. */
+    private static Map<String, Object> fit(Tool tool, Map<String, Object> candidates) {
+        JsonNode properties = tool.schema().path("properties");
+        if (!properties.isObject()) {
+            return candidates;
+        }
+        Map<String, Object> kept = new LinkedHashMap<>();
+        candidates.forEach((key, value) -> {
+            if (properties.has(key) && value != null && !String.valueOf(value).isBlank()) {
+                kept.put(key, value);
+            }
+        });
+        return kept;
+    }
+
+    // ---- small helpers ----------------------------------------------------
+
+    private static List<Action> capped(List<Action> actions) {
+        return actions.size() <= MAX_ACTIONS ? List.copyOf(actions)
+                : List.copyOf(actions.subList(0, MAX_ACTIONS));
+    }
+
+    private static String ref(BriefItem item, String field) {
+        Object value = item.ref().get(field);
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private static String link(BriefItem item) {
+        return item.url() == null || item.url().isBlank() ? "" : " — " + item.url();
+    }
+
+    /** {@code "3g önce"} → {@code 3}. Anything younger than a day is 0. */
+    static int daysWaiting(String meta) {
+        if (meta == null) {
+            return 0;
+        }
+        Matcher matcher = DAYS_AGO.matcher(meta.trim());
+        return matcher.matches() ? Integer.parseInt(matcher.group(1)) : 0;
     }
 
     private boolean has(String toolName) {
