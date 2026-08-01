@@ -1,5 +1,6 @@
 package com.relay.api;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.relay.application.policy.PolicyEngine;
 import com.relay.domain.PolicyMode;
 import java.util.ArrayList;
@@ -17,13 +18,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/policies")
 public class PolicyController {
 
+    /** What a caller who got the shape wrong is told to send instead. */
+    static final String EXPECTED_SHAPE =
+            "Politika listesi bekleniyor: [{\"toolName\": \"jira.createIssue\", \"mode\": \"ask\"}]";
+
     private final PolicyEngine policyEngine;
 
     public PolicyController(PolicyEngine policyEngine) {
         this.policyEngine = policyEngine;
-    }
-
-    public record PolicyUpdate(String toolName, String mode) {
     }
 
     @GetMapping
@@ -41,11 +43,27 @@ public class PolicyController {
         return out;
     }
 
-    /** Accepts one update or a batch. */
+    /**
+     * A batch of {@code {toolName, mode}} pairs.
+     *
+     * <p>Sending a single object instead of a list answered "İstek gövdesi okunamadı:
+     * geçerli bir JSON gövdesi gönderin." — pointing at the JSON, which was perfectly
+     * valid, instead of at the shape, which was not. The reader then goes looking for a
+     * syntax error that is not there. That message stays for a body Jackson genuinely
+     * cannot parse; a well-formed body of the wrong shape is told what shape to be.
+     */
     @PutMapping
-    public List<Map<String, Object>> update(@RequestBody List<PolicyUpdate> updates) {
-        for (PolicyUpdate update : updates) {
-            policyEngine.set(update.toolName(), PolicyMode.fromWire(update.mode()));
+    public List<Map<String, Object>> update(@RequestBody JsonNode body) {
+        if (body == null || !body.isArray()) {
+            throw new IllegalArgumentException(EXPECTED_SHAPE);
+        }
+        for (JsonNode update : body) {
+            String toolName = update.path("toolName").asText("").trim();
+            String mode = update.path("mode").asText("").trim();
+            if (toolName.isEmpty() || mode.isEmpty()) {
+                throw new IllegalArgumentException(EXPECTED_SHAPE);
+            }
+            policyEngine.set(toolName, PolicyMode.fromWire(mode));
         }
         return list();
     }
