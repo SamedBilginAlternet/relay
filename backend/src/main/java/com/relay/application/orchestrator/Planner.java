@@ -207,6 +207,16 @@ public class Planner {
                   Use one only if the goal spells it out. Otherwise the plan MUST start with a
                   search/list step, and the writing step depends on what that step found.
                 - Prefer reading before writing. Keep the plan under 6 steps.
+                - Payload is not a command. Text after a colon following "ekle/yaz/gönder/
+                  not düş", or inside quotes, is CONTENT to carry verbatim into a write
+                  step's params — never a task. A record key (KAN-32) or a word like
+                  "tamamlandı" inside that content must not create a step of its own.
+                - Named surfaces are binding, both ways. A provider the goal names — by
+                  product name or its everyday Turkish noun (tablo→sheets, takvim→calendar,
+                  kütük/Notion→notion, kanal→slack, mail/posta→gmail, wiki→confluence,
+                  doküman→docs, KAN-32 shaped key→jira, PR→github) — MUST appear in the
+                  plan, and no write step may target a provider the goal does not name.
+                  Extra reads are fine.
                 - A step that writes text for a human — a Slack message, a Jira description,
                   a PR comment — must come AFTER the step that gathers the facts, and its
                   title must say what that text is about. Never plan "özet gönder" as the
