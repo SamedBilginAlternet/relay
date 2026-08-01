@@ -25,6 +25,10 @@ public class PanelService {
      * A reject reason is a sentence, not a metric; past the first page of them the list
      * stops being readable and starts being a download. The newest ones are the ones a
      * demo is asked about.
+     *
+     * <p>Applied to each list separately, on purpose. A single shared limit would let one
+     * afternoon of cancelled runs push every real refusal off the page — which is exactly
+     * the failure the split exists to end.
      */
     private static final int REJECTION_LIMIT = 50;
 
@@ -76,9 +80,11 @@ public class PanelService {
                         share(gate.gated(), gate.steps()),
                         gate.approved(),
                         gate.rejected(),
+                        gate.cancelled(),
                         gate.pending(),
                         share(gate.approved(), gate.approved() + gate.rejected())),
                 stats.rejections(from, to, REJECTION_LIMIT),
+                stats.cancellations(from, to, REJECTION_LIMIT),
                 stats.toolUsage(from, to),
                 new PanelReport.Totals(totals.tokens(), totals.usd()));
     }

@@ -200,6 +200,14 @@
   text-decoration: none;
   transition: background-color 160ms ease-out, transform 160ms ease-out;
 }
+/*
+  Steps closed because a run was stopped. Same shape as a refusal — the reader is
+  comparing two piles that used to be one — but the red edge belongs to the pile that
+  carries a human decision, and this one does not.
+*/
+.panel-reject--muted {
+  border-left-color: var(--fg-faint);
+}
 .panel-reject:hover {
   background: var(--bg-subtle);
 }

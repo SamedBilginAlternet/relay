@@ -65,7 +65,7 @@ class PanelReportTest {
     @Test
     void the_approval_rate_ignores_the_steps_nobody_has_answered_yet() {
         // 20 steps, 8 of them stopped at the gate: 3 yes, 1 no, 4 still waiting.
-        stats.gate = new PanelStatsRepository.Gate(20, 8, 3, 1, 4);
+        stats.gate = new PanelStatsRepository.Gate(20, 8, 3, 1, 0, 4);
 
         PanelReport.Approvals approvals = panel.report(null, null).approvals();
 
@@ -75,11 +75,47 @@ class PanelReportTest {
     }
 
     @Test
+    void a_stopped_run_does_not_lower_the_approval_rate_it_never_took_part_in() {
+        // The live shape on 1 August: 50 approvals, 6 "rejections" — of which 4 were one
+        // person pressing Durdur on four runs. Reported as 89.3%, which is a number about
+        // cancellations, not about the gate.
+        stats.gate = new PanelStatsRepository.Gate(190, 85, 50, 2, 4, 29);
+
+        PanelReport.Approvals approvals = panel.report(null, null).approvals();
+
+        assertThat(approvals.rejected()).isEqualTo(2);
+        assertThat(approvals.cancelled()).isEqualTo(4);
+        // 50 / 52, not 50 / 56. The honest number is the worse one for the pitch, and it
+        // is the one that gets printed: removing it was the alternative issue #54 refused.
+        assertThat(approvals.approvalRate()).isCloseTo(50d / 52d, within(1e-9));
+        assertThat(approvals.approvalRate()).isNotCloseTo(50d / 56d, within(1e-3));
+    }
+
+    @Test
+    void a_cancelled_runs_write_offs_are_kept_out_of_the_reasons_list() {
+        stats.rejections.add(new PanelStatsRepository.Rejection(RUN, STEP, "Özeti gönder", "done",
+                "Slack'e mesaj gönder", "slack.postMessage", "Kanal #relay-qa olmalı",
+                Instant.parse("2026-07-30T14:12:00Z")));
+        stats.cancellations.add(new PanelStatsRepository.Rejection(RUN, STEP, "Özeti gönder", "cancelled",
+                "Jira kaydını güncelle", "jira.updateIssue", "akış iptal edildi (qa@relay)",
+                Instant.parse("2026-07-30T15:00:00Z")));
+
+        PanelReport report = panel.report(null, null);
+
+        // The list that has to prove the gate is worth its friction holds only refusals.
+        assertThat(report.rejections()).singleElement()
+                .satisfies(line -> assertThat(line.reason()).isEqualTo("Kanal #relay-qa olmalı"));
+        assertThat(report.cancellations()).singleElement()
+                .satisfies(line -> assertThat(line.stepTitle()).isEqualTo("Jira kaydını güncelle"));
+    }
+
+    @Test
     void an_empty_window_reports_zero_instead_of_an_invented_shape() {
         PanelReport report = panel.report(null, null);
 
         assertThat(report.runs().total()).isZero();
         assertThat(report.rejections()).isEmpty();
+        assertThat(report.cancellations()).isEmpty();
         assertThat(report.tools()).isEmpty();
         assertThat(report.totals().tokens()).isZero();
         // An undefined ratio is zero, never NaN — NaN is not JSON and would blank the screen.
@@ -155,8 +191,9 @@ class PanelReportTest {
 
         private final List<Count> statusCounts = new ArrayList<>();
         private final List<Rejection> rejections = new ArrayList<>();
+        private final List<Rejection> cancellations = new ArrayList<>();
         private final List<ToolUsage> tools = new ArrayList<>();
-        private Gate gate = new Gate(0, 0, 0, 0, 0);
+        private Gate gate = new Gate(0, 0, 0, 0, 0, 0);
         private long runs;
         private Instant askedFrom;
         private Instant askedTo;
@@ -183,6 +220,12 @@ class PanelReportTest {
         public List<Rejection> rejections(Instant from, Instant to, int limit) {
             record(from, to);
             return rejections;
+        }
+
+        @Override
+        public List<Rejection> cancellations(Instant from, Instant to, int limit) {
+            record(from, to);
+            return cancellations;
         }
 
         @Override

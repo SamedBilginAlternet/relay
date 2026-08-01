@@ -19,8 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code GET /api/panel?from=…&to=…} — the flow panel behind one request.
  *
  * <p>Read-only, session-guarded like the rest of {@code /api/**}, and it never touches
- * the model: the whole answer is five aggregate statements. That is the property worth
- * protecting — the number that says what a run costs must not itself cost a run.
+ * the model: the whole answer is a handful of aggregate statements. That is the property
+ * worth protecting — the number that says what a run costs must not itself cost a run.
  *
  * <p>Both parameters are optional; leaving them out means the last seven days.
  */
@@ -55,27 +55,16 @@ public class PanelController {
         gate.put("gatedRatio", approvals.gatedRatio());
         gate.put("approved", approvals.approved());
         gate.put("rejected", approvals.rejected());
+        gate.put("cancelled", approvals.cancelled());
         gate.put("pending", approvals.pending());
         gate.put("approvalRate", approvals.approvalRate());
         body.put("approvals", gate);
 
-        List<Map<String, Object>> rejections = new ArrayList<>();
-        for (PanelStatsRepository.Rejection rejection : report.rejections()) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            // runId first: the point of the list is that every line is a door back to the record.
-            item.put("runId", rejection.runId() == null ? null : rejection.runId().toString());
-            item.put("stepId", rejection.stepId() == null ? null : rejection.stepId().toString());
-            item.put("runGoal", rejection.runGoal());
-            // A cancelled run writes its unfinished steps off as rejected too; the reader
-            // needs to see that from the line itself, not infer it from the wording.
-            item.put("runStatus", rejection.runStatus());
-            item.put("stepTitle", rejection.stepTitle());
-            item.put("toolName", rejection.toolName());
-            item.put("reason", rejection.reason());
-            item.put("at", iso(rejection.at()));
-            rejections.add(item);
-        }
-        body.put("rejections", rejections);
+        // Two lists, not one filtered on the client. Stopping a run closes its unfinished
+        // steps as rejected, and those write-offs used to outnumber the real refusals on
+        // the one list that has to show the gate earning its friction (#54).
+        body.put("rejections", lines(report.rejections()));
+        body.put("cancellations", lines(report.cancellations()));
 
         List<Map<String, Object>> tools = new ArrayList<>();
         for (PanelStatsRepository.ToolUsage usage : report.tools()) {
@@ -94,6 +83,27 @@ public class PanelController {
         body.put("totals", totals);
 
         return body;
+    }
+
+    /** Both lists carry the same shape — a reader comparing them must not have to re-learn it. */
+    private static List<Map<String, Object>> lines(List<PanelStatsRepository.Rejection> rows) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (PanelStatsRepository.Rejection row : rows) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            // runId first: the point of the list is that every line is a door back to the record.
+            item.put("runId", row.runId() == null ? null : row.runId().toString());
+            item.put("stepId", row.stepId() == null ? null : row.stepId().toString());
+            item.put("runGoal", row.runGoal());
+            // A refusal on a run that was cancelled later is still a refusal, and it stays
+            // in the refusal list — the run's status says so on the line instead.
+            item.put("runStatus", row.runStatus());
+            item.put("stepTitle", row.stepTitle());
+            item.put("toolName", row.toolName());
+            item.put("reason", row.reason());
+            item.put("at", iso(row.at()));
+            out.add(item);
+        }
+        return out;
     }
 
     private static String iso(Instant instant) {

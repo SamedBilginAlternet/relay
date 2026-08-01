@@ -19,6 +19,7 @@ public record PanelReport(
         Runs runs,
         Approvals approvals,
         List<PanelStatsRepository.Rejection> rejections,
+        List<PanelStatsRepository.Rejection> cancellations,
         List<PanelStatsRepository.ToolUsage> tools,
         Totals totals) {
 
@@ -32,10 +33,18 @@ public record PanelReport(
 
     /**
      * @param gatedRatio   share of steps that stopped for a human, 0..1
-     * @param approvalRate approved / (approved + rejected), 0..1; 0 when nothing was decided
+     * @param cancelled    steps written off when somebody stopped the whole run. Kept out
+     *                     of {@code rejected} and out of {@code approvalRate}: nobody
+     *                     answered them, so counting them as refusals made the gate look
+     *                     more discriminating than it is
+     * @param approvalRate approved / (approved + rejected), 0..1; 0 when nothing was
+     *                     decided. Dropping the cancellations out of the denominator moves
+     *                     this number <em>up</em> — that is the honest direction and it is
+     *                     the uncomfortable one, which is why it is still on the screen
      */
     public record Approvals(long steps, long gated, double gatedRatio,
-                            long approved, long rejected, long pending, double approvalRate) {
+                            long approved, long rejected, long cancelled, long pending,
+                            double approvalRate) {
     }
 
     public record Totals(long tokens, double usd) {

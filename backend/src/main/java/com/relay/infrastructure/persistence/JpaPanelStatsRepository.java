@@ -38,6 +38,22 @@ public class JpaPanelStatsRepository implements PanelStatsRepository {
      */
     private static final String RUN_WINDOW = "\n where r.created_at >= :from and r.created_at < :to\n";
 
+    /**
+     * "This step was closed by someone stopping the run, not by someone refusing it."
+     *
+     * <p>Two conditions, and both are needed. {@code Coordinator.stop} is the only code
+     * that writes this sentence, and it writes it only while finishing the run as
+     * {@code cancelled} — so a row matching both was produced there. Either half alone is
+     * not enough: a run can be cancelled long after a human typed a real refusal on one of
+     * its steps, and a person is free to type anything into the reject box.
+     *
+     * <p>This is still a literal match on a sentence our own code writes; see
+     * {@link PanelStatsRepository#CANCEL_REASON_PREFIX} for why that is acceptable here
+     * and what would replace it.
+     */
+    private static final String CANCELLED_OFF =
+            "s.decision = 'rejected' and r.status = 'cancelled' and s.reject_reason like :cancelReason";
+
     private final EntityManager em;
 
     public JpaPanelStatsRepository(EntityManager em) {
@@ -78,36 +94,59 @@ public class JpaPanelStatsRepository implements PanelStatsRepository {
           all and is only recognisable by its status. Counting either alone under-reports
           the very number the screen exists to show.
         */
-        Object[] cells = (Object[]) window(em.createNativeQuery("""
-                select count(*),
-                       count(*) filter (where s.decision in ('approved', 'rejected')
-                                           or s.status = 'awaiting_approval'),
-                       count(*) filter (where s.decision = 'approved'),
-                       count(*) filter (where s.decision = 'rejected'),
-                       count(*) filter (where s.status = 'awaiting_approval')
-                  from steps s
-                  join runs r on r.id = s.run_id""" + RUN_WINDOW), from, to).getSingleResult();
-        return new Gate(number(cells[0]), number(cells[1]), number(cells[2]), number(cells[3]), number(cells[4]));
+        /*
+          The refusal bucket and the cancellation bucket are cut from the same column and
+          are disjoint by construction — `rejected` carries `not (…)` of exactly the
+          predicate `cancelled` carries. That is what keeps the three numbers the screen
+          prints adding up to the decisions that were actually made.
+        */
+        String sql = "select count(*),\n"
+                + " count(*) filter (where s.decision in ('approved', 'rejected')"
+                + " or s.status = 'awaiting_approval'),\n"
+                + " count(*) filter (where s.decision = 'approved'),\n"
+                + " count(*) filter (where s.decision = 'rejected' and not (" + CANCELLED_OFF + ")),\n"
+                + " count(*) filter (where " + CANCELLED_OFF + "),\n"
+                + " count(*) filter (where s.status = 'awaiting_approval')\n"
+                + " from steps s join runs r on r.id = s.run_id" + RUN_WINDOW;
+        Object[] cells = (Object[]) cancelPattern(window(em.createNativeQuery(sql), from, to)).getSingleResult();
+        return new Gate(number(cells[0]), number(cells[1]), number(cells[2]), number(cells[3]),
+                number(cells[4]), number(cells[5]));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Rejection> rejections(Instant from, Instant to, int limit) {
         /*
-          Both halves of the `or` are needed. `decision = 'rejected'` catches a refusal
-          where the person did not type anything, and `reject_reason is not null` catches
-          a reason written before the decision column was settled. Dropping either one
-          loses a real refusal from a screen whose whole point is that none are lost.
+          Both halves of the first `or` are needed. `decision = 'rejected'` catches a
+          refusal where the person did not type anything, and `reject_reason is not null`
+          catches a reason written before the decision column was settled. Dropping either
+          one loses a real refusal from a screen whose whole point is that none are lost.
+
+          The `not (…)` is what issue #54 is about: four of the six lines on the live panel
+          were one person pressing Durdur, and a list of refusals that is mostly not
+          refusals cannot prove the gate does anything.
         */
-        Query query = window(em.createNativeQuery("""
+        return list(from, to, limit,
+                "(s.decision = 'rejected' or s.reject_reason is not null) and not (" + CANCELLED_OFF + ")");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Rejection> cancellations(Instant from, Instant to, int limit) {
+        return list(from, to, limit, CANCELLED_OFF);
+    }
+
+    /** The two lists differ by one predicate; everything else about them must not drift. */
+    private List<Rejection> list(Instant from, Instant to, int limit, String predicate) {
+        Query query = cancelPattern(window(em.createNativeQuery("""
                 select s.run_id, s.id, r.goal, r.status, s.title, s.tool_name, s.reject_reason,
                        coalesce(s.finished_at, s.started_at, r.created_at) as decided_at
                   from steps s
-                  join runs r on r.id = s.run_id""" + RUN_WINDOW + """
-                   and (s.decision = 'rejected' or s.reject_reason is not null)
+                  join runs r on r.id = s.run_id""" + RUN_WINDOW + "   and (" + predicate + """
+                )
                  order by decided_at desc, s.ordinal desc
                  limit :limit
-                """), from, to);
+                """), from, to));
         query.setParameter("limit", Math.max(1, limit));
         List<Rejection> out = new ArrayList<>();
         for (Object row : query.getResultList()) {
@@ -148,6 +187,15 @@ public class JpaPanelStatsRepository implements PanelStatsRepository {
 
     private static Query window(Query query, Instant from, Instant to) {
         return query.setParameter("from", from).setParameter("to", to);
+    }
+
+    /**
+     * Bound rather than inlined. The sentence carries a Turkish dotless ı and, when the
+     * actor is known, an e-mail address in brackets — building that into the SQL text
+     * would be an injection hole in the one query on this screen that reads user input.
+     */
+    private static Query cancelPattern(Query query) {
+        return query.setParameter("cancelReason", PanelStatsRepository.CANCEL_REASON_PREFIX + "%");
     }
 
     /**

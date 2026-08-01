@@ -72,10 +72,12 @@ function normalize(raw: unknown): PanelReport {
       gatedRatio: num(approvals.gatedRatio),
       approved: num(approvals.approved),
       rejected: num(approvals.rejected),
+      cancelled: num(approvals.cancelled),
       pending: num(approvals.pending),
       approvalRate: num(approvals.approvalRate),
     },
     rejections: Array.isArray(r.rejections) ? r.rejections.map(normalizeRejection) : [],
+    cancellations: Array.isArray(r.cancellations) ? r.cancellations.map(normalizeRejection) : [],
     tools: Array.isArray(r.tools) ? r.tools.map(normalizeTool) : [],
     totals: { tokens: num(totals.tokens), costUsd: num(totals.costUsd) },
   };
@@ -131,9 +133,11 @@ class MockPanelSource implements PanelSource {
         gated: 11,
         gatedRatio: 11 / 46,
         approved: 6,
-        rejected: 3,
+        rejected: 2,
+        cancelled: 1,
         pending: 2,
-        approvalRate: 6 / 9,
+        // 6 / (6 + 2). The cancelled step is nobody's decision, so it is in neither half.
+        approvalRate: 6 / 8,
       },
       rejections: [
         {
@@ -156,6 +160,8 @@ class MockPanelSource implements PanelSource {
           reason: 'Metin müşteriye kapalı bilgi içeriyor.',
           at: day(3),
         },
+      ],
+      cancellations: [
         {
           runId: '00000000-0000-0000-0000-0000000000a3',
           stepId: '00000000-0000-0000-0000-0000000000b3',
@@ -163,7 +169,7 @@ class MockPanelSource implements PanelSource {
           runStatus: 'cancelled',
           stepTitle: 'GitHub issue’suna yorum ekle',
           toolName: 'github.addComment',
-          reason: null,
+          reason: 'akış iptal edildi (demo@relay)',
           at: day(5),
         },
       ],

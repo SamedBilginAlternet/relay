@@ -7,7 +7,7 @@ import { LoadError } from '../components/LoadError';
 import { getPanelSource } from '../data/PanelSource';
 import { formatTokens, formatUsd } from '../lib/format';
 import { enterProps } from '../lib/motion';
-import type { PanelRange, PanelReport } from '../types/panel';
+import type { PanelRange, PanelRejection, PanelReport } from '../types/panel';
 import '../styles/panel.css';
 import '../styles/screens.css';
 
@@ -275,6 +275,13 @@ export function PanelScreen() {
                         display: String(report.approvals.rejected),
                       },
                       {
+                        key: 'cancelled',
+                        label: 'Akış durdurulduğu için kapandı',
+                        color: 'var(--fg-muted)',
+                        value: report.approvals.cancelled,
+                        display: String(report.approvals.cancelled),
+                      },
+                      {
                         key: 'pending',
                         label: 'Kararını bekliyor',
                         color: 'var(--warn)',
@@ -282,7 +289,7 @@ export function PanelScreen() {
                         display: String(report.approvals.pending),
                       },
                     ]}
-                    caption={`Onaya düşen ${report.approvals.gated} adım, kararlarına göre.`}
+                    caption={`Onaya düşen ${report.approvals.gated} adım. "Akış durdurulduğu için kapandı" bir insan kararı değil — onay oranı bu adımları saymaz.`}
                   />
                 )}
               </motion.section>
@@ -320,40 +327,48 @@ export function PanelScreen() {
               <h2 className="t-label" id="panel-rejections-h">
                 Red gerekçeleri
               </h2>
-              {report.rejections.length === 0 ? (
-                <p className="t-caption panel-note">
-                  <MessageSquareX size={14} aria-hidden />
-                  Bu aralıkta reddedilen adım yok.
-                </p>
-              ) : (
-                <ul className="panel-rejects">
-                  {report.rejections.map((rejection) => (
-                    <li key={rejection.stepId}>
-                      <a className="panel-reject" href={`#/history/${rejection.runId}`}>
-                        <span className="panel-reject__reason">
-                          {rejection.reason ?? 'Gerekçe yazılmadan reddedildi.'}
-                        </span>
-                        <span className="panel-reject__meta">
-                          <span className="panel-reject__step">{rejection.stepTitle ?? 'Adım'}</span>
-                          {rejection.toolName && <code className="t-mono">{rejection.toolName}</code>}
-                          <span>{panelDate(rejection.at, true)}</span>
-                          {/*
-                            Cancelling a run writes its unfinished steps off as rejected
-                            too, and the database keeps no mark that separates the two.
-                            Rather than guess from the wording, say which run this came
-                            from and what became of it.
-                          */}
-                          {rejection.runStatus === 'cancelled' && (
-                            <span className="panel-reject__tag">iptal edilen akış</span>
-                          )}
-                        </span>
-                        {rejection.runGoal && <span className="panel-reject__goal">{rejection.runGoal}</span>}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <DecisionList
+                lines={report.rejections}
+                empty="Bu aralıkta reddedilen adım yok."
+                fallbackReason="Gerekçe yazılmadan reddedildi."
+                /*
+                  A refusal on a run that somebody stopped later is still a refusal, so it
+                  stays here — with a tag saying where it ended up, not moved out of the
+                  list that has to carry the gate's evidence.
+                */
+                tagCancelledRuns
+              />
             </motion.section>
+
+            {/*
+              Its own block, and that is the whole point of #54. These lines used to fill
+              "Red gerekçeleri": four of six were one person pressing Durdur, so the one
+              list that proves the approval gate earns its friction was mostly not about
+              the gate at all. Nothing is hidden — the count is on the bar chart above and
+              every line is still one click from its run.
+            */}
+            {report.cancellations.length > 0 && (
+              <motion.section
+                className="card panel-card"
+                aria-labelledby="panel-cancels-h"
+                {...enterProps(5, reduce)}
+              >
+                <h2 className="t-label" id="panel-cancels-h">
+                  Durdurulan akışlarda kapanan adımlar
+                </h2>
+                <p className="t-caption panel-note">
+                  <CircleSlash size={14} aria-hidden />
+                  Bir akış durdurulduğunda tamamlanmamış adımları reddedilmiş olarak kapanır. Bunlar
+                  kullanıcının o adım hakkında verdiği bir karar değil; onay oranına da girmezler.
+                </p>
+                <DecisionList
+                  lines={report.cancellations}
+                  empty="Bu aralıkta durdurulan akış yok."
+                  fallbackReason="Akış durduruldu."
+                  muted
+                />
+              </motion.section>
+            )}
           </>
         )}
       </div>
@@ -362,6 +377,60 @@ export function PanelScreen() {
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * One list shape for both "Red gerekçeleri" and "Durdurulan akışlarda kapanan adımlar".
+ *
+ * <p>They are deliberately identical to read: the reader is being asked to compare two
+ * piles that used to be one, and a different card for each would make the split look
+ * like a judgement about which pile matters. Every line stays a link to its run —
+ * a sentence nobody can check is an anecdote.
+ */
+function DecisionList({
+  lines,
+  empty,
+  fallbackReason,
+  tagCancelledRuns = false,
+  muted = false,
+}: {
+  lines: PanelRejection[];
+  empty: string;
+  fallbackReason: string;
+  tagCancelledRuns?: boolean;
+  muted?: boolean;
+}) {
+  if (lines.length === 0) {
+    return (
+      <p className="t-caption panel-note">
+        <MessageSquareX size={14} aria-hidden />
+        {empty}
+      </p>
+    );
+  }
+  return (
+    <ul className="panel-rejects">
+      {lines.map((line) => (
+        <li key={line.stepId}>
+          <a
+            className={muted ? 'panel-reject panel-reject--muted' : 'panel-reject'}
+            href={`#/history/${line.runId}`}
+          >
+            <span className="panel-reject__reason">{line.reason ?? fallbackReason}</span>
+            <span className="panel-reject__meta">
+              <span className="panel-reject__step">{line.stepTitle ?? 'Adım'}</span>
+              {line.toolName && <code className="t-mono">{line.toolName}</code>}
+              <span>{panelDate(line.at, true)}</span>
+              {tagCancelledRuns && line.runStatus === 'cancelled' && (
+                <span className="panel-reject__tag">akış sonradan durduruldu</span>
+              )}
+            </span>
+            {line.runGoal && <span className="panel-reject__goal">{line.runGoal}</span>}
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function Kpi({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
