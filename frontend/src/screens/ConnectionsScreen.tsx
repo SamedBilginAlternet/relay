@@ -27,7 +27,7 @@ type FieldDef = {
 };
 
 /** Which of `BrandMark`'s marks a provider is drawn with. Google is two products. */
-type MarkName = 'jira' | 'github' | 'gmail' | 'calendar' | 'slack';
+type MarkName = 'jira' | 'github' | 'gmail' | 'calendar' | 'slack' | 'notion';
 
 type ProviderDef = {
   provider: Provider;
@@ -114,6 +114,43 @@ export const PROVIDERS: ProviderDef[] = [
         hint: 'api.slack.com › OAuth & Permissions › Bot User OAuth Token',
       },
       { key: 'defaultChannel', label: 'Varsayılan kanal (opsiyonel)', placeholder: '#dev-sprint' },
+    ],
+  },
+  /*
+    The one provider on this shelf that is not a developer tool, and the reason
+    the shelf stopped reading as one. Everything above it is a sprint board, a
+    repository or a chat channel; a lawyer, a consultant and an operations
+    manager all keep their work in this one.
+
+    The hint under the database field carries the whole setup trap, spelled out
+    rather than linked: an integration sees only the pages that were explicitly
+    shared with it, and a page that was not shared answers exactly like a page
+    that does not exist. Every first run that skips that step fails, and it
+    fails with a message about an id — which is the wrong thing to go and check.
+  */
+  {
+    provider: 'notion',
+    title: 'Notion',
+    blurb: 'Kararı, notu, özeti bir sayfaya yazar — işi takip etmeyenlerin okuduğu yer.',
+    marks: ['notion'],
+    console: { href: 'https://www.notion.so/my-integrations', label: 'Notion integration’ları' },
+    fields: [
+      {
+        key: 'token',
+        label: 'Integration token',
+        placeholder: 'ntn_…',
+        secret: true,
+        hint: 'notion.so/my-integrations › New integration › Internal Integration Secret',
+      },
+      {
+        key: 'parentDatabaseId',
+        label: 'Varsayılan veritabanı (opsiyonel)',
+        placeholder: '2f0a1b9c4d5e4f60...',
+        hint:
+          'Veritabanını Notion’da açın; adres çubuğundaki 32 karakterlik kimlik budur. ' +
+          'ÖNEMLİ: aynı sayfada sağ üstteki ••• → Connections menüsünden bu integration’ı ' +
+          'ekleyin. Paylaşılmayan bir sayfayı Notion, token doğru olsa bile yok sayar.',
+      },
     ],
   },
 ];

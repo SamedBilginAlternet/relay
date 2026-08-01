@@ -383,6 +383,7 @@ public class BriefService {
             case "github" -> "GitHub";
             case "jira" -> "Jira";
             case "slack" -> "Slack";
+            case "notion" -> "Notion";
             default -> provider == null || provider.isBlank() ? "Entegrasyon" : provider;
         };
     }

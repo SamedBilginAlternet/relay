@@ -235,7 +235,7 @@ public class DigestService {
      * opens "Jira: bugün üç kayıt var" is prose and an id is not.
      */
     private static final Pattern MACHINE_HANDLE = Pattern.compile(
-            "(?iu)\\b(?:item)?id\\s*=|\\b(?:github-pr|github-issue|github|gmail|jira|calendar|slack):\\S");
+            "(?iu)\\b(?:item)?id\\s*=|\\b(?:github-pr|github-issue|github|gmail|jira|calendar|slack|notion):\\S");
 
     /** The field names of the prompt's own item lines, echoed back instead of read. */
     private static final Pattern PROMPT_FIELD = Pattern.compile(

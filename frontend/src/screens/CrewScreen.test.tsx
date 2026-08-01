@@ -18,8 +18,10 @@ import { parseHash } from '../lib/router';
  *   <li>An id the interface has no Turkish word for gets one invented. The
  *       whole edge of this product is that it does not put a costume on
  *       something with nothing behind it, and a screen that renders
- *       `notion-agent` as "Notion Uzmanı" before a Notion tool exists is doing
- *       exactly that.
+ *       `linear-agent` as "Linear Uzmanı" before a Linear tool exists is doing
+ *       exactly that. (This used to be written with Notion, until Notion became
+ *       a provider Relay actually ships — which is the whole point of picking
+ *       the stand-in from the products it does not have.)
  * </ul>
  *
  * <p>The third test is the one the design turns on: the authority line is
@@ -119,22 +121,22 @@ it('a_member_id_with_no_turkish_name_is_printed_exactly_as_it_arrived', async ()
     core: [],
     members: [
       member({
-        id: 'notion-agent',
-        provider: 'notion',
-        connectionProvider: 'notion',
+        id: 'linear-agent',
+        provider: 'linear',
+        connectionProvider: 'linear',
         connected: false,
         toolCount: 1,
         auto: 0,
         ask: 1,
-        tools: [{ name: 'notion.createPage', risk: 'write', mode: 'ask', overridden: false }],
+        tools: [{ name: 'linear.createIssue', risk: 'write', mode: 'ask', overridden: false }],
       }),
     ],
   };
 
   render(<CrewScreen />);
 
-  expect(await screen.findByText('notion-agent')).toBeTruthy();
-  expect(screen.queryByText(/Notion Uzmanı/)).toBeNull();
+  expect(await screen.findByText('linear-agent')).toBeTruthy();
+  expect(screen.queryByText(/Linear Uzmanı/)).toBeNull();
 });
 
 it('the_authority_line_is_counted_from_the_tools_the_member_holds', async () => {
@@ -217,24 +219,24 @@ it('a_provider_the_registry_returned_gets_a_tab_nobody_wrote_down', async () => 
     members: [
       member(),
       member({
-        id: 'notion-agent',
-        provider: 'notion',
-        connectionProvider: 'notion',
+        id: 'linear-agent',
+        provider: 'linear',
+        connectionProvider: 'linear',
         connected: false,
         toolCount: 1,
         auto: 0,
         ask: 1,
-        tools: [{ name: 'notion.createPage', risk: 'write', mode: 'ask', overridden: false }],
+        tools: [{ name: 'linear.createIssue', risk: 'write', mode: 'ask', overridden: false }],
       }),
     ],
   };
 
   render(<CrewScreen />);
 
-  const notion = await screen.findByRole('tab', { name: /notion/ });
+  const linear = await screen.findByRole('tab', { name: /linear/ });
   // No Turkish word for it and no mark we own: the id, and nothing drawn beside it.
-  expect(notion.textContent).toContain('notion');
-  expect(notion.querySelector('svg')).toBeNull();
+  expect(linear.textContent).toContain('linear');
+  expect(linear.querySelector('svg')).toBeNull();
   expect(screen.getByRole('tab', { name: /Jira/ }).querySelector('svg')).toBeTruthy();
   // And no tab for a provider that has no registered tool.
   expect(screen.queryByRole('tab', { name: /Slack/ })).toBeNull();
@@ -309,12 +311,12 @@ it('the_ekip_hash_parses_as_the_crew_route', () => {
 });
 
 it('a_provider_in_the_address_that_the_registry_no_longer_has_falls_back_to_everyone', async () => {
-  window.location.hash = '#/ekip?saglayici=notion';
+  window.location.hash = '#/ekip?saglayici=linear';
   crew = { core: [], members: [member()] };
 
   render(<CrewScreen />);
 
-  // The Notion tool is gone; the address is stale, and an empty frame under a
+  // The Linear tool is gone; the address is stale, and an empty frame under a
   // tab that is not on screen is not an answer.
   expect(await screen.findByText('Jira Uzmanı')).toBeTruthy();
   expect(screen.getByRole('tab', { name: /Tümü/ }).getAttribute('aria-selected')).toBe('true');

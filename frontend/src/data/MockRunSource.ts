@@ -50,6 +50,7 @@ export class MockRunSource implements RunSource {
     slack: { config: {}, updatedAt: null },
     github: { config: {}, updatedAt: null },
     google: { config: {}, updatedAt: null },
+    notion: { config: {}, updatedAt: null },
   };
 
   async health(): Promise<Health> {
@@ -203,7 +204,7 @@ export class MockRunSource implements RunSource {
 
   async getConnections(): Promise<Connection[]> {
     await delay(160);
-    return (['jira', 'slack', 'github', 'google'] as Provider[]).map((provider) =>
+    return (['jira', 'slack', 'github', 'google', 'notion'] as Provider[]).map((provider) =>
       this.maskConnection(provider),
     );
   }
@@ -242,6 +243,26 @@ export class MockRunSource implements RunSource {
       return {
         ok: false,
         message: 'Google mock veri kaynağında bağlanamaz — canlı API gerekiyor.',
+        checkedAt,
+      };
+    }
+    if (provider === 'notion') {
+      if (!cfg.token) {
+        return { ok: false, message: 'Notion integration token’ı (ntn_…) girilmemiş.', checkedAt };
+      }
+      // The offline twin of the live failure: a token alone proves nothing,
+      // because an integration sees only the pages shared with it.
+      if (!cfg.parentDatabaseId) {
+        return {
+          ok: true,
+          message:
+            'Token geçerli (mock). Varsayılan veritabanı girilmedi — sayfanın nereye açılacağını her adımda modelin bulması gerekir.',
+          checkedAt,
+        };
+      }
+      return {
+        ok: true,
+        message: `Bağlandı — ${cfg.parentDatabaseId} veritabanı görünür (mock). Sayfa integration ile paylaşılmadıysa canlıda "bulunamadı" döner.`,
         checkedAt,
       };
     }

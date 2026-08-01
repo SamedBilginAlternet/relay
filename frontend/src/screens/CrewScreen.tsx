@@ -62,6 +62,7 @@ const CONNECTION_LABEL: Record<string, string> = {
   slack: 'Slack',
   github: 'GitHub',
   google: 'Google',
+  notion: 'Notion',
 };
 
 /**
@@ -122,10 +123,11 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   calendar: 'Takvim',
   github: 'GitHub',
   slack: 'Slack',
+  notion: 'Notion',
 };
 
 /**
- * Tab order, fixed by hand — the same order, and the same five words, that
+ * Tab order, fixed by hand — the same order, and the same words, that
  * Politikalar's provider tabs use.
  *
  * <p>WHICH tabs exist is still derived, from the members the registry returned:
@@ -139,7 +141,7 @@ const PROVIDER_LABEL: Record<Provider, string> = {
  * same day this screen did. Whoever edits either next should lift both constants
  * somewhere shared rather than write them a third time.
  */
-const PROVIDER_ORDER: Provider[] = ['jira', 'gmail', 'calendar', 'github', 'slack'];
+const PROVIDER_ORDER: Provider[] = ['jira', 'gmail', 'calendar', 'github', 'slack', 'notion'];
 
 function providerRank(provider: string): number {
   const index = PROVIDER_ORDER.indexOf(provider as Provider);

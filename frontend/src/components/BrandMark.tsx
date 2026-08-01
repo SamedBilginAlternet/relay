@@ -1,4 +1,4 @@
-import { Slack } from 'lucide-react';
+import { NotebookText, Slack } from 'lucide-react';
 
 /**
  * The providers' own marks, so a tool call is recognised before it is read.
@@ -19,11 +19,28 @@ import { Slack } from 'lucide-react';
  * restyled, and Relay does not present itself as endorsed by any of them.
  * Slack's mark is not redistributable in this form, so Slack is drawn with the
  * line glyph the icon set already ships, in Slack's own aubergine.
+ *
+ * <p>Notion is drawn the same way, and the reason is worth writing down because
+ * it looks at first like the opposite case: the Notion mark is monochrome, so
+ * unlike Slack's it would survive being reduced to one path. What it does not
+ * survive is the check. The four marks above are here on the referential use
+ * their published brand guidelines grant; Notion's brand page sits behind a
+ * login (`notion.com/brand` → 401), so that grant cannot be read, and a
+ * trademark you cannot read the terms for is not one to ship in a product UI on
+ * the assumption they say what the others say. `NotebookText` in Notion's own
+ * near-black says "the notes app" without borrowing anybody's mark, and the day
+ * the guidelines can be read this is a five-line change.
  */
 
-export type Provider = 'jira' | 'github' | 'gmail' | 'calendar' | 'slack';
+export type Provider = 'jira' | 'github' | 'gmail' | 'calendar' | 'slack' | 'notion';
 
-const MARKS: Record<Exclude<Provider, 'slack'>, { d: string; color: string; title: string }> = {
+/** The providers drawn with a line glyph instead of their own mark — see above. */
+const GLYPHS: Record<'slack' | 'notion', { icon: typeof Slack; color: string; title: string }> = {
+  slack: { icon: Slack, color: '#611f69', title: 'Slack' },
+  notion: { icon: NotebookText, color: '#191919', title: 'Notion' },
+};
+
+const MARKS: Record<Exclude<Provider, keyof typeof GLYPHS>, { d: string; color: string; title: string }> = {
   jira: {
     d: 'M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129v2.058a5.218 5.218 0 0 0 5.215 5.214V6.758a1.001 1.001 0 0 0-1.001-1.001zM23.013 0H11.455a5.215 5.215 0 0 0 5.215 5.215h2.129v2.057A5.215 5.215 0 0 0 24 12.483V1.005A1.001 1.001 0 0 0 23.013 0Z',
     color: '#2684FF',
@@ -54,13 +71,16 @@ const MARKS: Record<Exclude<Provider, 'slack'>, { d: string; color: string; titl
  * copy somewhere else is a second copy to get wrong.
  */
 export function providerTitle(provider: Provider): string {
-  return provider === 'slack' ? 'Slack' : MARKS[provider].title;
+  return provider in GLYPHS
+    ? GLYPHS[provider as keyof typeof GLYPHS].title
+    : MARKS[provider as Exclude<Provider, keyof typeof GLYPHS>].title;
 }
 
 /** `jira.createIssue` → `jira`; anything unrecognised returns null and draws nothing. */
 export function providerOf(toolName: string | null | undefined): Provider | null {
   const head = ((toolName ?? '').split('.')[0] ?? '').trim().toLowerCase();
   if (head === 'jira' || head === 'github' || head === 'gmail' || head === 'slack') return head;
+  if (head === 'notion') return 'notion';
   if (head === 'calendar' || head === 'googlecalendar') return 'calendar';
   return null;
 }
@@ -73,17 +93,19 @@ type Props = {
 };
 
 export function BrandMark({ provider, size = 14, title }: Props) {
-  if (provider === 'slack') {
+  const glyph = GLYPHS[provider as keyof typeof GLYPHS];
+  if (glyph) {
+    const Glyph = glyph.icon;
     return (
-      <Slack
+      <Glyph
         size={size}
-        color="#611f69"
+        color={glyph.color}
         aria-hidden={title ? undefined : true}
         aria-label={title}
       />
     );
   }
-  const mark = MARKS[provider];
+  const mark = MARKS[provider as Exclude<Provider, keyof typeof GLYPHS>];
   return (
     <svg
       width={size}

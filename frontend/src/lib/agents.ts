@@ -37,6 +37,7 @@ const TOOL_AGENTS: Record<string, string> = {
   // Ekip screen printed `calendar-agent` raw — correct by this file's own rule, and
   // wrong about a specialist the product actually ships.
   calendar: 'Takvim Uzmanı',
+  notion: 'Notion Uzmanı',
   generalist: 'Genel Uzman',
 };
 

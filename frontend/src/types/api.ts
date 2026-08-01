@@ -198,7 +198,7 @@ export const RUN_EVENT_TYPES = [
 /* Connections & policies                                              */
 /* ------------------------------------------------------------------ */
 
-export type Provider = 'jira' | 'slack' | 'github' | 'google';
+export type Provider = 'jira' | 'slack' | 'github' | 'google' | 'notion';
 
 /**
  * Google is the one provider with no token to paste: the user is sent to Google's

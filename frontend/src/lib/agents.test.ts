@@ -34,7 +34,7 @@ describe('agentLabel', () => {
 
   it('an_unknown_agent_id_is_shown_as_is', () => {
     // A tool agent we have no name for keeps its id rather than borrowing one.
-    expect(agentLabel('notion-agent')).toBe('notion-agent');
+    expect(agentLabel('linear-agent')).toBe('linear-agent');
     expect(agentLabel('supervisor')).toBe('supervisor');
     // `applyEvent` writes this when the event carries no sender at all.
     expect(agentLabel('unknown')).toBe('unknown');

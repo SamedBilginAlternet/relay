@@ -23,6 +23,7 @@ const PROVIDERS: { provider: Provider; title: string; blurb: string }[] = [
   { provider: 'jira', title: 'Jira', blurb: 'Kayıtları oku, durum güncelle, yorum yaz.' },
   { provider: 'github', title: 'GitHub', blurb: 'Review bekleyen PR’lar ve sana atanmış issue’lar.' },
   { provider: 'slack', title: 'Slack', blurb: 'Kanala mesaj gönder, thread’e cevap yaz.' },
+  { provider: 'notion', title: 'Notion', blurb: 'Kararı ve notu sayfaya yaz — token yapıştır, bitti.' },
   { provider: 'google', title: 'Google', blurb: 'Gmail ve Takvim — günün özeti için okunur.' },
 ];
 

@@ -64,6 +64,7 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   calendar: 'Takvim',
   github: 'GitHub',
   slack: 'Slack',
+  notion: 'Notion',
 };
 
 /**
@@ -78,7 +79,7 @@ const PROVIDER_LABEL: Record<Provider, string> = {
  * separate risks and they were sharing a band called "Google — Gmail + Takvim", which is a
  * heading that answers neither question.
  */
-const PROVIDER_ORDER: Provider[] = ['jira', 'gmail', 'calendar', 'github', 'slack'];
+const PROVIDER_ORDER: Provider[] = ['jira', 'gmail', 'calendar', 'github', 'slack', 'notion'];
 
 /**
  * The group a rule belongs to, read off the tool id.

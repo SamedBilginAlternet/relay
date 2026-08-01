@@ -102,12 +102,14 @@ public final class HttpJson {
 
     private static final java.util.List<java.util.regex.Pattern> SECRET_SHAPES = java.util.List.of(
             // Atlassian API token / OAuth, Slack bot+user tokens, Google access + refresh
-            // tokens, GitHub PATs, Groq keys, and any Authorization header echoed back.
+            // tokens, GitHub PATs, Notion integration tokens, Groq keys, and any
+            // Authorization header echoed back.
             java.util.regex.Pattern.compile("ATATT[A-Za-z0-9_.\\-=]{8,}"),
             java.util.regex.Pattern.compile("xox[abprs]-[A-Za-z0-9-]{8,}"),
             java.util.regex.Pattern.compile("ya29\\.[A-Za-z0-9_\\-]{8,}"),
             java.util.regex.Pattern.compile("1//[A-Za-z0-9_\\-]{10,}"),
             java.util.regex.Pattern.compile("gh[pousr]_[A-Za-z0-9]{8,}"),
+            java.util.regex.Pattern.compile("ntn_[A-Za-z0-9]{8,}"),
             java.util.regex.Pattern.compile("gsk_[A-Za-z0-9]{8,}"),
             java.util.regex.Pattern.compile("(?i)(?:basic|bearer)\\s+[A-Za-z0-9+/=_.\\-]{8,}"));
 

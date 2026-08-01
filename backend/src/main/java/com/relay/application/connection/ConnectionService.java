@@ -25,7 +25,9 @@ public class ConnectionService {
 
     public static final String MASK_MARKER = "****";
     // github: fine-grained PAT. google: OAuth, filled in by /api/oauth/google/callback.
-    private static final List<String> KNOWN_PROVIDERS = List.of("jira", "slack", "github", "google");
+    // notion: internal integration token (ntn_…), pasted like Jira's and Slack's.
+    private static final List<String> KNOWN_PROVIDERS =
+            List.of("jira", "slack", "github", "google", "notion");
 
     private final ConnectionRepository connections;
     private final ToolRegistry tools;
