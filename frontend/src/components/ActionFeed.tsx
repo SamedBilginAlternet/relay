@@ -8,6 +8,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { useId, useState } from 'react';
+import { actionLabel } from '../lib/actionLabels';
 import { SOURCE_META, URGENCY_META, kindLabel } from '../lib/insight';
 import { expandProps, feedRowProps } from '../lib/motion';
 import type { InsightCard, SuggestedAction } from '../types/brief';
@@ -160,7 +161,7 @@ export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAc
             title={primary.tool}
           >
             {primaryBusy && <Loader size={14} aria-hidden className="spin" />}
-            {primaryBusy ? 'Başlatılıyor…' : primary.label}
+            {primaryBusy ? 'Başlatılıyor…' : actionLabel(primary.tool, primary.label)}
           </button>
         )}
       </div>
@@ -178,11 +179,11 @@ export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAc
               {/* The reason displaced the summary upstairs — show it once, here. */}
               {why && card.summary ? <p className="arow__summary">{card.summary}</p> : null}
               <div className="arow__actions">
-                {others.map((action) => {
+                {others.map((action, i) => {
                   const thisBusy = busyTool === action.tool;
                   return (
                     <button
-                      key={`${action.tool}-${action.label}`}
+                      key={`${action.tool}-${i}`}
                       type="button"
                       className="btn btn--sm btn--outline"
                       disabled={busy}
@@ -190,7 +191,7 @@ export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAc
                       title={action.tool}
                     >
                       {thisBusy && <Loader size={14} aria-hidden className="spin" />}
-                      {thisBusy ? 'Başlatılıyor…' : action.label}
+                      {thisBusy ? 'Başlatılıyor…' : actionLabel(action.tool, action.label)}
                     </button>
                   );
                 })}
