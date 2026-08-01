@@ -1,6 +1,94 @@
 /* Relay — design tokens straight from docs/DESIGN.md (v2, light) */
 
 /*
+  The draft behind a suggestion, inside an opened row (components/ActionFeed).
+  Deliberately quiet: it is evidence, not a second call to action, and the eye
+  should land on the values rather than on the block holding them.
+*/
+.arow__source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+}
+.arow__source:hover {
+  text-decoration: underline;
+}
+
+.draft {
+  margin: 0 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  background: var(--bg-subtle);
+}
+.draft__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  flex-wrap: wrap;
+}
+.draft__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+.draft__tool {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.draft__fields {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.draft__field {
+  display: grid;
+  grid-template-columns: minmax(72px, 26%) 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+.draft__field dt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-faint);
+}
+.draft__field dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.draft__gate {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--warn);
+}
+.draft__gate--read {
+  color: var(--success);
+}
+
+@media (max-width: 640px) {
+  .draft__field {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+/*
   The pointer halo (components/PointerHalo.tsx) and the light behind the page.
 
   Both are transform/opacity only and sit under `pointer-events: none`, so they

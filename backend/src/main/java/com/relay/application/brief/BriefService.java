@@ -406,7 +406,9 @@ public class BriefService {
             card.put("urgency", insight.urgency());
             card.put("summary", insight.summary());
             List<Map<String, Object>> actions = new ArrayList<>();
-            insight.actions().forEach(action -> actions.add(action.view()));
+            // The card says what pressing will cost before it is pressed: the tool's own
+            // risk, straight off the registry, not a guess made from its name.
+            insight.actions().forEach(action -> actions.add(action.view(riskOf(action.tool()))));
             card.put("suggestedActions", actions);
             card.put("url", item.url());
             card.put("subtitle", item.subtitle());
@@ -708,5 +710,12 @@ public class BriefService {
             LOG.log(Level.WARNING, "unknown timezone {0}, falling back to Europe/Istanbul", raw);
             return ZoneId.of("Europe/Istanbul");
         }
+    }
+
+    /** {@code read} / {@code write} / {@code destructive}, or null when the tool is gone. */
+    private String riskOf(String toolName) {
+        return tools.find(toolName)
+                .map(tool -> tool.risk().name().toLowerCase(java.util.Locale.ROOT))
+                .orElse(null);
     }
 }

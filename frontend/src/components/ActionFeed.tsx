@@ -2,13 +2,16 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   CalendarClock,
   ChevronDown,
+  ExternalLink,
   ListOrdered,
+  ShieldCheck,
   Loader,
   Plug,
   TriangleAlert,
 } from 'lucide-react';
 import { useId, useState } from 'react';
 import { actionLabel } from '../lib/actionLabels';
+import { paramLabel } from '../lib/paramLabels';
 import { SOURCE_META, URGENCY_META, kindLabel, reasonEarnsItsLine } from '../lib/insight';
 import { expandProps, feedRowProps } from '../lib/motion';
 import type { InsightCard, SuggestedAction } from '../types/brief';
@@ -195,6 +198,35 @@ export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAc
               {card.summary && card.summary !== line ? (
                 <p className="arow__summary">{card.summary}</p>
               ) : null}
+
+              {/*
+                The way out of the black box. The card is a model's reading of
+                something that exists somewhere else, and the reader who does not
+                believe the reading has to be one click from the original —
+                otherwise "özetledim, güven bana" is the whole product.
+              */}
+              {card.url && (
+                <a
+                  className="arow__source"
+                  href={card.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  <ExternalLink size={13} aria-hidden />
+                  {source.label}’da aç
+                  <span className="sr-only"> (yeni sekmede)</span>
+                </a>
+              )}
+
+              {/*
+                What pressing actually does, before it is pressed. The button
+                above says "Jira kaydı aç", which sounds like a thing that
+                happens on click; what happens is that these values are drafted
+                and a person is asked. Printing the draft here — with the same
+                Turkish field names the approval gate uses — is the difference
+                between trusting the product and reading it.
+              */}
+              {primary && <ActionDraft action={primary} />}
               <div className="arow__actions">
                 {others.map((action, i) => {
                   const thisBusy = busyTool === action.tool;
@@ -226,6 +258,65 @@ export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAc
         )}
       </AnimatePresence>
     </motion.li>
+  );
+}
+
+/** How much of a drafted value is worth printing before anyone has pressed anything. */
+const DRAFT_VALUE_MAX = 140;
+
+/**
+ * The draft behind a suggestion: the tool, the values it is seeded with, and
+ * whether pressing will stop for a signature.
+ *
+ * <p>The field names are the ones the approval gate uses, from `paramLabels`, so
+ * the row a person reads now and the box they sign later say the same word for
+ * the same thing. An unknown field keeps its raw name there and keeps it here.
+ *
+ * <p>`risk` comes from the server. Guessing it from the tool's name would make
+ * this a promise about a write that the screen is in no position to make, so
+ * when the field is missing the block says nothing about approval at all.
+ */
+function ActionDraft({ action }: { action: SuggestedAction }) {
+  const fields = Object.entries(action.params ?? {}).filter(
+    (entry): entry is [string, string | number] =>
+      (typeof entry[1] === 'string' && entry[1].trim() !== '') || typeof entry[1] === 'number',
+  );
+
+  return (
+    <div className="draft">
+      <p className="draft__head">
+        <span className="draft__label">Basınca ne olacak</span>
+        <code className="t-mono draft__tool">{action.tool}</code>
+      </p>
+
+      {fields.length > 0 && (
+        <dl className="draft__fields">
+          {fields.map(([key, value]) => {
+            const text = String(value);
+            return (
+              <div className="draft__field" key={key}>
+                <dt>{paramLabel(key)}</dt>
+                <dd>
+                  {text.length > DRAFT_VALUE_MAX ? `${text.slice(0, DRAFT_VALUE_MAX)}…` : text}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
+
+      {action.risk === 'write' || action.risk === 'destructive' ? (
+        <p className="draft__gate">
+          <ShieldCheck size={13} aria-hidden />
+          Yazma adımı — bu değerler ekranda önüne gelir, sen onaylamadan gönderilmez.
+        </p>
+      ) : action.risk === 'read' ? (
+        <p className="draft__gate draft__gate--read">
+          <ShieldCheck size={13} aria-hidden />
+          Yalnız okuma — hiçbir yere bir şey yazılmaz.
+        </p>
+      ) : null}
+    </div>
   );
 }
 

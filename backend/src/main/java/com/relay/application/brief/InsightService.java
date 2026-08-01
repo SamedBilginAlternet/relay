@@ -87,11 +87,19 @@ public class InsightService {
     /** A one-click proposal. Never executed here — the user has to press it. */
     public record Action(String tool, String label, Map<String, Object> params) {
 
-        public Map<String, Object> view() {
+        /**
+         * @param risk what the policy engine will decide about this tool — {@code read},
+         *             {@code write} or {@code destructive}, lowercased for the wire.
+         *             The card can then say, before anything is pressed, whether pressing
+         *             will stop for a signature. Without it the screen has to guess from the
+         *             tool's name, and a wrong guess is a promise about a write.
+         */
+        public Map<String, Object> view(String risk) {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("tool", tool);
             map.put("label", label);
             map.put("params", params == null ? Map.of() : params);
+            map.put("risk", risk);
             return map;
         }
     }

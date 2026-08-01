@@ -35,6 +35,13 @@ export type SuggestedAction = {
   tool: string;
   label: string;
   params: Record<string, unknown>;
+  /**
+   * What the policy engine will decide about this tool: `read` runs on its own,
+   * `write` stops for a signature. Sent by the server rather than guessed from
+   * the tool's name here — a wrong guess would be a promise about a write.
+   * Absent from an older backend, in which case the card claims nothing.
+   */
+  risk?: 'read' | 'write' | 'destructive' | null;
 };
 
 export type InsightCard = {
