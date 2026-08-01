@@ -1,5 +1,5 @@
 import { ArrowRight, History, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '../components/EmptyState';
 import { LoadError } from '../components/LoadError';
 import { StatusPill } from '../components/StatusPill';
@@ -9,6 +9,44 @@ import type { RunSummary } from '../types/api';
 import '../styles/screens.css';
 
 type Props = { onOpen: (runId: string) => void };
+
+/** The one status that is waiting on a person rather than on the machine. */
+const WAITING = 'awaiting_approval';
+
+/**
+ * The runs that stopped for a decision, and the rest.
+ *
+ * <p>Both keep the order the server sent (newest first); only the grouping is new.
+ * A run that is waiting is the single thing on this screen that costs the reader
+ * something to miss — it is not a row like the others and it is not sorted like one.
+ */
+export function splitByDecision(rows: RunSummary[]): {
+  waiting: RunSummary[];
+  settled: RunSummary[];
+} {
+  return {
+    waiting: rows.filter((row) => row.status === WAITING),
+    settled: rows.filter((row) => row.status !== WAITING),
+  };
+}
+
+/**
+ * Goals that appear more than once in the list.
+ *
+ * <p>The same prompt gets run again all the time ("KAN projesindeki açık kayıtları
+ * listele"), and two identical titles a minute apart are indistinguishable. Those
+ * rows — and only those — also carry the run's short id, so there is something to
+ * name them by.
+ */
+export function repeatedGoals(rows: RunSummary[]): Set<string> {
+  const seen = new Map<string, number>();
+  for (const row of rows) seen.set(row.goal, (seen.get(row.goal) ?? 0) + 1);
+  return new Set([...seen.entries()].filter(([, count]) => count > 1).map(([goal]) => goal));
+}
+
+function shortId(id: string): string {
+  return id.replace(/-/g, '').slice(0, 6);
+}
 
 export function HistoryScreen({ onOpen }: Props) {
   const [rows, setRows] = useState<RunSummary[] | null>(null);
@@ -31,6 +69,9 @@ export function HistoryScreen({ onOpen }: Props) {
     void load();
   }, [load]);
 
+  const { waiting, settled } = useMemo(() => splitByDecision(rows ?? []), [rows]);
+  const repeated = useMemo(() => repeatedGoals(rows ?? []), [rows]);
+
   return (
     <div className="page">
       <div className="page__inner page__inner--app">
@@ -50,13 +91,7 @@ export function HistoryScreen({ onOpen }: Props) {
 
         {error != null && <LoadError error={error} onRetry={() => void load()} />}
 
-        {loading && !rows && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div className="skeleton" style={{ height: 84 }} />
-            <div className="skeleton" style={{ height: 84, opacity: 0.7 }} />
-            <div className="skeleton" style={{ height: 84, opacity: 0.4 }} />
-          </div>
-        )}
+        {loading && !rows && <div className="skeleton" style={{ height: 320 }} />}
 
         {!loading && rows && rows.length === 0 && (
           <EmptyState
@@ -66,28 +101,86 @@ export function HistoryScreen({ onOpen }: Props) {
           />
         )}
 
-        {rows && rows.length > 0 && (
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {rows.map((r) => (
-              <li key={r.id}>
-                <button type="button" className="run-card" onClick={() => onOpen(r.id)}>
-                  <div className="run-card__main">
-                    <span className="run-card__goal">{r.goal}</span>
-                    <span className="run-card__meta">
-                      <span>{formatRelative(r.createdAt)}</span>
-                      <span>{r.stepCount} adım</span>
-                      <span>{formatTokens(r.costTokens)} token</span>
-                      <span>{formatUsd(r.costUsd)}</span>
-                    </span>
-                  </div>
-                  <StatusPill status={r.status} />
-                  <ArrowRight size={16} aria-hidden style={{ color: 'var(--fg-muted)' }} />
-                </button>
-              </li>
-            ))}
-          </ul>
+        {/*
+          Waiting runs come out of the list and sit above it. Buried among finished
+          rows — same frame, same weight, same height — the one thing the product is
+          holding for a human was the hardest thing on the screen to find.
+        */}
+        {waiting.length > 0 && (
+          <section className="runs runs--waiting" aria-labelledby="runs-waiting-h">
+            <div className="runs__head">
+              <h2 className="t-label" id="runs-waiting-h">
+                Onayını bekleyen {waiting.length} çalıştırma
+              </h2>
+              <span className="t-caption">Bu akışlar durdu; devam etmesi senin kararına bağlı.</span>
+            </div>
+            <ul className="runs__list">
+              {waiting.map((row) => (
+                <RunRow
+                  key={row.id}
+                  row={row}
+                  withId={repeated.has(row.goal)}
+                  action="Karar ver"
+                  onOpen={onOpen}
+                />
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {settled.length > 0 && (
+          <section className="runs" aria-labelledby="runs-done-h">
+            <div className="runs__head">
+              <h2 className="t-label" id="runs-done-h">
+                Çalışmış akışlar
+              </h2>
+              <span className="t-caption">{settled.length} kayıt</span>
+            </div>
+            <ul className="runs__list">
+              {settled.map((row) => (
+                <RunRow key={row.id} row={row} withId={repeated.has(row.goal)} onOpen={onOpen} />
+              ))}
+            </ul>
+          </section>
         )}
       </div>
     </div>
+  );
+}
+
+function RunRow({
+  row,
+  withId,
+  action,
+  onOpen,
+}: {
+  row: RunSummary;
+  withId: boolean;
+  action?: string;
+  onOpen: (runId: string) => void;
+}) {
+  return (
+    <li className="run-row">
+      <button
+        type="button"
+        className="run-row__btn"
+        onClick={() => onOpen(row.id)}
+        aria-label={action ? `${row.goal} — ${action}` : row.goal}
+      >
+        <span className="run-row__main">
+          <span className="run-row__goal">{row.goal}</span>
+          <span className="run-row__meta">
+            <span>{formatRelative(row.createdAt)}</span>
+            {withId && <code className="t-mono">#{shortId(row.id)}</code>}
+            <span>{row.stepCount} adım</span>
+            <span>{formatTokens(row.costTokens)} token</span>
+            <span>{formatUsd(row.costUsd)}</span>
+          </span>
+        </span>
+        {action && <span className="run-row__action">{action}</span>}
+        <StatusPill status={row.status} />
+        <ArrowRight size={16} aria-hidden className="run-row__chevron" />
+      </button>
+    </li>
   );
 }

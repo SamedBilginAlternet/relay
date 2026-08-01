@@ -26,6 +26,122 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* Geçmiş — one card, thin rules, decisions first (issue #68)          */
+/*                                                                     */
+/* Twenty runs used to mean twenty cards: border, radius, shadow and    */
+/* 82-105px each, seven of them on a 900px screen. Bugün already draws  */
+/* the same idea as one card with hairlines between rows, so the frame  */
+/* belongs to the list and the row keeps the 56px of DESIGN.md §3.      */
+/* ------------------------------------------------------------------ */
+
+.runs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+.runs__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-12);
+  flex-wrap: wrap;
+}
+.runs__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  /* keeps a hovered first/last row inside the card's corners */
+  overflow: hidden;
+}
+.run-row + .run-row {
+  border-top: 1px solid var(--border);
+}
+.run-row__btn {
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  width: 100%;
+  min-height: 56px;
+  padding: 8px var(--s-16);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  transition: background-color 160ms ease-out;
+}
+.run-row__btn:hover {
+  background: var(--bg-subtle);
+}
+.run-row__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* One line, always: two-line goals were what pushed a row past 100px. */
+.run-row__goal {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.run-row__meta {
+  display: flex;
+  gap: var(--s-12);
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.run-row__action,
+.run-row .status-pill,
+.run-row__chevron {
+  flex: 0 0 auto;
+}
+.run-row__action {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.run-row__chevron {
+  color: var(--fg-muted);
+}
+
+/* The block that is waiting on a person: an amber edge, not a louder row. */
+.runs--waiting .runs__list {
+  border-color: var(--accent-line);
+  box-shadow: inset 3px 0 0 0 var(--warn), var(--shadow);
+}
+.runs--waiting .runs__head h2 {
+  color: #92400e;
+}
+
+@media (max-width: 640px) {
+  .run-row__btn {
+    flex-wrap: wrap;
+    padding: 10px 0;
+  }
+  .run-row__main {
+    flex: 1 1 100%;
+  }
+  /* On a narrow row the meta line is what wraps, never the decision. */
+  .run-row__meta {
+    white-space: normal;
+    flex-wrap: wrap;
+    gap: var(--s-8);
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Bağlantılar — a saved value looks saved (issue #66)                 */
 /*                                                                     */
 /* The stored secret is the field's value, not its placeholder, so it   */
