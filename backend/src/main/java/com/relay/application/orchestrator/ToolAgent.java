@@ -373,6 +373,50 @@ public class ToolAgent {
         return notes.isEmpty() ? null : new Grounding(out, String.join(" · ", notes));
     }
 
+    /**
+     * Fills a required container the model left out with the one the user configured.
+     *
+     * <p>{@link #groundContainers} replaces a container the model got <em>wrong</em>; it walks
+     * the fields that are there and skips the blank ones, and it runs after the schema check.
+     * So the case it never covered was the field being absent altogether — which is the case
+     * that happened: {@code projectKey = KAN} sat on the Jira connection while the run failed
+     * on {@code $.projectKey is required} and asked a person to approve the draft that would
+     * fail. The reasoning is the same one already written for {@code #genel} / {@code
+     * #all-samed}: a container has a safe answer to fall back to, and it is not an invention —
+     * it is the value the user set.
+     *
+     * <p>Deliberately only the fields the schema marks <b>required</b>. An absent optional
+     * container is a choice ("search everywhere"), and filling it would quietly narrow a query
+     * the user never scoped; an absent required one is not a choice, because without it there
+     * is no call to make.
+     *
+     * <p>And deliberately only containers. {@code summary}, {@code text}, {@code body} are the
+     * work itself — see {@code Filler.looksLikeFiller} and {@code RunService.WRITTEN_FROM_THE_MAIL}.
+     * If the specialist could not write one, that is a failure and has to read as one.
+     */
+    private static JsonNode withConfiguredContainers(Tool tool, JsonNode params, Connection connection) {
+        if (connection == null || !params.isObject()) {
+            return params;
+        }
+        ObjectNode out = null;
+        for (JsonNode required : tool.schema().path("required")) {
+            String field = required.asText("");
+            if (!CONTAINER_FIELDS.contains(field.toLowerCase(Locale.ROOT))
+                    || !params.path(field).asText("").isBlank()) {
+                continue;
+            }
+            String value = configured(connection, field);
+            if (value == null) {
+                continue;
+            }
+            if (out == null) {
+                out = ((ObjectNode) params).deepCopy();
+            }
+            out.put(field, value);
+        }
+        return out == null ? params : out;
+    }
+
     /** The connection's own value for a container field, or {@code null} when it has none. */
     private static String configured(Connection connection, String field) {
         if (connection == null) {
@@ -560,7 +604,7 @@ public class ToolAgent {
         // Before the model sees the draft: what the user configured beats what a model would
         // invent. A blank channel filled in from the connection is also one fewer model call.
         Connection connection = connections.findByProvider(tool.provider()).orElse(null);
-        draft = tool.withDefaults(draft, connection);
+        draft = withConfiguredContainers(tool, tool.withDefaults(draft, connection), connection);
 
         long tokens = 0;
         double cost = 0;
@@ -616,6 +660,11 @@ public class ToolAgent {
                 candidate = merge(draft, fromModel);
             }
         }
+
+        // Again after the model turn, not only on the draft: a model that answers with the
+        // container blanked out ("projectKey": "") would otherwise undo the fill and fail the
+        // check for a field the connection can answer.
+        candidate = withConfiguredContainers(tool, candidate, connection);
 
         SchemaValidator.Result check = SchemaValidator.validate(tool.schema(), candidate);
         if (!check.valid()) {
