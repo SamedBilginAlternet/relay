@@ -117,15 +117,38 @@ class RoutingRecoveryTest {
         assertThat(client.degraded()).as("parked for seven seconds, not a minute").isFalse();
     }
 
-    /** An absurd Retry-After must not sideline the only key for hours. */
+    /**
+     * A wait the provider asked for is served, past the 60s cooldown.
+     *
+     * <p>This test used to assert the opposite — anything longer than the cooldown was cut
+     * to a minute — and that clamp turned "come back in 38 minutes" into thirty-eight
+     * refusals, each one dragging every other key through the same 429. Groq counts tokens
+     * per organisation, so once keys from a second organisation are in the pool, the spent
+     * one has to stay parked for what it said or the traffic never reaches the healthy one.
+     */
     @Test
-    void a_retry_after_longer_than_the_cooldown_is_clamped() {
+    void a_retry_after_longer_than_the_cooldown_is_served_not_cut_to_a_minute() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        RoutingLlmClient client = routing(
+                (url, key, body) -> new HttpTransport.Reply(429, "{}", Duration.ofMinutes(38)), clock);
+
+        client.complete(request());
+
+        clock.advance(Duration.ofSeconds(61));
+        assertThat(client.degraded()).as("a minute in, the key is still spent").isTrue();
+        clock.advance(Duration.ofMinutes(38));
+        assertThat(client.degraded()).isFalse();
+    }
+
+    /** But an absurd one must not sideline the only key for a working day. */
+    @Test
+    void a_retry_after_beyond_an_hour_is_capped() {
         TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
         RoutingLlmClient client = routing(
                 (url, key, body) -> new HttpTransport.Reply(429, "{}", Duration.ofHours(3)), clock);
 
         client.complete(request());
-        clock.advance(Duration.ofSeconds(61));
+        clock.advance(ApiKeyPool.MAX_PARK.plusMinutes(1));
 
         assertThat(client.degraded()).isFalse();
     }

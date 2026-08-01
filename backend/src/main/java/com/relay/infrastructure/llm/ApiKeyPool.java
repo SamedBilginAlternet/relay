@@ -12,8 +12,15 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Round-robin over the configured Groq keys. A key that answers 429 / quota-exceeded
- * is parked for {@code cooldown} (60s by default) and skipped meanwhile.
+ * Round-robin over the configured Groq keys. A key that answers 429 / quota-exceeded is
+ * parked — for as long as the provider asked, or {@code cooldown} (60s) when it said nothing
+ * — and skipped meanwhile.
+ *
+ * <p>What rotation buys is worth being exact about, because it was assumed wrong once: Groq
+ * counts tokens per <em>organisation</em>, not per key. Five keys from one account share one
+ * daily budget, so rotating between them buys nothing when that budget is spent — it only
+ * spreads the per-minute burst. Keys from different organisations have separate budgets, and
+ * that is the case this class is actually useful for.
  *
  * <p>Deliberately tiny and synchronous: the whole class is the rotation logic under test.
  */
@@ -57,15 +64,32 @@ public class ApiKeyPool {
     }
 
     /**
+     * The longest a provider may sideline a key. Beyond this its answer is not believed.
+     *
+     * <p>An hour is chosen against what a limit actually looks like: Groq's daily budget is a
+     * rolling window and asks for tens of minutes, so an hour covers it, while a value that
+     * would take a key out for a working day is refused whatever the reason given.
+     */
+    static final Duration MAX_PARK = Duration.ofHours(1);
+
+    /**
      * Park a key for as long as the provider asked, falling back to the configured cooldown.
-     * Clamped to that cooldown so a hostile or absurd {@code Retry-After} cannot sideline a
-     * key for hours.
+     *
+     * <p>This used to clamp to the 60s cooldown, which quietly turned "come back in 38
+     * minutes" into thirty-eight pointless attempts — and, worse, into thirty-eight rounds of
+     * rotation that put every other key through the same refusal. Once keys from more than
+     * one organisation are in the pool that is the difference between working and not: an
+     * organisation that has spent its daily budget has to stay parked for as long as it says,
+     * so the traffic goes to one that has budget left, instead of round-robining back into
+     * the same 429 every minute.
+     *
+     * <p>Still bounded, because the reason the clamp existed has not gone away: a wrong or
+     * hostile {@code Retry-After} must not be able to sideline a key indefinitely.
      */
     public synchronized void penalize(String key, Duration requested) {
         Duration wait = requested == null || requested.isNegative() || requested.isZero()
-                || requested.compareTo(cooldown) > 0
                 ? cooldown
-                : requested;
+                : requested.compareTo(MAX_PARK) > 0 ? MAX_PARK : requested;
         coolingUntil.put(key, clock.now().plus(wait));
     }
 

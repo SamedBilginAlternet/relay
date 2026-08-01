@@ -173,6 +173,40 @@ class GroqKeyRotationTest {
         assertThat(transport.calls).as("no second request went out").hasSize(1);
     }
 
+    /**
+     * The provider's own wait is honoured now, not clamped to the 60s cooldown.
+     *
+     * <p>Clamping turned "come back in 38 minutes" into thirty-eight pointless attempts, and
+     * put every other key through the same refusal on the way. With keys from more than one
+     * organisation in the pool — the only arrangement that helps, since Groq counts tokens
+     * per organisation — that is the difference between working and not.
+     */
+    @Test
+    void aKeyToldToWaitHalfAnHourIsNotAskedAgainInASixtiethOfIt() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        ApiKeyPool pool = new ApiKeyPool(List.of("spent", "fresh"), Duration.ofSeconds(60), clock);
+
+        pool.penalize("spent", Duration.ofMinutes(30));
+
+        clock.advance(Duration.ofMinutes(5));
+        assertThat(pool.next()).contains("fresh");
+        assertThat(pool.next()).as("the spent organisation is still spent").contains("fresh");
+        clock.advance(Duration.ofMinutes(26));
+        assertThat(pool.available()).isEqualTo(2);
+    }
+
+    /** The reason the clamp existed has not gone away: a wrong value must not cost a day. */
+    @Test
+    void anAbsurdWaitIsCappedRatherThanBelieved() {
+        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
+        ApiKeyPool pool = new ApiKeyPool(List.of("only"), Duration.ofSeconds(60), clock);
+
+        pool.penalize("only", Duration.ofDays(2));
+
+        clock.advance(ApiKeyPool.MAX_PARK.plusMinutes(1));
+        assertThat(pool.next()).contains("only");
+    }
+
     @Test
     void routerFallsBackToTheStubWhenGroqIsGone() {
         TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
