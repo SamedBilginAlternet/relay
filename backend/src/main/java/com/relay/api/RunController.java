@@ -78,9 +78,34 @@ public class RunController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(body);
     }
 
+    /**
+     * As long as a paragraph of context, no longer. Mirrors the guard in {@link RunService},
+     * which stays where it is for callers that never come through HTTP.
+     */
+    static final int MAX_GOAL_CHARS = 2000;
+
+    /**
+     * The two sentences a person actually meets when the goal box is wrong.
+     *
+     * <p>{@code RunService} refuses the same two cases, in English, because its messages are
+     * read in a log by whoever is debugging a caller. These are read on the Sohbet screen by
+     * somebody who typed a goal — "goal is too long: 2500 characters, limit is 2000" in the
+     * middle of an entirely Turkish product (#81).
+     */
+    private static void checkGoal(String goal) {
+        if (goal == null || goal.isBlank()) {
+            throw new IllegalArgumentException("Bir hedef yaz.");
+        }
+        if (goal.length() > MAX_GOAL_CHARS) {
+            throw new IllegalArgumentException("Hedef çok uzun — " + goal.length()
+                    + " karakter, sınır " + MAX_GOAL_CHARS + ".");
+        }
+    }
+
     /** Returns immediately with the runId; planning and execution continue in the background. */
     @PostMapping
     public ResponseEntity<Map<String, Object>> create(@RequestBody CreateRunRequest request) {
+        checkGoal(request == null ? null : request.goal());
         Run run = runService.start(request.goal(), request.budgetUsd());
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("runId", run.id().toString());

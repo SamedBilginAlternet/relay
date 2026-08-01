@@ -100,7 +100,10 @@ public class ConnectionService {
                 .filter(tool -> tool.provider().equals(provider))
                 .filter(tool -> tool.risk() == RiskLevel.READ)
                 .min((a, b) -> Boolean.compare(!isKeyless(a), !isKeyless(b)))
-                .orElseThrow(() -> new IllegalArgumentException("no read tool registered for " + provider));
+                // Read by whoever pressed "Bağlantıyı Test Et", so it is written in the
+                // language that button is in (#81).
+                .orElseThrow(() -> new IllegalArgumentException(
+                        provider + " için kayıtlı bir okuma aracı yok."));
 
         Connection connection = connections.findByProvider(provider).orElse(null);
         ToolResult result = probe.execute(probeParams(probe, connection), connection);

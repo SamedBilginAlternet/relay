@@ -63,7 +63,8 @@ class PolicyEngineTest {
         assertThat(decision.forbidden()).isTrue();
         // Nobody wrote a policy row: the refusal comes from the tool's own risk level.
         assertThat(decision.explicit()).isFalse();
-        assertThat(decision.reason()).contains("destructive");
+        // The reason is read on the approval card, so it names the risk in Turkish (#81).
+        assertThat(decision.reason()).isEqualTo("yıkıcı riski varsayılanı: yasak");
         assertThat(decision.auto()).isFalse();
         assertThat(decision.ask()).isFalse();
     }
@@ -72,7 +73,30 @@ class PolicyEngineTest {
     void unknownToolIsForbidden() {
         PolicyDecision decision = engine.evaluate("stripe.refundEverything");
         assertThat(decision.forbidden()).isTrue();
-        assertThat(decision.reason()).contains("unknown tool");
+        assertThat(decision.reason()).contains("tanımsız araç");
+    }
+
+    /**
+     * The reason is the grounds the approval card gives for stopping — the single
+     * most-read sentence in the product, and it read "default for write risk: ask" in an
+     * interface that is Turkish everywhere else (#81).
+     */
+    @Test
+    void the_grounds_for_asking_are_written_in_the_language_of_the_screen() {
+        assertThat(engine.evaluate("slack.postMessage").reason())
+                .isEqualTo("yazma riski varsayılanı: onay ister");
+        assertThat(engine.evaluate("jira.searchIssues").reason())
+                .isEqualTo("okuma riski varsayılanı: otomatik");
+
+        policies.save(new ToolPolicy("jira", "jira.updateIssue", PolicyMode.FORBIDDEN));
+        assertThat(engine.evaluate("jira.updateIssue").reason())
+                .isEqualTo("jira.updateIssue için kayıtlı politika: yasak");
+
+        assertThat(engine.evaluate(null).reason()).doesNotContain("reasoning step");
+        for (String english : List.of("write risk", "policy override", "default for", "unknown tool")) {
+            assertThat(engine.evaluate("slack.postMessage").reason()).doesNotContain(english);
+            assertThat(engine.evaluate("stripe.refundEverything").reason()).doesNotContain(english);
+        }
     }
 
     @Test
@@ -124,7 +148,7 @@ class PolicyEngineTest {
         PolicyDecision decision = engine.evaluate("jira.deleteIssue");
         assertThat(decision.auto()).isFalse();
         assertThat(decision.ask()).isTrue();
-        assertThat(decision.reason()).contains("capped");
+        assertThat(decision.reason()).contains("sınırlandı").contains("insansız");
 
         // And the policy screen shows what will really happen, not what the row says.
         assertThat(engine.effectivePolicies()).anySatisfy(policy -> {

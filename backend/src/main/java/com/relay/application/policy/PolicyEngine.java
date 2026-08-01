@@ -28,14 +28,21 @@ public class PolicyEngine {
         this.tools = tools;
     }
 
-    /** Steps without a tool are pure reasoning: always auto. */
+    /**
+     * Steps without a tool are pure reasoning: always auto.
+     *
+     * <p>{@code reason} is read by a person, not by a log: the approval card shows it as the
+     * grounds for asking, and the timeline repeats it on every gated step. It used to say
+     * "default for write risk: ask" in the middle of an otherwise Turkish product — on the
+     * single most-read line in the app (#81).
+     */
     public PolicyDecision evaluate(String toolName) {
         if (toolName == null || toolName.isBlank()) {
-            return new PolicyDecision(PolicyMode.AUTO, "no tool call — reasoning step", false);
+            return new PolicyDecision(PolicyMode.AUTO, "araç çağrısı yok — düşünme adımı", false);
         }
         Optional<Tool> tool = tools.find(toolName);
         if (tool.isEmpty()) {
-            return new PolicyDecision(PolicyMode.FORBIDDEN, "unknown tool '" + toolName + "'", true);
+            return new PolicyDecision(PolicyMode.FORBIDDEN, "tanımsız araç '" + toolName + "'", true);
         }
         RiskLevel risk = tool.get().risk();
         Optional<ToolPolicy> override = policies.findByToolName(toolName);
@@ -43,14 +50,33 @@ public class PolicyEngine {
             PolicyMode wanted = override.get().mode();
             PolicyMode mode = capped(risk, wanted);
             if (mode != wanted) {
-                return new PolicyDecision(mode, "policy override for " + toolName + " asked for "
-                        + wanted.wire() + ", capped at " + mode.wire()
-                        + ": a destructive tool never runs unwatched", true);
+                return new PolicyDecision(mode, toolName + " için kayıtlı politika "
+                        + label(wanted) + " istiyor, " + label(mode) + " ile sınırlandı: "
+                        + "geri alınamaz bir araç insansız çalışmaz", true);
             }
-            return new PolicyDecision(mode, "policy override for " + toolName + ": " + mode.wire(), true);
+            return new PolicyDecision(mode,
+                    toolName + " için kayıtlı politika: " + label(mode), true);
         }
         PolicyMode mode = risk.defaultMode();
-        return new PolicyDecision(mode, "default for " + risk.wire() + " risk: " + mode.wire(), false);
+        return new PolicyDecision(mode,
+                label(risk) + " riski varsayılanı: " + label(mode), false);
+    }
+
+    /** How a mode is named to the person being asked to approve something. */
+    private static String label(PolicyMode mode) {
+        return switch (mode) {
+            case AUTO -> "otomatik";
+            case ASK -> "onay ister";
+            case FORBIDDEN -> "yasak";
+        };
+    }
+
+    private static String label(RiskLevel risk) {
+        return switch (risk) {
+            case READ -> "okuma";
+            case WRITE -> "yazma";
+            case DESTRUCTIVE -> "yıkıcı";
+        };
     }
 
     /**
@@ -93,7 +119,7 @@ public class PolicyEngine {
      */
     public ToolPolicy set(String toolName, PolicyMode mode) {
         Tool tool = tools.find(toolName)
-                .orElseThrow(() -> new IllegalArgumentException("unknown tool: " + toolName));
+                .orElseThrow(() -> new IllegalArgumentException("Tanımsız araç: " + toolName));
         if (tool.risk() == RiskLevel.DESTRUCTIVE && mode == PolicyMode.AUTO) {
             throw new IllegalArgumentException(toolName + " geri alınamaz bir araç (destructive):"
                     + " ask ya da forbidden yapılabilir, auto yapılamaz — silme ile kullanıcı"

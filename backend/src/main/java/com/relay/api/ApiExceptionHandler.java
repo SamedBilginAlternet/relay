@@ -6,6 +6,7 @@ import java.lang.System.Logger.Level;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,19 +21,32 @@ public class ApiExceptionHandler {
 
     private static final Logger LOG = System.getLogger(ApiExceptionHandler.class.getName());
 
+    /**
+     * {@code RunService} phrases these for a log — "run 2f1c… not found", with an id the
+     * reader cannot do anything with. On screen it is one sentence in the language the rest
+     * of the product is written in; the original goes to the log, where it was useful (#81).
+     */
     @ExceptionHandler(RunService.NotFound.class)
     public ResponseEntity<Map<String, Object>> notFound(RunService.NotFound e) {
-        return body(HttpStatus.NOT_FOUND, "not_found", e.getMessage());
+        LOG.log(Level.DEBUG, "not found: {0}", e.getMessage());
+        return body(HttpStatus.NOT_FOUND, "not_found",
+                "Bu kayıt bulunamadı — bağlantı hatalı olabilir.");
     }
 
     /**
      * The caller did nothing wrong; the resource moved. Approving a step on a run somebody
      * else has just cancelled is the case this exists for — 400 would blame the user for a
      * button that was legal when the screen drew it.
+     *
+     * <p>Which is also what the sentence says: the screen is out of date, and reloading it
+     * is the thing to do. The internal phrasing ("step 8c1f… already finished as done")
+     * stays in the log.
      */
     @ExceptionHandler(RunService.Conflict.class)
     public ResponseEntity<Map<String, Object>> conflict(RunService.Conflict e) {
-        return body(HttpStatus.CONFLICT, "conflict", e.getMessage());
+        LOG.log(Level.DEBUG, "conflict: {0}", e.getMessage());
+        return body(HttpStatus.CONFLICT, "conflict",
+                "Bu işlem artık yapılamıyor — akış bu arada değişmiş. Ekranı yenile.");
     }
 
     /**
@@ -58,11 +72,20 @@ public class ApiExceptionHandler {
      * A malformed path variable is the caller's mistake, not a server fault.
      * {@code /api/runs/not-a-uuid} used to answer 500 and hand back Spring's internal
      * conversion message.
+     *
+     * <p>It then answered "'id' değeri geçersiz", which is the same problem one layer up:
+     * the reader is on the Geçmiş screen after following a broken link, and {@code id} is
+     * the name of a Java parameter they have never seen. Every UUID in this API is a run or
+     * a step, so that case gets a sentence about the thing they were looking for; anything
+     * else names the query parameter they themselves typed (#81).
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<Map<String, Object>> badParameter(MethodArgumentTypeMismatchException e) {
-        return body(HttpStatus.BAD_REQUEST, "bad_request",
-                "'" + e.getName() + "' değeri geçersiz");
+        Class<?> type = e.getRequiredType();
+        String message = type != null && UUID.class.isAssignableFrom(type)
+                ? "Bu akış bulunamadı — bağlantı hatalı olabilir."
+                : "Geçersiz istek parametresi: " + e.getName() + ".";
+        return body(HttpStatus.BAD_REQUEST, "bad_request", message);
     }
 
     /**
