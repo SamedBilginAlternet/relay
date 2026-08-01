@@ -1,6 +1,7 @@
 package com.relay.application.port;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Set;
 
 /**
  * A single completion request.
@@ -23,20 +24,38 @@ public record LlmRequest(String purpose, String system, String user, JsonNode sc
     private static final int ROOM = 1400;
 
     /**
-     * The ceiling for an answer that has to carry a whole plan.
+     * The ceiling for the answers that carry a whole structure rather than a sentence.
      *
-     * <p>WHY THIS IS BIGGER. A reasoning model spends its output budget thinking before it
-     * writes anything, and at 1400 it can run out before the JSON starts. Measured live on
-     * 2026-08-01 with every Groq key at its daily wall and the paid tier answering: three
-     * consecutive multi-source goals came back with no parseable plan at all — not a bad
-     * plan, no array in the answer — and the planning call had spent 4 091 tokens getting
-     * there. The plan is also simply the longest structured answer this product asks for:
-     * up to eight steps, each with a title and a parameter object.
+     * <p>WHY THIS IS BIGGER. A thinking model spends output budget reasoning before it
+     * writes anything, and at 1400 it runs out mid-JSON. Measured directly against
+     * gemini-3.6-flash on 2026-08-01 with one digest-shaped prompt:
+     *
+     * <pre>
+     *   max_tokens=1400  finish=length  thought=1095  written=301  → truncated, unparseable
+     *   max_tokens=3600  finish=stop    thought= 784  written=379  → valid JSON
+     * </pre>
+     *
+     * <p>The same failure had already been measured on the plan: three consecutive
+     * multi-source goals came back with no step array at all, after calls that had spent
+     * 4 091 tokens getting nowhere. On the brief it cost the whole digest — the day's
+     * written summary and every row's "neden şimdi" sentence — which the backend then
+     * correctly omitted rather than shipping filler, so the feature simply went dark.
+     *
+     * <p>It is a ceiling, not a spend: the only cost of raising it is a model that decides
+     * to fill it. Kept off the short answers — a verdict, a three-sentence summary, one
+     * provider query — because those never came close to it.
      */
-    private static final int PLAN_ROOM = 3600;
+    private static final int LONG_ROOM = 3600;
+
+    /** The answers that are a structure: several items, each with fields of its own. */
+    private static final Set<String> LONG = Set.of(
+            LlmPurpose.PLAN, LlmPurpose.DIGEST, LlmPurpose.INSIGHT, LlmPurpose.ASK_ANSWER);
 
     public static LlmRequest of(String purpose, String system, String user, JsonNode schema, Object context) {
+        // `Set.of` throws on a null lookup, and an unnamed purpose is a real caller: it is
+        // the case `PurposeRoutingTest` holds, where an unclassified job must still get an
+        // answer rather than an exception.
         return new LlmRequest(purpose, system, user, schema, context, 0.2,
-                LlmPurpose.PLAN.equals(purpose) ? PLAN_ROOM : ROOM);
+                purpose != null && LONG.contains(purpose) ? LONG_ROOM : ROOM);
     }
 }
