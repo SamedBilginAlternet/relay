@@ -156,10 +156,48 @@ it('no_written_summary_leaves_the_counted_line_standing', async () => {
   getBrief.mockResolvedValue(briefWith({ digest: null }));
 
   const { container } = render(<TodayScreen onNavigate={() => {}} />);
-  await screen.findAllByText(/Bugün seni bekleyen bir şey görünmüyor/);
+  await screen.findAllByText(/Seni bekleyen bir şey görünmüyor/);
 
   expect(container.querySelector('.tally__headline')).toBeTruthy();
   expect(container.querySelector('.tally__summary')).toBeNull();
+});
+
+/**
+ * The top of the screen said "Bugün" three times inside 200px: the h1, the
+ * counted sentence under it and the label on the arrivals block. Only the h1
+ * has to — it is the screen's name and it carries the date. The other two read
+ * as a stutter, which is what the product owner opened the issue about.
+ */
+it('the_word_bugun_is_said_once_at_the_top_and_not_again_underneath', async () => {
+  getBrief.mockResolvedValue(
+    briefWith({
+      today: {
+        headline: 'sunucunun kendi cümlesi — bu ekranda gösterilmiyor',
+        lines: ['6 mail bir kişiden geldi'],
+        highlights: [],
+        counts: {
+          inbox: 6,
+          inboxPersonal: 6,
+          inboxBulk: 0,
+          work: 0,
+          code: 0,
+          calendar: 0,
+          urgent: 0,
+        },
+      },
+      // No digest: the model writes free prose and may legitimately say the
+      // word itself, which is not what this test is about.
+      digest: null,
+    }),
+  );
+
+  const { container } = render(<TodayScreen onNavigate={() => {}} />);
+  await screen.findByText(/6 mail bir kişiden geldi/);
+
+  const said = (container.textContent ?? '').match(/Bugün/g) ?? [];
+  expect(said).toHaveLength(1);
+  // And it is the h1 that kept it, with the date beside it.
+  expect(container.querySelector('h1')?.textContent).toContain('Bugün');
 });
 
 /**
@@ -189,7 +227,7 @@ it('what_arrived_today_is_counted_and_labelled_next_to_what_must_be_done', async
   render(<TodayScreen onNavigate={() => {}} />);
 
   expect(await screen.findByText(/7 mail bir kişiden geldi/)).toBeTruthy();
-  expect(screen.getByText('Bugün gelenler')).toBeTruthy();
+  expect(screen.getByText('Gelenler')).toBeTruthy();
   // Still said out loud (#102) — in the margin beside the list now rather than stacked
   // above it, which is where everything ABOUT the day moved in #142.
   expect(screen.getByText(/Önce ödeme hatasını çöz/)).toBeTruthy();

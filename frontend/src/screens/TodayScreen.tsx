@@ -102,12 +102,18 @@ function minutesOfDay(meta?: string | null): number | null {
 /**
  * The day in one sentence, counted off the rows the user can see.
  *
+ * <p>It does not say "Bugün", and that is deliberate: the h1 directly above it
+ * already does, and it is the only one of the three that has to — it names the
+ * screen and carries the date beside it. The sentence inherits that subject the
+ * way a sentence under a heading does, and keeps both facts it has always
+ * carried: how many jobs, and how many of them are urgent.
+ *
  * "tanesi" rather than a suffix, the same choice the server makes: Turkish
  * vowel harmony would need 2'si, 3'ü, 6'sı… and a wrong suffix reads as sloppy.
  */
 function dayHeadline(rows: number, urgent: number): string {
-  if (rows === 0) return 'Bugün seni bekleyen bir şey görünmüyor.';
-  const sentence = `Bugün ${rows} iş seni bekliyor`;
+  if (rows === 0) return 'Seni bekleyen bir şey görünmüyor.';
+  const sentence = `${rows} iş seni bekliyor`;
   return urgent > 0 ? `${sentence}, ${urgent} tanesi acil.` : `${sentence}.`;
 }
 
@@ -831,7 +837,11 @@ export function TodayScreen({ onNavigate }: Props) {
             <aside className="day-rail" aria-label="Günün özeti">
               {!loading && dayLines.length > 0 && (
                 <section className="day-rail__block">
-                  <h2 className="t-label day-rail__label">Bugün gelenler</h2>
+                  {/* "Gelenler", not "Bugün gelenler": the whole screen is
+                      today — the h1 says so and the brief has no other day in
+                      it — so the word was doing no work here that the heading
+                      above was not already doing. */}
+                  <h2 className="t-label day-rail__label">Gelenler</h2>
                   <ul className="day-rail__stats">
                     {dayLines.map((line) => (
                       <li key={line} className="day-rail__stat">
