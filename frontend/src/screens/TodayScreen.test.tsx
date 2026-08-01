@@ -142,8 +142,10 @@ it('the_day_is_said_in_words_as_well_as_in_numbers', async () => {
   expect(
     await screen.findByText('Bugün ödeme adımında hata alan bir sipariş ve bekleyen bir PR var.'),
   ).toBeTruthy();
-  // The advice is what the ordered list says by being ordered (#58).
-  expect(screen.queryByText(/Önce ödeme hatasını çöz/)).toBeNull();
+  // The advice line came back with it: "first this, then that" is a sentence
+  // about the list, and the product owner wants it said rather than implied by
+  // the ordering (#102, reversing that half of #58).
+  expect(screen.getByText(/Önce ödeme hatasını çöz/)).toBeTruthy();
 });
 
 /** A spent token budget costs a sentence, not the screen: the counts stand alone. */
@@ -155,4 +157,45 @@ it('no_written_summary_leaves_the_counted_line_standing', async () => {
 
   expect(container.querySelector('.tally__headline')).toBeTruthy();
   expect(container.querySelector('.tally__summary')).toBeNull();
+});
+
+/**
+ * The home screen has to answer "what came in today" as well as "what do I do".
+ * #58 deleted the counted breakdown along with the layers that repeated the
+ * list; the counts were not a repetition, they were the only place the inbox
+ * volume is said out loud. They carry a label now, because #60's complaint was
+ * that three numbers sat here with nothing saying what each of them counted.
+ */
+it('what_arrived_today_is_counted_and_labelled_next_to_what_must_be_done', async () => {
+  getBrief.mockResolvedValue(
+    briefWith({
+      today: {
+        headline: 'Bugün 10 iş seni bekliyor · 1 toplantı.',
+        lines: ['7 mail bir kişiden geldi (8 bülten ayrıldı)', '1 toplantı — ilki 09:00'],
+        highlights: [],
+        counts: { inbox: 15, inboxPersonal: 7, inboxBulk: 8, work: 0, code: 3, calendar: 1, urgent: 0 },
+      },
+      digest: {
+        summary: 'Ödeme adımında hata var.',
+        priorities: [],
+        advice: 'Önce ödeme hatasını çöz, sonra bülten olmayan maillere bak.',
+      },
+    }),
+  );
+
+  render(<TodayScreen onNavigate={() => {}} />);
+
+  expect(await screen.findByText(/7 mail bir kişiden geldi/)).toBeTruthy();
+  expect(screen.getByText('Bugün gelenler')).toBeTruthy();
+  expect(screen.getByText(/Önce ödeme hatasını çöz/)).toBeTruthy();
+});
+
+/** A day the server counted nothing for draws no empty label and no stray dot. */
+it('a_day_with_nothing_counted_draws_no_breakdown_at_all', async () => {
+  const { container } = render(<TodayScreen onNavigate={() => {}} />);
+  getBrief.mockResolvedValue(briefWith({}));
+
+  await screen.findAllByText(/Bugün/);
+  expect(container.querySelector('.tally__lines')).toBeNull();
+  expect(container.querySelector('.tally__advice')).toBeNull();
 });

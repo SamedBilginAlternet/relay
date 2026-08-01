@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
+  ArrowRight,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
@@ -300,6 +301,11 @@ export function TodayScreen({ onNavigate }: Props) {
   /* Trimmed, because a model asked for three sentences occasionally writes six
      and the list has to stay above the fold. */
   const summary = (brief?.digest?.summary ?? '').trim();
+  /* Counted by the server, never derived here: these are the numbers that
+     cannot be wrong, and recomputing them in the client is how they start
+     disagreeing with each other. */
+  const dayLines = brief?.today?.lines ?? [];
+  const advice = (brief?.digest?.advice ?? '').trim();
 
   /*
     Which row gets the screen's one filled button (issue #78).
@@ -440,6 +446,30 @@ export function TodayScreen({ onNavigate }: Props) {
               costs a sentence, not the screen.
             */}
             {!loading && summary ? <p className="tally__summary">{summary}</p> : null}
+
+            {/*
+              What actually arrived, counted by the server. This is a different
+              question from the headline above it and has to look like one: the
+              headline counts what needs doing (the rows below), this counts
+              what came in — fifteen mails of which eight were mailings and
+              seven from people. #60 was opened because three numbers sat on
+              this screen with nothing saying what each was; the label is what
+              was missing, not the numbers.
+            */}
+            {!loading && dayLines.length > 0 ? (
+              <p className="tally__lines">
+                <span className="tally__lines-label">Bugün gelenler</span>
+                {dayLines.join(' · ')}
+              </p>
+            ) : null}
+
+            {/* And the one thing to do first, when the model committed to one. */}
+            {!loading && advice ? (
+              <p className="tally__advice">
+                <ArrowRight size={13} aria-hidden />
+                <span>{advice}</span>
+              </p>
+            ) : null}
 
             <p className="brief-top__meta">
               <span
