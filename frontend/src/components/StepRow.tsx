@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ChevronDown, ShieldQuestion, TriangleAlert, Wallet } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { stepDuration, formatTokens, formatUsd } from '../lib/format';
+import { paramLabel } from '../lib/paramLabels';
 import { DECISION_LABEL, stepStatusMeta } from '../lib/status';
 import type { Step } from '../types/api';
 import { ParamBlock } from './ParamBlock';
@@ -195,7 +196,9 @@ export function StepRow({
                 };
                 return (
                   <label className="field" key={key}>
-                    <span className="t-label">{key}</span>
+                    {/* `.param-label`, not `.t-label`: the token uppercases, and
+                        this text is data. See lib/paramLabels.ts. */}
+                    <span className="param-label">{paramLabel(key)}</span>
                     {multiline ? (
                       <textarea
                         value={text}

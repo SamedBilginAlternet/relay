@@ -181,12 +181,28 @@ textarea {
   line-height: 1.4;
   color: var(--fg-muted);
 }
+/*
+  Fixed copy only. `text-transform: uppercase` under `lang="tr"` is locale-aware
+  (CSS Text Module): `i` becomes `İ`. That is correct for a Turkish word and
+  wrong for anything the model or the user produced — `issueType` came out of
+  this rule as `İSSUETYPE` on the approval gate. Never point `.t-label` at data;
+  `.param-label` below is the form-field variant that does not shout.
+*/
 .t-label {
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  color: var(--fg-muted);
+}
+/* The caption above an editable parameter on the approval gate. Same colour and
+   size as `.t-label` so the gate still looks like the rest of the product —
+   without the transform, because the text underneath can be a raw field name. */
+.param-label {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
   color: var(--fg-muted);
 }
 .t-mono {
