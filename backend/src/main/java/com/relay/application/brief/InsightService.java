@@ -138,6 +138,17 @@ public class InsightService {
         return new Insight(insight.itemId(), "fyi", "low", insight.summary(), List.of());
     }
 
+    /** {@code channel, text} — enough to fill the call without shipping the schema. */
+    private static String requiredFields(Tool tool) {
+        JsonNode required = tool.schema().path("required");
+        if (!required.isArray() || required.isEmpty()) {
+            return "(yok)";
+        }
+        List<String> names = new ArrayList<>();
+        required.forEach(node -> names.add(node.asText()));
+        return String.join(", ", names);
+    }
+
     /** Fields a suggested action can actually use as parameters. */
     private static final java.util.Set<String> REF_FIELDS = java.util.Set.of(
             "issueKey", "repo", "number", "messageId", "threadId", "channel", "from", "bulk");
@@ -172,10 +183,14 @@ public class InsightService {
         }
         user.append("\nTOOLS YOU MAY SUGGEST (use the exact name, nothing else exists):\n");
         for (Tool tool : actionableTools()) {
+            // Name, purpose and the required field names — not the whole JSON Schema.
+            // Fifteen full schemas rode along on every brief and, with the free-tier
+            // per-minute token budget, that alone was enough to push the call into 429
+            // and drop the screen to heuristics.
             user.append("- ").append(tool.name())
                     .append(" (risk=").append(tool.risk().wire()).append("): ")
                     .append(tool.description())
-                    .append("\n  params schema: ").append(tool.schema())
+                    .append(" | zorunlu: ").append(requiredFields(tool))
                     .append('\n');
         }
         user.append("\nAnswer JSON only: {\"insights\":[{\"id\":\"…\",\"kind\":\"…\",\"urgency\":\"…\","
