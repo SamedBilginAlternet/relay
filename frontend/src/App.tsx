@@ -79,9 +79,6 @@ export default function App() {
     // a first-time account lands in the onboarding tour.
     <AuthGate route={route} onNavigate={navigate}>
       <div className={`app${wide ? ' app--sidebar' : ''}${wide && collapsed ? ' app--tight' : ''}`}>
-        {/* Decoration, in this order on purpose: the wash sits behind everything
-            (z-index -1) and the halo above it, and neither takes a pointer event. */}
-        <div className="aurora" aria-hidden />
         <PointerHalo />
         <a className="skip-link" href="#main">
           İçeriğe geç
