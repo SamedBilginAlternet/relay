@@ -29,6 +29,7 @@ class ToolSchemaTest {
                 new GitHubTool.AddComment("replay", FIXTURES),
                 new JiraTool.ListMyIssues("replay", FIXTURES),
                 new JiraTool.CreateIssue("replay", FIXTURES),
+                new JiraTool.GetComments("replay", FIXTURES),
                 new GmailTool.ListToday("replay", FIXTURES, null),
                 new GmailTool.GetMessage("replay", FIXTURES, null),
                 new GmailTool.Search("replay", FIXTURES, null),

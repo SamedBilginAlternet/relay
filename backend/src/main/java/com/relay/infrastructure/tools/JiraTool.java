@@ -391,6 +391,73 @@ public abstract class JiraTool extends AbstractTool {
         return null;
     }
 
+    /**
+     * Atlassian Document Format, read back as plain text — the way in for {@link #adf}.
+     *
+     * <p>Jira's REST v3 hands every comment body over as a nested ADF document: the sentence
+     * "Gateway ekibine ticket açıldı" arrives as four levels of {@code {"type":"doc"} →
+     * {"type":"paragraph"} → {"type":"text"}}. Putting that JSON in front of a person, or in
+     * front of the summarising model, buries the one thing that matters under its own markup.
+     *
+     * <p>Structure that carries meaning is kept as text rather than dropped: a bullet stays a
+     * bullet, a mention stays the name that was mentioned, a linked card stays its URL. A
+     * plain string is passed through untouched, because REST v2 answers with one.
+     */
+    static String plain(JsonNode body) {
+        StringBuilder sb = new StringBuilder();
+        render(body, sb);
+        // Blocks each end with their own break; collapse what that leaves behind.
+        return sb.toString().replaceAll("[ \t]+\n", "\n").replaceAll("\n{3,}", "\n\n").trim();
+    }
+
+    /** ADF node types that end a line of their own. */
+    private static final java.util.Set<String> ADF_BLOCKS = java.util.Set.of(
+            "paragraph", "heading", "blockquote", "codeBlock", "panel", "bulletList",
+            "orderedList", "taskList", "decisionList", "mediaGroup", "mediaSingle", "table",
+            "tableRow", "expand");
+
+    private static void render(JsonNode node, StringBuilder sb) {
+        if (node == null || node.isNull() || node.isMissingNode()) {
+            return;
+        }
+        if (node.isTextual()) {
+            sb.append(node.asText());
+            return;
+        }
+        if (node.isArray()) {
+            for (JsonNode child : node) {
+                render(child, sb);
+            }
+            return;
+        }
+        String type = node.path("type").asText("");
+        JsonNode attrs = node.path("attrs");
+        switch (type) {
+            case "text" -> sb.append(node.path("text").asText(""));
+            case "hardBreak" -> sb.append('\n');
+            // A mention is a person's name; an emoji is a word. Both are content.
+            case "mention" -> sb.append(attrs.path("text").asText("@" + attrs.path("id").asText("")));
+            case "emoji" -> sb.append(attrs.path("text").asText(attrs.path("shortName").asText("")));
+            case "date" -> sb.append(attrs.path("timestamp").asText(""));
+            case "inlineCard", "blockCard", "embedCard" -> sb.append(attrs.path("url").asText(""));
+            case "rule" -> sb.append("\n---\n");
+            case "listItem", "taskItem", "decisionItem" -> {
+                StringBuilder item = new StringBuilder();
+                render(node.path("content"), item);
+                String text = item.toString().trim();
+                if (!text.isEmpty()) {
+                    sb.append("- ").append(text.replace("\n\n", "\n")).append('\n');
+                }
+            }
+            default -> {
+                render(node.path("content"), sb);
+                if (ADF_BLOCKS.contains(type)) {
+                    sb.append("\n\n");
+                }
+            }
+        }
+    }
+
     /** Atlassian Document Format wrapper for a plain-text comment body. */
     protected static ObjectNode adf(String text) {
         ObjectNode doc = Json.object();
@@ -709,7 +776,9 @@ public abstract class JiraTool extends AbstractTool {
 
         @Override
         public String description() {
-            return "Read one Jira issue by key, including description, status and comments.";
+            return "Read one Jira issue by key: summary, description, status, assignee and priority. "
+                    + "For the discussion on it use jira.getComments — this call returns fields, "
+                    + "not the thread.";
         }
 
         @Override
@@ -734,6 +803,117 @@ public abstract class JiraTool extends AbstractTool {
                     + HttpJson.encode(params.path("issueKey").asText());
             return jira("GET", url, headers(connection), null);
         }
+    }
+
+    // ----------------------------------------------------------- getComments
+
+    /**
+     * The comments on an issue, which is where its story actually lives.
+     *
+     * <p>{@code jira.getIssue} answers with the fields — summary, status, assignee — and a
+     * field is a state, not a reason. "Bu neden bekliyor?" is answered three comments down,
+     * by a person who wrote why. Without this tool that thread was unreadable: the request
+     * ("jira ticket yorumlarını getir") had no tool to route to.
+     */
+    @Component
+    public static class GetComments extends JiraTool {
+
+        public GetComments(@Value("${app.tools.mode:replay}") String mode, FixtureStore fixtures) {
+            super(ToolsMode.parse(mode), fixtures);
+        }
+
+        @Override
+        public String name() {
+            return "jira.getComments";
+        }
+
+        @Override
+        public String description() {
+            return "Read the comments on one Jira issue: who wrote what, and when. "
+                    + "Newest first, with the rich-text body reduced to plain text. "
+                    + "Use it to answer why an issue is in the state it is in — the fields say "
+                    + "what, the comments say why.";
+        }
+
+        @Override
+        public RiskLevel risk() {
+            return RiskLevel.READ;
+        }
+
+        @Override
+        public JsonNode schema() {
+            ObjectNode schema = Json.object();
+            schema.put("type", "object");
+            schema.putArray("required").add("issueKey");
+            ObjectNode props = schema.putObject("properties");
+            ObjectNode key = props.putObject("issueKey");
+            key.put("type", "string");
+            key.put("minLength", 3);
+            key.put("description", "Issue key, e.g. KAN-4");
+            ObjectNode max = props.putObject("maxResults");
+            max.put("type", "integer");
+            max.put("minimum", 1);
+            max.put("maximum", 50);
+            max.put("description", "How many comments to return, newest first (default 20)");
+            return schema;
+        }
+
+        @Override
+        protected JsonNode call(JsonNode params, Connection connection) throws Exception {
+            String issueKey = params.path("issueKey").asText("").trim();
+            int max = Math.min(50, Math.max(1, params.path("maxResults").asInt(20)));
+            // orderBy=-created so a truncated page is the newest comments, not the oldest:
+            // on a long-running issue the first twenty are the least useful twenty.
+            String url = base(connection) + "/rest/api/3/issue/" + HttpJson.encode(issueKey)
+                    + "/comment?maxResults=" + max + "&orderBy=-created";
+            JsonNode response = jira("GET", url, headers(connection), null);
+            return comments(response, issueKey, base(connection) + "/browse/" + issueKey);
+        }
+    }
+
+    /**
+     * One comment page, flattened to what a reader needs: who, when, and what they said.
+     *
+     * <p>An issue with no comments is not an error and not an empty answer to paper over —
+     * it is a fact, and it is said out loud, so nothing downstream is tempted to invent a
+     * discussion that never happened.
+     */
+    static ObjectNode comments(JsonNode response, String issueKey, String browseUrl) {
+        ObjectNode out = Json.object();
+        out.put("issueKey", issueKey);
+        com.fasterxml.jackson.databind.node.ArrayNode list = out.putArray("comments");
+        for (JsonNode comment : response.path("comments")) {
+            ObjectNode item = list.addObject();
+            item.put("id", comment.path("id").asText(""));
+            item.put("author", author(comment.path("author")));
+            String created = comment.path("created").asText("");
+            item.put("created", created);
+            String updated = comment.path("updated").asText("");
+            if (!updated.isBlank() && !updated.equals(created)) {
+                item.put("updated", updated);
+            }
+            item.put("text", plain(comment.path("body")));
+        }
+        out.put("returned", list.size());
+        out.put("total", response.path("total").asInt(list.size()));
+        out.put("order", "newest-first");
+        if (browseUrl != null && !browseUrl.isBlank()) {
+            out.put("url", browseUrl);
+        }
+        if (list.isEmpty()) {
+            out.put("note", issueKey + " kaydında hiç yorum yok.");
+        }
+        return out;
+    }
+
+    /** Who wrote it. An inactive or deleted account still has to be attributable. */
+    private static String author(JsonNode node) {
+        String name = node.path("displayName").asText("");
+        if (!name.isBlank()) {
+            return name;
+        }
+        String email = node.path("emailAddress").asText("");
+        return email.isBlank() ? "(bilinmeyen)" : email;
     }
 
     // ------------------------------------------------------------ updateIssue
