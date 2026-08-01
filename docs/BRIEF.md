@@ -42,13 +42,22 @@ Her mail/PR/issue için tek bir LLM çağrısı **sınıflandırma + eylem öner
 {
   "kind": "bug_report | request | fyi | needs_reply | scheduling",
   "urgency": "high | normal | low",
-  "summary": "Tek cümle — ne isteniyor",
+  "summary": "Tek cümle — öğe, hangi durumda ve sıradaki adım ne",
   "suggestedActions": [
-    { "tool": "jira.createIssue", "label": "Jira ticket aç", "params": {...} },
-    { "tool": "slack.postMessage", "label": "#dev'e bildir", "params": {...} }
+    { "tool": "jira.updateIssue", "label": "Başla: In Progress yap", "params": {...} },
+    { "tool": "slack.postMessage", "label": "Ekibe başladığını bildir", "params": {...} }
   ]
 }
 ```
+
+Öneriyi **öğenin durumu** seçer, kaynağı değil: başlanmamış bir kayıt başlatılır, devam
+eden bir kayda ilerleme yazılır, engelli olan engeli kaldıracak kişiye taşınır. İki adım
+gerekiyorsa ikisi de önerilir ve sırası bellidir — önce durumu değiştiren, sonra haber
+veren. Kaynağa bakan eski hâli tek bir cümleyi herkese dağıtıyordu ("Yorum ekle"), ve
+yorum hiçbir işi ilerletmez.
+
+Aynı ayrım model yokken de geçerli: dakikalık token bütçesi çağrıyı düşürdüğünde devreye
+giren belirlenimci yol da durumu okur, sadece daha genel yazar.
 
 Kullanıcı bir eyleme tıkladığında **normal bir Relay akışı başlıyor** — aynı plan, aynı
 onay kapısı, aynı şeffaflık. Yani Bugün ekranı yeni bir motor değil, motora **hazır girdi**.
