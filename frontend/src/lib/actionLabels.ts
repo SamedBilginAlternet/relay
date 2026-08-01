@@ -50,6 +50,9 @@ const LABELS: Record<string, string> = {
   'notion.createPage': 'Notion’a not aç',
   'notion.appendToPage': 'Notion sayfasına ekle',
 
+  // Confluence
+  'confluence.createPage': 'Confluence sayfası aç',
+
   // Calendar
   'calendar.listToday': 'Bugünün toplantılarını getir',
   'calendar.listUpcoming': 'Yaklaşan toplantıları getir',

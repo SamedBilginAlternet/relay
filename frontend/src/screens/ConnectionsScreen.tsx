@@ -26,8 +26,8 @@ type FieldDef = {
   hint?: string;
 };
 
-/** Which of `BrandMark`'s marks a provider is drawn with. Google is two products. */
-type MarkName = 'jira' | 'github' | 'gmail' | 'calendar' | 'slack' | 'notion';
+/** Which of `BrandMark`'s marks a provider is drawn with. Google and Atlassian are several products each. */
+type MarkName = 'jira' | 'confluence' | 'github' | 'gmail' | 'calendar' | 'slack' | 'notion';
 
 type ProviderDef = {
   provider: Provider;
@@ -76,8 +76,9 @@ export const PROVIDERS: ProviderDef[] = [
   {
     provider: 'jira',
     title: 'Jira',
-    blurb: 'Kayıt arama ve okuma, durum güncelleme, yorum ekleme. API token ile bağlanır.',
-    marks: ['jira'],
+    blurb:
+      'Kayıt arama ve okuma, durum güncelleme, yorum ekleme; Confluence sayfası da aynı hesapla açılır. API token ile bağlanır.',
+    marks: ['jira', 'confluence'],
     console: {
       href: 'https://id.atlassian.com/manage-profile/security/api-tokens',
       label: 'Atlassian API token’ları',
@@ -93,6 +94,13 @@ export const PROVIDERS: ProviderDef[] = [
         hint: 'id.atlassian.com › Security › API tokens',
       },
       { key: 'projectKey', label: 'Varsayılan proje (opsiyonel)', placeholder: 'RUN' },
+      {
+        key: 'defaultSpaceKey',
+        label: 'Varsayılan Confluence alanı (opsiyonel)',
+        placeholder: 'DOC',
+        hint:
+          'confluence.createPage hedef alan (space) verilmediğinde sayfayı buraya açar. Alan anahtarı Confluence adresinde /spaces/<ANAHTAR>/ olarak görünür; Confluence ayrı token istemez, Jira ile aynı hesabı kullanır.',
+      },
     ],
   },
   {

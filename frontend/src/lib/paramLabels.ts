@@ -48,6 +48,9 @@ const LABELS: Record<string, string> = {
   pageid: 'Sayfa',
   content: 'İçerik',
 
+  // Confluence — "space" is Alan in Atlassian's own Turkish interface.
+  spacekey: 'Alan',
+
   // Gmail
   to: 'Kime',
   cc: 'Bilgi',

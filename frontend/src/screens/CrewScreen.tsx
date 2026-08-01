@@ -119,6 +119,7 @@ const CORE: CrewTab = 'cekirdek';
 /** The product's own word for each provider, short enough to be a tab. */
 const PROVIDER_LABEL: Record<Provider, string> = {
   jira: 'Jira',
+  confluence: 'Confluence',
   gmail: 'Gmail',
   calendar: 'Takvim',
   github: 'GitHub',
@@ -141,7 +142,7 @@ const PROVIDER_LABEL: Record<Provider, string> = {
  * same day this screen did. Whoever edits either next should lift both constants
  * somewhere shared rather than write them a third time.
  */
-const PROVIDER_ORDER: Provider[] = ['jira', 'gmail', 'calendar', 'github', 'slack', 'notion'];
+const PROVIDER_ORDER: Provider[] = ['jira', 'confluence', 'gmail', 'calendar', 'github', 'slack', 'notion'];
 
 function providerRank(provider: string): number {
   const index = PROVIDER_ORDER.indexOf(provider as Provider);

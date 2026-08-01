@@ -50,6 +50,7 @@ describe('actionLabel', () => {
       'github.listMyIssues',
       'notion.createPage',
       'notion.appendToPage',
+      'confluence.createPage',
       'slack.postMessage',
       'slack.listChannels',
       'calendar.listToday',

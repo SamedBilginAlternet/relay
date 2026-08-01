@@ -59,6 +59,48 @@ Notlar:
 - Site var ama Jira **ürünü** kurulu değilse token geçerli olsa bile 404 alınır.
 - KAN panosu Kanban olduğu için sprint API'si 400 döner; demo senaryosu `labels = blocker` üzerinden yürür.
 
+### 2.1 `confluence.createPage` — aynı hesap, `/wiki` altındaki sayfa
+
+**Kurulumda yeni hiçbir şey yok.** Atlassian API token'ı ürüne değil **hesaba** kesilir:
+Jira için girdiğin `baseUrl` + `email` + `apiToken` üçlüsü aynı sitenin Confluence'ını da
+açar. Bu yüzden Bağlantılar'da ayrı bir Confluence kartı yoktur ve olmayacaktır — aynı
+token'ı ikinci bir forma yapıştırmak kurulum değil tekrardır. Model tarafında bu, Google
+emsalinin Atlassian'a uygulanmasıdır: `gmail.*`/`calendar.*`/`sheets.*` tek `google`
+bağlantısına nasıl biniyorsa `confluence.*` da `jira` bağlantısına biner.
+
+Tek opsiyonel yenilik, Jira formundaki şu ayar:
+
+| Anahtar | Zorunlu | Değer |
+|---|---|---|
+| `defaultSpaceKey` | hayır | Sayfaların açılacağı varsayılan Confluence alanının (space) anahtarı — adreste `/spaces/<ANAHTAR>/` olarak görünür (örn. `DOC`) |
+
+Slack'in `defaultChannel`'ı ile aynı yol (`withDefaults` + `ToolAgent.CONTAINER_DEFAULTS`):
+model alan vermezse onay ekranı boş hedef değil bu alanı gösterir. Ayar da boşsa adım
+Türkçe cümleyle düşer; hiçbir alan uydurulmaz.
+
+Bilmen gereken dört davranış:
+
+- **Adres türetilir, sorulmaz.** Bağlantıdaki `baseUrl` Atlassian site köküdür; Confluence
+  Cloud onun `/wiki`'sinde yaşar ve araç bunu kendisi ekler (sonu zaten `/wiki` ile biten
+  bir adres ikinci kez uzatılmaz).
+- **v2 API + bir alan çözme okuması.** Sayfa `POST /wiki/api/v2/pages` ile açılır; v2 alan
+  *anahtarı* değil sayısal alan *kimliği* ister, bu yüzden araç önce
+  `GET /wiki/api/v2/spaces?keys=…` ile senin bildiğin anahtarı uçtaki kimliğe çevirir.
+  (v1 `POST /wiki/rest/api/content` anahtarı doğrudan alırdı ama Atlassian v1 uçlarını
+  emekli ediyor — v1 arama ucunun HTTP 410'una bir kez yakalandık, bkz. yukarıdaki not.)
+- **İçerik düz metindir ve dürüstçe sarılır.** Her satır kaçışlanmış bir `<p>` paragrafı
+  olur; markdown **çevrilmez** — `**kalın**` sayfada `**kalın**` olarak durur. Yarım
+  çevrilmiş biçimlendirme yalanından, olduğu gibi duran metin iyidir. Kaçışlama aynı
+  kararın güvenlik yarısıdır: modelin yazdığı `<script>` sayfaya markup değil metin olarak
+  iner.
+- **WRITE → onay kapısı** kendiliğinden açılır; kural yazmak gerekmez. Brifingde yoktur
+  (yazma aracı brifinge girmez).
+
+Hata çevirileri: 403, token'ı suçlamak yerine gerçeği söyler — token Jira'da bir adım önce
+çalıştı, sorun neredeyse her zaman *Confluence'ın bu sitede açık olmaması* ya da hesabın o
+alana erişememesidir. Bulunamayan alan anahtarı `defaultSpaceKey` ayarını adıyla gösterir;
+404 `baseUrl + /wiki` ihtimalini söyler. Ham gövde hiçbir durumda ekrana çıkmaz.
+
 ---
 
 ## 3. Slack ⚠️ (eksik scope)

@@ -152,6 +152,7 @@ const MOCK_TOOLS: [string, RiskLevel][] = [
   ['calendar.createEvent', 'write'],
   ['calendar.listToday', 'read'],
   ['calendar.listUpcoming', 'read'],
+  ['confluence.createPage', 'write'],
   ['github.addComment', 'write'],
   ['github.createIssue', 'write'],
   ['github.listMyIssues', 'read'],
@@ -182,6 +183,8 @@ const MOCK_CONNECTED = new Set(['jira', 'slack']);
 const MOCK_CONNECTION_OF: Record<string, string> = {
   gmail: 'google',
   calendar: 'google',
+  // Confluence rides the jira connection the same way — one Atlassian account.
+  confluence: 'jira',
 };
 
 class MockCrewSource implements CrewSource {

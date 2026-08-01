@@ -41,7 +41,8 @@ class ToolSchemaTest {
                 new SheetsTool.AppendRow("replay", FIXTURES, null),
                 new SheetsTool.ReadRange("replay", FIXTURES, null),
                 new NotionTool.CreatePage("replay", FIXTURES),
-                new NotionTool.AppendToPage("replay", FIXTURES));
+                new NotionTool.AppendToPage("replay", FIXTURES),
+                new ConfluenceTool.CreatePage("replay", FIXTURES));
     }
 
     @ParameterizedTest
@@ -94,6 +95,9 @@ class ToolSchemaTest {
         // sheets.* is a tool namespace, not a connection: the row rides the same grant.
         assertThat(new SheetsTool.AppendRow("replay", FIXTURES, null).provider()).isEqualTo("google");
         assertThat(new GitHubTool.AddComment("replay", FIXTURES).provider()).isEqualTo("github");
+        // …and confluence.* is the same pattern on the Atlassian side: one jira connection,
+        // a second product's tool namespace riding its credentials.
+        assertThat(new ConfluenceTool.CreatePage("replay", FIXTURES).provider()).isEqualTo("jira");
     }
 
     @Test

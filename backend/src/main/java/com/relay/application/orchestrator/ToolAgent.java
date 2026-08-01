@@ -224,9 +224,16 @@ public class ToolAgent {
         return null;
     }
 
-    /** Fields whose value a person reads: the message, not the plumbing. */
+    /**
+     * Fields whose value a person reads: the message, not the plumbing.
+     *
+     * <p>{@code content} joined late, and its absence was a hole: Notion pages, Confluence
+     * pages and Google Docs all take their body under that name, so a page whose body was
+     * template filler sailed past the gate that stops the identical text in a Slack
+     * {@code text} or a mail {@code body}. Same field, same reader, same rule.
+     */
     private static final java.util.Set<String> HUMAN_TEXT_FIELDS = java.util.Set.of(
-            "text", "message", "body", "comment", "description");
+            "text", "message", "body", "comment", "description", "content");
 
     /**
      * Refuses to send a message that reports activity instead of findings.
@@ -305,17 +312,18 @@ public class ToolAgent {
      * from {@code login}: an owner may be an organisation, and swapping in the connected
      * account would be another guess wearing the clothes of a default.
      */
-    private static final Map<String, List<String>> CONTAINER_DEFAULTS = Map.of(
-            "projectkey", List.of("projectKey", "defaultProject"),
-            "project", List.of("projectKey", "defaultProject"),
-            "channel", List.of("defaultChannel"),
-            "channelid", List.of("defaultChannel"),
-            "repo", List.of("repo", "defaultRepo"),
-            "repository", List.of("repo", "defaultRepo"),
-            "parentdatabaseid", List.of("parentDatabaseId", "defaultDatabaseId"),
-            "spreadsheetid", List.of("defaultSpreadsheetId"),
-            "sheetname", List.of("defaultSheetName"),
-            "pageid", List.of("defaultPageId"));
+    private static final Map<String, List<String>> CONTAINER_DEFAULTS = Map.ofEntries(
+            Map.entry("projectkey", List.of("projectKey", "defaultProject")),
+            Map.entry("project", List.of("projectKey", "defaultProject")),
+            Map.entry("channel", List.of("defaultChannel")),
+            Map.entry("channelid", List.of("defaultChannel")),
+            Map.entry("repo", List.of("repo", "defaultRepo")),
+            Map.entry("repository", List.of("repo", "defaultRepo")),
+            Map.entry("parentdatabaseid", List.of("parentDatabaseId", "defaultDatabaseId")),
+            Map.entry("spreadsheetid", List.of("defaultSpreadsheetId")),
+            Map.entry("sheetname", List.of("defaultSheetName")),
+            Map.entry("pageid", List.of("defaultPageId")),
+            Map.entry("spacekey", List.of("defaultSpaceKey")));
 
     /** One field the model addressed wrongly, and what was done about it. */
     private record Grounding(JsonNode params, String note) {
@@ -460,10 +468,15 @@ public class ToolAgent {
      * pageId} earns the label the same way the other two did: Notion has no reading tool, so
      * the only honest sources for it are the goal and the connection's {@code defaultPageId},
      * and a page is a container of blocks exactly as a database is a container of pages.
+     *
+     * <p>{@code spaceKey} is {@code projectKey} one Atlassian product over: by the "ends
+     * with key" rule it would read as a pointer at one existing record, and every Confluence
+     * page whose space came from the connection's {@code defaultSpaceKey} would be refused
+     * as ungrounded. A space is the container pages are created in.
      */
     private static final java.util.Set<String> CONTAINER_FIELDS = java.util.Set.of(
             "projectkey", "project", "repo", "repository", "owner", "channel", "channelid",
-            "parentdatabaseid", "spreadsheetid", "sheetname", "pageid");
+            "parentdatabaseid", "spreadsheetid", "sheetname", "pageid", "spacekey");
 
     /**
      * Did the run really see this value, as a value — or does it just happen to sit inside a
