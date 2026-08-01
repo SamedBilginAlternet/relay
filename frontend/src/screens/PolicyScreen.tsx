@@ -314,37 +314,42 @@ function PolicyRow({ row, busy, disabled, onChange }: RowProps) {
         })}
       </div>
 
-      <p className="pol-row__src">
-        {busy ? (
-          <span className="pol-row__saving">
-            <RefreshCw size={12} aria-hidden className="spin" />
-            Kaydediliyor…
-          </span>
-        ) : deviates ? (
-          <>
-            <span className="pol-row__flag">
-              <TriangleAlert size={12} aria-hidden />
-              Operatör değiştirdi
+      {/*
+        A row at its default says so three times over — the risk badge, the lit
+        segment, and a sentence rebuilding both out of the same two words. Only
+        the third one can be dropped without losing a fact, so it is: this line
+        appears when the row has something the badge and the segment cannot say,
+        namely that an operator moved it, or that a move is being saved.
+      */}
+      {(busy || deviates) && (
+        <p className="pol-row__src">
+          {busy ? (
+            <span className="pol-row__saving">
+              <RefreshCw size={12} aria-hidden className="spin" />
+              Kaydediliyor…
             </span>
-            <span>
-              varsayılan: {modeLabel(fallback).toLocaleLowerCase('tr')} ({risk.label} riski)
-            </span>
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm pol-row__reset"
-              onClick={() => onChange(fallback)}
-              disabled={disabled}
-            >
-              <RotateCcw size={13} aria-hidden />
-              Varsayılana dön
-            </button>
-          </>
-        ) : (
-          <span className="pol-row__ok">
-            Varsayılan — {risk.label} riski {modeLabel(fallback).toLocaleLowerCase('tr')}
-          </span>
-        )}
-      </p>
+          ) : (
+            <>
+              <span className="pol-row__flag">
+                <TriangleAlert size={12} aria-hidden />
+                Operatör değiştirdi
+              </span>
+              <span>
+                varsayılan: {modeLabel(fallback).toLocaleLowerCase('tr')} ({risk.label} riski)
+              </span>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm pol-row__reset"
+                onClick={() => onChange(fallback)}
+                disabled={disabled}
+              >
+                <RotateCcw size={13} aria-hidden />
+                Varsayılana dön
+              </button>
+            </>
+          )}
+        </p>
+      )}
     </li>
   );
 }
