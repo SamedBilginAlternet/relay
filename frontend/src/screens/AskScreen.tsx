@@ -1,23 +1,65 @@
 import { motion, useReducedMotion } from 'motion/react';
 import {
   ExternalLink,
+  History,
+  Inbox,
   Loader,
   Mail,
+  Plug,
   Search,
   SearchX,
   Send,
+  ShieldCheck,
   TriangleAlert,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { describeLoadError, LoadError } from '../components/LoadError';
-import { getAskSource } from '../data';
+import { getAskSource, getRunSource, RUN_SOURCE_KIND } from '../data';
 import { formatDateTime, formatTokens, formatUsd } from '../lib/format';
 import { enterProps } from '../lib/motion';
 import type { AskAnswer, AskSourceItem } from '../types/ask';
+import type { GoogleStatus } from '../types/api';
 import '../styles/screens.css';
 
-const EXAMPLES = ['kargolarım gelmiş mi', 'bu hafta fatura geldi mi'];
+/*
+  Examples, not a rewording of the placeholder. The placeholder describes the
+  SHAPE of a question ("a delivery, an invoice, a person"); these are concrete
+  questions, and none of them repeats it — one of the two used to be the
+  placeholder verbatim, eighty pixels apart.
+*/
+const EXAMPLES = [
+  'kargolarım gelmiş mi',
+  'bu hafta fatura geldi mi',
+  'geçen hafta kim toplantı istedi',
+];
+
+/** How many mails one answer is allowed to lean on — AskService.MAX_SOURCES. */
+const SOURCE_LIMIT = 10;
+
+const RECENT_KEY = 'relay.ask.recent';
+const RECENT_MAX = 5;
+
+/** Last few questions, kept in this browser only — the server stores no history. */
+function readRecent(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((q): q is string => typeof q === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberQuestion(question: string): string[] {
+  const next = [question, ...readRecent().filter((q) => q !== question)].slice(0, RECENT_MAX);
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    /* private mode, quota — the list is a convenience, never a record */
+  }
+  return next;
+}
 
 const CITATION = /\[(\d{1,2})]/g;
 
@@ -93,6 +135,8 @@ export function AskScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [active, setActive] = useState<number | null>(null);
+  const [recent, setRecent] = useState<string[]>(() => readRecent());
+  const [google, setGoogle] = useState<GoogleStatus | null>(null);
   const sourceRefs = useRef<Map<number, HTMLLIElement>>(new Map());
   const reduce = useReducedMotion();
 
@@ -105,6 +149,28 @@ export function AskScreen() {
     el.querySelector('a')?.focus({ preventScroll: true });
   }, [active, reduce]);
 
+  /*
+    Which mailbox is about to be read, asked once. The screen used to say
+    nothing about it: 626px of white below the composer read as "everything is
+    ready" even when Google was not connected at all.
+  */
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const status = await getRunSource().getGoogleStatus();
+        if (alive) setGoogle(status);
+      } catch {
+        // The scope block is context, not the answer — a screen that cannot
+        // read it still has to let the question be asked.
+        if (alive) setGoogle(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const submit = async (question: string) => {
     const trimmed = question.trim();
     if (!trimmed || busy) return;
@@ -112,6 +178,7 @@ export function AskScreen() {
     setError(null);
     setActive(null);
     setAsked(trimmed);
+    setRecent(rememberQuestion(trimmed));
     try {
       setResult(await getAskSource().ask(trimmed));
     } catch (err) {
@@ -157,7 +224,7 @@ export function AskScreen() {
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Örn: kargolarım gelmiş mi?"
+            placeholder="Sorunu yaz — bir gönderi, bir fatura ya da bir kişi hakkında"
             aria-label="Posta kutuna sorman"
             maxLength={500}
             disabled={busy}
@@ -191,6 +258,82 @@ export function AskScreen() {
         <p className="sr-only" role="status" aria-live="polite">
           {liveMessage}
         </p>
+
+        {/*
+          Below the composer used to be 626px of nothing — 70% of the screen —
+          which reads as "connected, ready, ask away" whether or not any of that
+          is true. What fills it now is only what can be said honestly: where the
+          search runs, what it is allowed to do there, and what was asked before.
+        */}
+        {!busy && !result && (
+          <div className="ask__intro">
+            <section className="card ask-scope" aria-labelledby="ask-scope-h">
+              <h2 className="t-label" id="ask-scope-h">
+                Soru nerede aranıyor
+              </h2>
+              <ul className="ask-scope__list">
+                <li>
+                  <Inbox size={15} aria-hidden />
+                  <span>
+                    {RUN_SOURCE_KIND === 'mock'
+                      ? 'Demo verisi — gerçek bir posta kutusuna bağlanılmıyor.'
+                      : google?.connected
+                        ? 'Kendi Gmail gelen kutun. Başka kimsenin postası aranmaz.'
+                        : 'Gmail hesabın bağlı değil; şu an aranacak bir posta kutusu yok.'}
+                  </span>
+                </li>
+                <li>
+                  <ShieldCheck size={15} aria-hidden />
+                  <span>
+                    Yalnızca okuma izni (<code className="t-mono">gmail.readonly</code>) — buradan
+                    mail gönderilmez, silinmez, hiçbir akış başlamaz.
+                  </span>
+                </li>
+                <li>
+                  <Mail size={15} aria-hidden />
+                  <span>Bir yanıt en çok {SOURCE_LIMIT} maile dayanır ve hepsi kaynak olarak listelenir.</span>
+                </li>
+              </ul>
+              {RUN_SOURCE_KIND !== 'mock' && google && !google.connected && (
+                <a className="btn btn--sm" href="#/connections">
+                  <Plug size={14} aria-hidden />
+                  Bağlantılar’dan Gmail’i bağla
+                </a>
+              )}
+            </section>
+
+            <section className="card ask-recent" aria-labelledby="ask-recent-h">
+              <h2 className="t-label" id="ask-recent-h">
+                Son sorular
+              </h2>
+              {recent.length === 0 ? (
+                <p className="t-caption ask-recent__none">
+                  <History size={14} aria-hidden />
+                  Henüz bir soru sormadın. Sorduklarını burada tutarız — yalnız bu tarayıcıda,
+                  sunucuda bir kayıt oluşmaz.
+                </p>
+              ) : (
+                <ul className="ask-recent__list">
+                  {recent.map((question) => (
+                    <li key={question}>
+                      <button
+                        type="button"
+                        className="ask-recent__item"
+                        onClick={() => {
+                          setText(question);
+                          void submit(question);
+                        }}
+                      >
+                        <Search size={14} aria-hidden />
+                        <span>{question}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+        )}
 
         {error != null && (
           <LoadError error={error} onRetry={asked ? () => void submit(asked) : undefined} />
