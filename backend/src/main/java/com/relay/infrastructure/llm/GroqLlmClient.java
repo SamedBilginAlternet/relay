@@ -9,7 +9,10 @@ import com.relay.application.port.LlmRequest;
 import com.relay.application.port.LlmResponse;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.util.Collection;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Groq chat completions with multi-key rotation.
@@ -37,6 +40,26 @@ public class GroqLlmClient implements LlmClient {
      */
     private final ApiKeyPool smallKeys;
     /**
+     * The small model's own price list.
+     *
+     * <p>Both tiers used to be billed at the big model's rate, because {@code parse} never
+     * looked at which model had answered. On Groq the two differ by roughly twelve times, so
+     * every call that ducked to the small tier was reported at about twelve times what it
+     * cost — and a saving that is not visible in the number is not a saving anyone can act on.
+     */
+    private final double smallInputUsdPerMillion;
+    private final double smallOutputUsdPerMillion;
+    /**
+     * The jobs that go to the small model first, from {@code app.llm.small-purposes}.
+     *
+     * <p>Everything else — and every purpose that is not in this set, including one this
+     * class has never heard of — starts on the strong model. The default is
+     * {@link com.relay.application.port.LlmPurpose#DEFAULT_SMALL}; an empty set turns the
+     * split off entirely and leaves the small model as what it used to be, a rate-limit
+     * escape hatch.
+     */
+    private final Set<String> smallPurposes;
+    /**
      * Whose API this is, in the sentences an operator reads.
      *
      * <p>The class speaks OpenAI's chat-completions dialect, which is also DeepSeek's,
@@ -61,6 +84,18 @@ public class GroqLlmClient implements LlmClient {
     public GroqLlmClient(ApiKeyPool keys, HttpTransport transport, String baseUrl, String model,
                          double inputUsdPerMillion, double outputUsdPerMillion,
                          String smallModel, ApiKeyPool smallKeys, String provider) {
+        // No purpose routing and no separate price list: this is the shape the class had
+        // before the tiers were split by job, and the tests that pin the rate-limit
+        // behaviour are about exactly that shape.
+        this(keys, transport, baseUrl, model, inputUsdPerMillion, outputUsdPerMillion,
+                smallModel, smallKeys, provider, inputUsdPerMillion, outputUsdPerMillion, Set.of());
+    }
+
+    public GroqLlmClient(ApiKeyPool keys, HttpTransport transport, String baseUrl, String model,
+                         double inputUsdPerMillion, double outputUsdPerMillion,
+                         String smallModel, ApiKeyPool smallKeys, String provider,
+                         double smallInputUsdPerMillion, double smallOutputUsdPerMillion,
+                         Collection<String> smallPurposes) {
         this.provider = provider == null || provider.isBlank() ? "groq" : provider.trim();
         this.keys = keys;
         this.transport = transport;
@@ -70,30 +105,74 @@ public class GroqLlmClient implements LlmClient {
         this.outputUsdPerMillion = outputUsdPerMillion;
         this.smallModel = smallModel == null || smallModel.isBlank() ? null : smallModel.trim();
         this.smallKeys = smallKeys;
+        this.smallInputUsdPerMillion = smallInputUsdPerMillion;
+        this.smallOutputUsdPerMillion = smallOutputUsdPerMillion;
+        this.smallPurposes = smallPurposes == null ? Set.of()
+                : smallPurposes.stream()
+                        .filter(p -> p != null && !p.isBlank())
+                        .map(p -> p.trim().toLowerCase(Locale.ROOT))
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
+    /**
+     * The tier the job is worth, then the other one, then nothing.
+     *
+     * <p>Which tier goes first is decided by {@link LlmRequest#purpose()}, not by whether the
+     * big model happens to be throttled — the small model used to be reachable only through
+     * a rate limit, which made a cost decision out of a failure. The fallback is unchanged
+     * and now runs in both directions: a VERIFY sent to the small model still answers on the
+     * big one when the small pool is empty, exactly as a PLAN drops to the small model when
+     * the big pool is.
+     */
     @Override
     public LlmResponse complete(LlmRequest request) {
-        Attempt big = attempt(request, model, keys);
-        if (big.response() != null) {
-            return big.response();
+        boolean smallFirst = hasSmallTier() && routesSmall(request.purpose());
+        String firstModel = smallFirst ? smallModel : model;
+        ApiKeyPool firstKeys = smallFirst ? smallKeys : keys;
+
+        Attempt first = attempt(request, firstModel, firstKeys);
+        if (first.response() != null) {
+            return first.response();
         }
-        // The big model is out of budget for now. A smaller one still writes a usable
-        // message, and a usable message beats the offline fallback's summary of nothing.
-        String smallError = null;
-        if (smallModel != null && smallKeys != null) {
-            Attempt small = attempt(request, smallModel, smallKeys);
-            if (small.response() != null) {
-                LOG.log(Level.INFO, provider + " answered on {0} — {1} is rate limited", smallModel, model);
-                return small.response();
+
+        // The tier this job belongs on is out of budget for now. The other one still writes
+        // a usable message, and a usable message beats the offline fallback's summary of
+        // nothing — even when "the other one" is the expensive one.
+        String secondModel = smallFirst ? model : smallModel;
+        ApiKeyPool secondKeys = smallFirst ? keys : smallKeys;
+        String secondError = null;
+        if (secondModel != null && secondKeys != null) {
+            Attempt second = attempt(request, secondModel, secondKeys);
+            if (second.response() != null) {
+                LOG.log(Level.INFO, provider + " answered on {0} — {1} is rate limited", secondModel, firstModel);
+                return second.response();
             }
-            smallError = small.error();
+            secondError = second.error();
         }
         // Both tiers, both named. The two models have separate limits, so "everything is
         // exhausted" and "the big model is exhausted and the small one was never tried"
         // are different situations and used to read the same on the health endpoint.
-        throw new LlmUnavailableException("all " + provider + " keys exhausted (" + model + ": " + big.error()
-                + (smallError == null ? "" : "; " + smallModel + ": " + smallError) + ")");
+        throw new LlmUnavailableException("all " + provider + " keys exhausted (" + firstModel + ": " + first.error()
+                + (secondError == null ? "" : "; " + secondModel + ": " + secondError) + ")");
+    }
+
+    private boolean hasSmallTier() {
+        return smallModel != null && smallKeys != null;
+    }
+
+    /** Unknown purposes are absent from the set, so they get the strong model. */
+    private boolean routesSmall(String purpose) {
+        return purpose != null && smallPurposes.contains(purpose.trim().toLowerCase(Locale.ROOT));
+    }
+
+    /** Which purposes this client sends to the small model — shown on the health endpoint. */
+    public java.util.List<String> smallPurposes() {
+        return smallPurposes.stream().sorted().toList();
+    }
+
+    /** The cheap tier's model id, or {@code null} when this provider has only one tier. */
+    public String smallModel() {
+        return smallModel;
     }
 
     private record Attempt(LlmResponse response, String error) {
@@ -274,13 +353,31 @@ public class GroqLlmClient implements LlmClient {
         return root.toString();
     }
 
+    /**
+     * Both numbers come from the same two token counts the provider reported.
+     *
+     * <p>{@code costUsd} uses the price list of whichever model answered; {@code premium} uses
+     * the strong model's, always. They are the same arithmetic over the same measured
+     * tokens — the second is what this call would have been billed had it gone to the strong
+     * model, not a projection of what it might have used there.
+     */
     private LlmResponse parse(String body, String usedModel) {
         JsonNode root = Json.parse(body);
         String content = root.path("choices").path(0).path("message").path("content").asText("");
         long promptTokens = root.path("usage").path("prompt_tokens").asLong(0);
         long completionTokens = root.path("usage").path("completion_tokens").asLong(0);
-        double cost = (promptTokens / 1_000_000d) * inputUsdPerMillion
+        boolean small = usedModel.equals(smallModel) && !usedModel.equals(model);
+        double cost = price(promptTokens, completionTokens,
+                small ? smallInputUsdPerMillion : inputUsdPerMillion,
+                small ? smallOutputUsdPerMillion : outputUsdPerMillion);
+        double premium = price(promptTokens, completionTokens, inputUsdPerMillion, outputUsdPerMillion);
+        return new LlmResponse(content, promptTokens, completionTokens, cost,
+                provider + ":" + usedModel, false, premium);
+    }
+
+    private static double price(long promptTokens, long completionTokens,
+                                double inputUsdPerMillion, double outputUsdPerMillion) {
+        return (promptTokens / 1_000_000d) * inputUsdPerMillion
                 + (completionTokens / 1_000_000d) * outputUsdPerMillion;
-        return new LlmResponse(content, promptTokens, completionTokens, cost, usedModel, false);
     }
 }

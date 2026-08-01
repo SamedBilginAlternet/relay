@@ -159,6 +159,15 @@ public class RoutingLlmClient implements LlmClient {
         if (usable(primary) && !primary.organisations().isEmpty()) {
             map.put("organizations", primary.organisations());
         }
+        // Which jobs are being answered cheaply. The split is a property, so the only way to
+        // know what a running deployment is actually doing is to ask the running deployment.
+        if (usable(primary) && primary.smallModel() != null && !primary.smallPurposes().isEmpty()) {
+            Map<String, Object> routing = new LinkedHashMap<>();
+            routing.put("strongModel", primary.model());
+            routing.put("smallModel", primary.smallModel());
+            routing.put("smallPurposes", primary.smallPurposes());
+            map.put("routing", routing);
+        }
         if (usable(secondary)) {
             Map<String, Object> paid = new LinkedHashMap<>();
             paid.put("provider", secondary.provider());

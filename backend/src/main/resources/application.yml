@@ -81,14 +81,31 @@ app:
     # Comma separated. Empty means the stub LLM, which always works offline.
     api-keys: ${GROQ_API_KEYS:}
     model: ${GROQ_MODEL:llama-3.3-70b-versatile}
-    # Rate limits are per model, so this tier keeps answering when the big one is spent.
+    # Where the cheap jobs go (app.llm.small-purposes), and where everything falls back to
+    # when the big model is spent — rate limits are counted per model.
     small-model: ${GROQ_SMALL_MODEL:llama-3.1-8b-instant}
     base-url: ${GROQ_BASE_URL:https://api.groq.com/openai/v1}
     cooldown-seconds: 60
     price:
       input-usd-per-million: ${GROQ_PRICE_INPUT:0.59}
       output-usd-per-million: ${GROQ_PRICE_OUTPUT:0.79}
+    # The small tier's own rate. Without it both tiers are billed at the big model's price
+    # and the whole point of the split — a smaller number — never shows up.
+    small-price:
+      input-usd-per-million: ${GROQ_SMALL_PRICE_INPUT:0.05}
+      output-usd-per-million: ${GROQ_SMALL_PRICE_OUTPUT:0.08}
   llm:
+    # Which jobs the small model is enough for. Comma separated; blank uses the default
+    # below. Everything not named here — including a purpose this build has never heard of —
+    # goes to the strong model, because unknown must mean expensive, never wrong.
+    #
+    #   verify      a yes/no and one sentence
+    #   summarize   three sentences
+    #   ask_route   one provider query
+    #
+    # Deliberately not here: plan, tool_params, digest, insight, ask_answer. Those decide
+    # what gets written where, or what the user is told is true.
+    small-purposes: ${LLM_SMALL_PURPOSES:verify,summarize,ask_route}
     # The paid tier behind the free one. Empty = no second provider, and the stub stays the
     # only safety net. Any OpenAI-compatible endpoint works: this code posts to
     # {base-url}/chat/completions with a bearer key.

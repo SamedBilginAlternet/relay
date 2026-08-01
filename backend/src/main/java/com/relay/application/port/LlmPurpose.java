@@ -16,6 +16,20 @@ public final class LlmPurpose {
     /** Daily brief: one paragraph, an ordered priority list and one piece of advice. */
     public static final String DIGEST = "digest";
 
+    /**
+     * The jobs a small model is enough for, unless {@code app.llm.small-purposes} says otherwise.
+     *
+     * <p>These three ask for a shape, not a judgement: a yes/no with one sentence behind it,
+     * three sentences of summary, one provider query. The rest — a plan, a tool's parameters,
+     * a digest, a classification, an answer a person will act on — decide *what gets written
+     * where* or *what the user is told is true*, and getting one of those wrong is not a
+     * cheaper mistake for having been made cheaply.
+     *
+     * <p>Anything not named here goes to the strong model, including a purpose nobody has
+     * added to this class yet. Unknown means expensive, never wrong.
+     */
+    public static final java.util.Set<String> DEFAULT_SMALL = java.util.Set.of(VERIFY, SUMMARIZE, ASK_ROUTE);
+
     private LlmPurpose() {
     }
 }

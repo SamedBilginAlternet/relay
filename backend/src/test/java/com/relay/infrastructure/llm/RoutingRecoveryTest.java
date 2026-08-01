@@ -179,7 +179,7 @@ class RoutingRecoveryTest {
                 ? new HttpTransport.Reply(429, "{}")
                 : new HttpTransport.Reply(200, OK_BODY), clock);
 
-        assertThat(client.complete(request()).model()).isEqualTo("deepseek-v4-flash");
+        assertThat(client.complete(request()).model()).isEqualTo("deepseek:deepseek-v4-flash");
         // Not degraded: the product is answering. It is only not free this minute, and a red
         // health line here would send someone hunting an outage that was already absorbed.
         assertThat(client.degraded()).isFalse();
@@ -243,6 +243,6 @@ class RoutingRecoveryTest {
         clock.advance(ApiKeyPool.MAX_PARK.plusMinutes(1));
 
         assertThat(pool.available()).isEqualTo(1);
-        assertThat(client.complete(request()).model()).isEqualTo("deepseek-v4-flash");
+        assertThat(client.complete(request()).model()).isEqualTo("deepseek:deepseek-v4-flash");
     }
 }

@@ -311,7 +311,8 @@ class GroqKeyRotationTest {
         LlmResponse response = client.complete(request());
 
         assertThat(models).containsExactly("big", "small");
-        assertThat(response.model()).isEqualTo("llama-3.1-8b-instant");
+        assertThat(response.model()).as("provider-qualified: a bare model name is ambiguous")
+                .isEqualTo("groq:llama-3.1-8b-instant");
         assertThat(client.degraded()).as("small tier still has capacity").isFalse();
     }
 }

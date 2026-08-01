@@ -2,6 +2,7 @@ package com.relay.infrastructure.config;
 
 import com.relay.application.port.Clock;
 import com.relay.application.port.LlmClient;
+import com.relay.application.port.LlmPurpose;
 import com.relay.application.port.ToolRegistry;
 import com.relay.infrastructure.llm.ApiKeyPool;
 import com.relay.infrastructure.llm.GroqLlmClient;
@@ -13,6 +14,7 @@ import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -68,14 +70,44 @@ public class LlmConfig {
         return new StubLlmClient(tools);
     }
 
+    /**
+     * The two tiers and the map from job to tier.
+     *
+     * <p>{@code app.llm.small-purposes} is read as a property rather than compiled in so the
+     * split can be moved — a purpose promoted to the strong model, or demoted — without a
+     * deploy. The two price lists are separate for the same reason and for one more: billing
+     * both tiers at the strong model's rate, which is what this code did, hides the saving
+     * the split exists to produce.
+     */
     @Bean
     public GroqLlmClient groqLlmClient(ApiKeyPool pool, ApiKeyPool groqSmallKeyPool, HttpTransport transport,
                                        @Value("${app.groq.base-url:https://api.groq.com/openai/v1}") String baseUrl,
                                        @Value("${app.groq.model:llama-3.3-70b-versatile}") String model,
                                        @Value("${app.groq.small-model:llama-3.1-8b-instant}") String smallModel,
                                        @Value("${app.groq.price.input-usd-per-million:0.59}") double input,
-                                       @Value("${app.groq.price.output-usd-per-million:0.79}") double output) {
-        return new GroqLlmClient(pool, transport, baseUrl, model, input, output, smallModel, groqSmallKeyPool);
+                                       @Value("${app.groq.price.output-usd-per-million:0.79}") double output,
+                                       @Value("${app.groq.small-price.input-usd-per-million:0.05}") double smallInput,
+                                       @Value("${app.groq.small-price.output-usd-per-million:0.08}") double smallOutput,
+                                       @Value("${app.llm.small-purposes:}") String smallPurposes) {
+        Collection<String> purposes = parsePurposes(smallPurposes);
+        LOG.log(Level.INFO, "small model {0} handles: {1}", smallModel, purposes);
+        return new GroqLlmClient(pool, transport, baseUrl, model, input, output, smallModel, groqSmallKeyPool,
+                "groq", smallInput, smallOutput, purposes);
+    }
+
+    /**
+     * Blank means "use the default map", not "route nothing to the small model" — an unset
+     * property is the common case and it should behave like the shipped decision. To turn the
+     * split off, name a purpose that does not exist, or set every purpose on the strong side.
+     */
+    private static Collection<String> parsePurposes(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return LlmPurpose.DEFAULT_SMALL;
+        }
+        return Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(purpose -> !purpose.isEmpty())
+                .toList();
     }
 
     /**
