@@ -149,6 +149,7 @@ class ApiCrewSource implements CrewSource {
  * screen exists to prove we do not have.
  */
 const MOCK_TOOLS: [string, RiskLevel][] = [
+  ['calendar.createEvent', 'write'],
   ['calendar.listToday', 'read'],
   ['calendar.listUpcoming', 'read'],
   ['github.addComment', 'write'],

@@ -51,6 +51,7 @@ const LABELS: Record<string, string> = {
   // Calendar
   'calendar.listToday': 'Bugünün toplantılarını getir',
   'calendar.listUpcoming': 'Yaklaşan toplantıları getir',
+  'calendar.createEvent': 'Takvime toplantı koy',
 };
 
 /** Every button name the interface owns — the list the test checks. */

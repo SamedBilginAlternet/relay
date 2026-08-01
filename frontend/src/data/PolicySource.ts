@@ -110,6 +110,7 @@ class ApiPolicySource implements PolicySource {
 class MockPolicySource implements PolicySource {
   private rows: ToolPolicy[] = (
     [
+      ['google', 'calendar.createEvent', 'write'],
       ['google', 'calendar.listToday', 'read'],
       ['google', 'calendar.listUpcoming', 'read'],
       ['github', 'github.addComment', 'write'],

@@ -52,6 +52,7 @@ describe('actionLabel', () => {
       'slack.listChannels',
       'calendar.listToday',
       'calendar.listUpcoming',
+      'calendar.createEvent',
     ];
     for (const tool of registered) {
       expect(actionLabel(tool, 'model uydurdu')).not.toBe('model uydurdu');

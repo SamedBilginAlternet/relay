@@ -48,6 +48,8 @@ class PlaybookServiceTest {
                 new com.relay.infrastructure.tools.GmailTool.Search("replay", FIXTURES, null),
                 new com.relay.infrastructure.tools.CalendarTool.ListToday(
                         "replay", FIXTURES, null, "Europe/Istanbul"),
+                new com.relay.infrastructure.tools.CalendarCreateEventTool(
+                        "replay", FIXTURES, null, "Europe/Istanbul"),
                 new SlackTool.PostMessage("replay", FIXTURES)));
         TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
         TestDoubles.InMemoryConnectionRepository connections = new TestDoubles.InMemoryConnectionRepository();
@@ -112,15 +114,16 @@ class PlaybookServiceTest {
     }
 
     /**
-     * "Toplantıya katılmadan önce şuna bak" on a workspace with a calendar and nothing else.
-     * The two search steps are the ones that can be missing, so what is left still runs.
+     * "Toplantıya katılmadan önce şuna bak" on a workspace with Google and nothing else.
+     * The Jira search is the step that can be missing, so what is left still runs — including
+     * the follow-up meeting, which rides the same connection the calendar read does.
      */
     @Test
     void meeting_prep_drops_the_search_its_workspace_cannot_do() {
         Run run = rig("google").playbooks().start("toplanti-hazirligi", 1.0);
 
         assertThat(run.steps()).extracting(step -> step.toolName())
-                .containsExactly("calendar.listToday", "gmail.search");
+                .containsExactly("calendar.listToday", "gmail.search", "calendar.createEvent");
     }
 
     /** Without a calendar there is no meeting to prepare for — the button must not run. */
@@ -133,14 +136,22 @@ class PlaybookServiceTest {
                 .hasMessageContaining("google");
     }
 
-    /** Everything it does is a read, so nothing about it stops on a human. */
+    /**
+     * Reading first, writing last, and the write is the only thing that stops on a human.
+     *
+     * <p>This flow used to be entirely reads and the test used to say so. It ends in a
+     * proposal now — "konuşulacaklar bir toplantıya sığmıyorsa takip toplantısı öner" — and
+     * the ordering is the point: three reads run to the end by themselves, and the one step
+     * that puts something on other people's calendars waits at the gate.
+     */
     @Test
-    void meeting_prep_never_opens_the_approval_gate() {
+    void meeting_prep_reads_first_and_stops_only_on_the_write() {
         Run run = rig("google", "jira").playbooks().start("toplanti-hazirligi", 1.0);
 
         assertThat(run.steps()).extracting(step -> step.toolName())
-                .containsExactly("calendar.listToday", "jira.searchIssues", "gmail.search");
-        assertThat(run.status().wire()).isNotEqualTo("awaiting_approval");
+                .containsExactly("calendar.listToday", "jira.searchIssues", "gmail.search",
+                        "calendar.createEvent");
+        assertThat(run.status().wire()).isEqualTo("awaiting_approval");
     }
 
     /** Steps are seeded, not planned — but a write still stops on the human. */

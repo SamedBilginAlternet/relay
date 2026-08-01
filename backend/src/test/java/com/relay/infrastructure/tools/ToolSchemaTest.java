@@ -36,6 +36,7 @@ class ToolSchemaTest {
                 new GmailTool.CreateDraft("replay", FIXTURES, null),
                 new CalendarTool.ListToday("replay", FIXTURES, null, "Europe/Istanbul"),
                 new CalendarUpcomingTool("replay", FIXTURES, null, "Europe/Istanbul"),
+                new CalendarCreateEventTool("replay", FIXTURES, null, "Europe/Istanbul"),
                 new NotionTool.CreatePage("replay", FIXTURES));
     }
 
@@ -65,6 +66,11 @@ class ToolSchemaTest {
         assertThat(new JiraTool.CreateIssue("replay", FIXTURES).risk()).isEqualTo(RiskLevel.WRITE);
         // WRITE means the approval gate opens by default (ARCHITECTURE §6).
         assertThat(new JiraTool.CreateIssue("replay", FIXTURES).risk().defaultMode().wire()).isEqualTo("ask");
+        // Writing an event onto somebody's calendar is a WRITE and nothing more: DESTRUCTIVE
+        // is forbidden by default, and a tool registered there could never run at all.
+        Tool event = new CalendarCreateEventTool("replay", FIXTURES, null, "Europe/Istanbul");
+        assertThat(event.risk()).isEqualTo(RiskLevel.WRITE);
+        assertThat(event.risk().defaultMode().wire()).isEqualTo("ask");
     }
 
     @Test

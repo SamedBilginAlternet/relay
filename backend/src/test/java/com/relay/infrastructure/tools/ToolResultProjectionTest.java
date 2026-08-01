@@ -143,6 +143,7 @@ class ToolResultProjectionTest {
                 new JiraTool.AddComment("replay", FIXTURES),
                 new SlackTool.ListChannels("replay", FIXTURES),
                 new SlackTool.PostMessage("replay", FIXTURES),
+                new CalendarCreateEventTool("replay", FIXTURES, null, "Europe/Istanbul"),
                 new NotionTool.CreatePage("replay", FIXTURES));
 
         for (AbstractTool tool : tools) {

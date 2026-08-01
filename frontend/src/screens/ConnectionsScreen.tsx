@@ -46,7 +46,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     provider: 'google',
     title: 'Google',
-    blurb: 'Gmail ve Takvim, yalnızca okuma izniyle. Günün özeti ve mail sorularının kaynağı.',
+    blurb: 'Gmail ve Takvim. Günün özetini okur; cevap taslağı ve takip toplantısı onayınla yazılır.',
     marks: ['gmail', 'calendar'],
     console: { href: 'https://myaccount.google.com/permissions', label: 'Google hesap izinleri' },
     fields: [],
@@ -373,7 +373,9 @@ function GoogleSetup({ connection }: { connection: Connection | undefined }) {
     <section className="card" aria-label="Google kurulumu">
       <p className="t-caption">
         Token yapıştırılmaz: Google’ın izin ekranından geçersin, yetki sunucuda şifreli saklanır.
-        İzinler yalnızca okuma (gmail.readonly, calendar.readonly).
+        Okuma izinleri (gmail.readonly, calendar.readonly) yanında iki yazma izni istenir:
+        gmail.compose taslak cevap için, calendar.events takip toplantısı için. Yazma adımlarının
+        ikisi de onay kapısından geçer.
       </p>
 
       {loading && <div className="skeleton" style={{ height: 56 }} />}

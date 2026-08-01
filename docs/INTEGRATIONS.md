@@ -141,10 +141,11 @@ Notlar:
 2. **APIs & Services → Library** → etkinleştir: **Gmail API**, **Google Calendar API**
 3. **OAuth consent screen** → *External* → uygulama adı `Relay`, destek e-postası kendi adresin
    → **Test users**'a `samedbilgin322@gmail.com` ekle. (Test modu yeterli; yayın onayı beklemiyoruz.)
-4. **Scopes** — üçü de Google'ın **restricted** sınıfında:
-   - `https://www.googleapis.com/auth/gmail.readonly`
-   - `https://www.googleapis.com/auth/calendar.readonly`
-   - `https://www.googleapis.com/auth/gmail.compose` — `gmail.createDraft` için.
+4. **Scopes**:
+   - `https://www.googleapis.com/auth/gmail.readonly` *(restricted)*
+   - `https://www.googleapis.com/auth/calendar.readonly` *(sensitive)*
+   - `https://www.googleapis.com/auth/gmail.compose` *(restricted)* — `gmail.createDraft` için.
+   - `https://www.googleapis.com/auth/calendar.events` *(sensitive)* — `calendar.createEvent` için.
 
    > **Bu izin gönderebilir.** Google'ın izin ekranında görünen metni "Manage drafts and
    > send emails" ve `messages.send`'i de kapsıyor. Gmail'de **yalnız taslak** diye bir
@@ -169,10 +170,36 @@ Refresh token bağlantı config'ine şifreli yazılır; ilk izinden sonra bir da
 > Google doğrulaması **ve** yıllık CASA güvenlik değerlendirmesi istiyor; bu bir ürün kararı,
 > kod değişikliği değil.
 
-> Kapsam genişlediğinde (`gmail.compose` eklendi) **eski bağlantı bozulmaz**: okuma işleri
-> aynen çalışmaya devam eder, yalnız taslak yazma çalışmaz ve araç Türkçe bir cümleyle
-> "Bağlantılar'dan yeniden bağlan" der. `/api/oauth/google/status` bunu `canCompose` ile
-> söyler — `connected: true, canCompose: false` = yeniden bağlanma gerekiyor.
+> Kapsam genişlediğinde (`gmail.compose`, `calendar.events`) **eski bağlantı bozulmaz**: okuma
+> işleri aynen çalışmaya devam eder, yalnız o yazma adımı çalışmaz ve araç Türkçe bir cümleyle
+> "Bağlantılar'dan yeniden bağlan" der. `/api/oauth/google/status` bunu ayrı ayrı söyler —
+> `connected: true, canCompose: false` veya `canCreateEvent: false` = yeniden bağlanma gerekiyor.
+
+#### 4.1 `calendar.createEvent` — takvime toplantı koymak
+
+| Ne | Değer |
+|---|---|
+| Eklenecek scope | `https://www.googleapis.com/auth/calendar.events` |
+| Nereye | Google Cloud Console → **OAuth consent screen → Data access (Scopes)** → *Add or remove scopes* |
+| Sonra | **Bağlantılar → Google → Yeniden bağlan.** Scope'u konsola eklemek tek başına yetmez |
+
+**Yeniden onay vermezsen ne olur:** hiçbir şey bozulmaz. Brifing, takvim okuması, Jira, Slack,
+GitHub, hatta `gmail.createDraft` aynen çalışır. Yalnız `calendar.createEvent` adımı şu cümleyle
+durur: *"Google izni yalnız okuma; takvime kayıt açmak için Bağlantılar'dan Google'a yeniden
+bağlan."* Google'ın `insufficient authentication scopes` 403'ü ekrana hiç çıkmaz.
+
+Neden `calendar.events`, `calendar` değil: `calendar` takvim listesini ve paylaşım kurallarını
+da açar; `calendar.events` yalnız etkinliklere ulaşır. İkisi de *sensitive*, yani `gmail.compose`
+gibi restricted değil — yayına alma sürecinde CASA değerlendirmesi getirmez.
+
+Bilmen gereken iki davranış:
+
+- **Davetler onaydan sonra gerçekten gider** (`sendUpdates=all`). Google'ın varsayılanı katılımcıyı
+  etkinliğe yazıp haber vermemek; onay ekranında üç kişi gördükten sonra üç kişinin haberi olmaması
+  daha kötü bir sonuç. Onay kapısı bu yüzden bu araçta özellikle önemli.
+- **Katılımcı e-posta adresidir, isim değil.** `calendar.listToday` katılımcıları görünen adla
+  ("Deniz Arslan") döndürüyor; adım isimden adres türetmez, adımı hata ile durdurur. Onay
+  ekranında adresi kendin yazabilir ya da katılımcısız onaylayıp kişiyi Takvim'den ekleyebilirsin.
 
 > İzin ekranında "Google bu uygulamayı doğrulamadı" uyarısı normaldir — test kullanıcısı olduğun
 > için *Advanced → Go to Relay (unsafe)* ile devam edilir.

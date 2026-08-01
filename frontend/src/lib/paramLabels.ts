@@ -59,6 +59,9 @@ const LABELS: Record<string, string> = {
   location: 'Yer',
   timezone: 'Saat dilimi',
   days: 'Gün sayısı',
+  startsat: 'Başlangıç',
+  endsat: 'Bitiş',
+  attendees: 'Katılımcılar',
 
   // GitHub
   repo: 'Depo',

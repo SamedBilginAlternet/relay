@@ -53,11 +53,25 @@ public class GoogleOAuth {
      */
     public static final String COMPOSE_SCOPE = "https://www.googleapis.com/auth/gmail.compose";
 
-    /** Reading is what the daily brief needs; composing is what answering a mail needs. */
+    /**
+     * Writing an event onto the user's own calendar.
+     *
+     * <p>{@code calendar.events} is narrower than {@code calendar}: it reaches events and
+     * nothing else — it cannot create, delete or rename a calendar, and it cannot touch the
+     * sharing rules. Google classes it as <em>sensitive</em>, not restricted, so it does not
+     * drag the CASA assessment along with it the way {@code gmail.compose} does.
+     */
+    public static final String CALENDAR_EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+
+    /**
+     * Reading is what the daily brief needs; composing is what answering a mail needs, and
+     * writing an event is what agreeing to meet again needs.
+     */
     public static final String SCOPES = String.join(" ",
             "https://www.googleapis.com/auth/gmail.readonly",
             COMPOSE_SCOPE,
             "https://www.googleapis.com/auth/calendar.readonly",
+            CALENDAR_EVENTS_SCOPE,
             "openid", "email");
 
     /**
@@ -225,6 +239,11 @@ public class GoogleOAuth {
         // whole difference between "reconnect" and "nothing to do".
         out.put("canCompose", connections.findByProvider(PROVIDER)
                 .map(connection -> granted(connection, COMPOSE_SCOPE))
+                .orElse(false));
+        // Same question, one scope over: a connection made before calendar.events reads
+        // connected=true and canCreateEvent=false, and the screen can say which button to press.
+        out.put("canCreateEvent", connections.findByProvider(PROVIDER)
+                .map(connection -> granted(connection, CALENDAR_EVENTS_SCOPE))
                 .orElse(false));
         out.put("redirectUri", redirectUri);
         out.put("startUrl", "/api/oauth/google/start");

@@ -1,0 +1,12 @@
+{
+  "eventId": "evt_takip_toplantisi",
+  "title": "{{summary}}",
+  "start": "{{startsAt}}",
+  "end": "{{endsAt}}",
+  "timeZone": "Europe/Istanbul",
+  "attendees": "{{attendees}}",
+  "url": "https://calendar.google.com/event?eid=evt_takip_toplantisi",
+  "meetingUrl": "https://meet.google.com/rel-ayxx-001",
+  "invitesSent": true,
+  "status": "confirmed"
+}
