@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * The crew lead. Plans once, then walks the steps: consults the policy engine,
@@ -48,7 +47,7 @@ public class Coordinator {
     private final AgentJournal journal;
     private final Clock clock;
     private final Summarizer summarizer;
-    private final Map<UUID, ReentrantLock> locks = new ConcurrentHashMap<>();
+    private final RunLocks locks = new RunLocks();
     /**
      * Runs whose owner pressed Durdur, mapped to whoever pressed it.
      *
@@ -82,31 +81,30 @@ public class Coordinator {
 
     /** Drives the run as far as it can go right now. Safe to call repeatedly. */
     public void drive(UUID runId) {
-        ReentrantLock lock = locks.computeIfAbsent(runId, k -> new ReentrantLock());
-        lock.lock();
-        try {
-            Run run = runs.findById(runId).orElse(null);
-            if (run == null) {
-                LOG.log(Level.WARNING, "drive: run {0} not found", runId);
-                return;
+        try (RunLocks.Lease lease = locks.acquire(runId)) {
+            // The recovery below writes the aggregate too, so it stays inside the lease
+            // rather than in a catch around it.
+            try {
+                Run run = runs.findById(runId).orElse(null);
+                if (run == null) {
+                    LOG.log(Level.WARNING, "drive: run {0} not found", runId);
+                    return;
+                }
+                if (run.status().terminal()) {
+                    return;
+                }
+                if (stopIfCancelled(run)) {
+                    return;
+                }
+                walk(run);
+            } catch (RuntimeException e) {
+                LOG.log(Level.ERROR, "run " + runId + " blew up", e);
+                runs.findById(runId).ifPresent(run -> {
+                    journal.say(run, null, AgentRole.COORDINATOR, AgentRole.USER,
+                            "Akış hata ile durdu: " + e.getMessage());
+                    finish(run, RunStatus.FAILED);
+                });
             }
-            if (run.status().terminal()) {
-                return;
-            }
-            if (stopIfCancelled(run)) {
-                return;
-            }
-            walk(run);
-        } catch (RuntimeException e) {
-            LOG.log(Level.ERROR, "run " + runId + " blew up", e);
-            runs.findById(runId).ifPresent(run -> {
-                journal.say(run, null, AgentRole.COORDINATOR, AgentRole.USER,
-                        "Akış hata ile durdu: " + e.getMessage());
-                finish(run, RunStatus.FAILED);
-            });
-        } finally {
-            lock.unlock();
-            locks.remove(runId, lock);
         }
     }
 
@@ -131,11 +129,11 @@ public class Coordinator {
      */
     public boolean cancel(UUID runId, String actor) {
         cancelRequests.put(runId, actor == null ? "" : actor);
-        ReentrantLock lock = locks.computeIfAbsent(runId, k -> new ReentrantLock());
-        if (!lock.tryLock()) {
+        Optional<RunLocks.Lease> claimed = locks.tryAcquire(runId);
+        if (claimed.isEmpty()) {
             return false;
         }
-        try {
+        try (RunLocks.Lease lease = claimed.get()) {
             Run run = runs.findById(runId).orElse(null);
             if (run == null || run.status().terminal()) {
                 // Nothing to stop — it finished on its own between the check and the press.
@@ -144,9 +142,6 @@ public class Coordinator {
             }
             stop(run);
             return true;
-        } finally {
-            lock.unlock();
-            locks.remove(runId, lock);
         }
     }
 

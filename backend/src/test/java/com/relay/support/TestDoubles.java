@@ -43,9 +43,15 @@ public final class TestDoubles {
         }
     }
 
-    /** Keeps the live aggregate — enough for the orchestrator, which mutates in place. */
+    /**
+     * Keeps the live aggregate — enough for the orchestrator, which mutates in place.
+     *
+     * <p>Concurrent map because the coordinator is driven from several threads at once in the
+     * tests that exist to prove exactly that, and a repository that corrupts itself under load
+     * would fail them for the wrong reason.
+     */
     public static class InMemoryRunRepository implements RunRepository {
-        private final Map<UUID, Run> runs = new LinkedHashMap<>();
+        private final Map<UUID, Run> runs = new java.util.concurrent.ConcurrentHashMap<>();
 
         @Override
         public Run save(Run run) {
@@ -279,9 +285,10 @@ public final class TestDoubles {
         }
     }
 
-    /** Records every SSE frame so assertions can read the timeline. */
+    /** Records every SSE frame so assertions can read the timeline. Safe to publish into
+     * from several threads: the concurrency tests do exactly that. */
     public static class RecordingEventPublisher implements EventPublisher {
-        public final List<RunEvent> events = new ArrayList<>();
+        public final List<RunEvent> events = new java.util.concurrent.CopyOnWriteArrayList<>();
 
         @Override
         public void publish(UUID runId, RunEvent event) {
