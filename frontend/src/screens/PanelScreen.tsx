@@ -373,7 +373,12 @@ export function PanelScreen() {
                   Bu aralıkta hangi modelin cevapladığı kayıtlı değil.
                 </p>
               ) : (
-                <>
+                /*
+                  Its own wrapper so the bars can carry a wider label column than the tool
+                  block's: a provider-qualified model id is regularly longer than a tool
+                  name, and this block exists to name the model. See panel.css.
+                */
+                <div className="panel-models">
                   <Bars
                     rows={report.models.map((model) => ({
                       key: model.model,
@@ -386,7 +391,7 @@ export function PanelScreen() {
                     caption="Modelin cevapladığı kaydedilmiş adımlar. Adıma bağlı olmayan model kullanımı (planlama, özet) bu tabloda görünmez — üstteki toplam maliyet onu da içerir."
                   />
                   <Routing routing={report.routing} />
-                </>
+                </div>
               )}
             </motion.section>
 
