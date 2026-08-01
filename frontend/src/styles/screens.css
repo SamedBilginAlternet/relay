@@ -11,9 +11,8 @@
 /*                                                                     */
 /* `.page__inner` is 960px while `.brief` and `.pol` are 1040px, so     */
 /* walking the nav moved the content column ~80px sideways on every    */
-/* navigation — the page did not stay put. 1040 is the wider of the    */
-/* two numbers already in use and the one the busiest screen (Bugün)   */
-/* needs, so the others come up to it rather than it coming down.      */
+/* navigation — the page did not stay put. One number for all of them, */
+/* now `--page-w` in global.css, so there is one place to change it.   */
 /*                                                                     */
 /* Two classes, so this beats the single-class rule in global.css and  */
 /* load order does not get a vote. Where a narrower column is right    */
@@ -21,8 +20,25 @@
 /* the left edge starts moving again.                                  */
 /* ------------------------------------------------------------------ */
 
+/*
+  1240, not 1040 (issue #135). Measured against the shell — a 260px sidebar and
+  24px of page padding either side — the old number left the column short of the
+  window at every width the product is actually used at:
+
+    viewport   room     drawn at 1040   drawn at 1240
+    1280        972       972 (fills)     972 (fills)
+    1440       1132      1040 (-92)      1132 (fills)
+    1536       1228      1040 (-188)     1228 (fills)
+    1920       1612      1040 (-572)     1240 (-372)
+
+  It stops growing where growing starts to hurt: past ~1240 the goal and the
+  figure that belongs to it drift far enough apart that the row stops reading as
+  one object. Full width was the other option and it is worse — the column is
+  centred, so widening only this screen moves the left edge on every navigation,
+  which is the bug #69 exists to prevent.
+*/
 .page__inner.page__inner--app {
-  max-width: 1040px;
+  max-width: var(--page-w);
 }
 
 /*
@@ -310,13 +326,27 @@
   padding: 0;
 }
 
-/* The one grid on this screen. Change it here and the heads follow. */
+/*
+  The one grid on this screen. Change it here and the heads follow.
+
+  Every fixed width is the measured text, not a round number (#135). Mono runs
+  0.6em per character at 13.5px, so `31 Tem 14:32` — what `formatRelative` gives
+  for anything older than a week — is 97px and was living in an 82px column with
+  `overflow: hidden` and no ellipsis: silently short a character on every run
+  over seven days old. `Onay bekliyor` at 13px/600 is ~98px and was in 96.
+
+    100  Zaman   12 chars of mono
+     40  Adım    held open by its own head, not by 1-3 digits
+     72  Token   7 figures of mono, with slack
+     84  Tutar   `$12,345.67`
+    116  Durum   the longest status word, plus the chevron
+*/
 .runs__cols,
 .run-row__btn {
   display: grid;
   grid-template-columns:
     16px minmax(0, 1fr)
-    82px 40px 68px 78px 96px;
+    100px 40px 72px 84px 116px;
   align-items: center;
   column-gap: var(--s-12);
   width: 100%;
@@ -325,25 +355,35 @@
 
 /* Surface three: the inset strip that names the columns. */
 .runs__cols {
-  min-height: 26px;
+  min-height: 28px;
   background: var(--bg-subtle);
   border-bottom: 1px solid var(--line);
 }
+/*
+  Alignment and clipping only — the size, weight and colour are `.t-label`'s.
+  This used to override all three, down to 10.5px in `--fg-faint`: uppercase,
+  letterspaced, right-aligned text at 4.83:1, which is the least legible
+  configuration on the screen worn by its smallest type.
+*/
 .runs__cols .t-label {
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  color: var(--fg-faint);
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/*
+  `--line`, not `--line-soft`. A 6%-alpha hairline is very nearly not there, and
+  without it forty rows read as one continuous grey field. The rhythm of a list
+  comes from its separators; it was being asked of the row height instead.
+*/
 .run-row + .run-row {
-  border-top: 1px solid var(--line-soft);
+  border-top: 1px solid var(--line);
 }
 .run-row__btn {
-  min-height: 34px;
-  padding-block: 4px;
+  /* 15px of goal at 1.35 is 20px, plus 6px above and below. */
+  min-height: 38px;
+  padding-block: 6px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -367,7 +407,10 @@
   align-items: baseline;
   gap: var(--s-8);
   min-width: 0;
-  font-size: 13.5px;
+  /* The row's primary content. It was 13.5px — the same size as the page's own
+     secondary caption, so the hierarchy of the screen was upside down. */
+  font-size: 15px;
+  line-height: 1.35;
   color: var(--fg);
 }
 .run-row__text {
@@ -380,7 +423,7 @@
    holding a column open on every row that has nothing to put in it. */
 .run-row__id {
   flex: 0 0 auto;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--fg-faint);
 }
 
@@ -394,9 +437,12 @@
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
+  /* Clipped is not the same as shortened: without this the last character is
+     cut mid-glyph and nothing on screen says a character is missing. */
+  text-overflow: ellipsis;
 }
 .run-row__end {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   text-align: right;
   white-space: nowrap;
@@ -425,12 +471,36 @@
   color: var(--accent);
 }
 
-@media (max-width: 720px) {
+/*
+  Below 1180 the sidebar is still there and the column is not: at 1024 the page
+  gets 716px, and seven columns of 532px fixed would leave the goal 184px —
+  about twenty-six characters of Turkish. Adım and Token go first because they
+  are the two facts nobody navigates by; Zaman, Tutar and Durum are what the eye
+  is actually scanning for. Every row's accessible name still reads all five.
+*/
+@media (max-width: 1180px) {
+  .runs__cols,
+  .run-row__btn {
+    grid-template-columns: 16px minmax(0, 1fr) 100px 84px 116px;
+  }
+  .runs__drop {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
   /*
-    Two lines rather than seven columns — but the gutter keeps its column, so
+    Two lines rather than five columns — but the gutter keeps its column, so
     the marks still stack and the goal still starts at the same x on every row.
     The heads go with the columns, so the units come back onto the figures.
+
+    860, not 720. There is no sidebar below 1024, so the page gets the whole
+    window back and the columns fit for another 160px; 720 was measured against
+    a shell this screen no longer runs in.
   */
+  .runs__drop {
+    display: revert;
+  }
   .runs__cols {
     display: none;
   }
@@ -438,6 +508,9 @@
     grid-template-columns: 16px minmax(0, 1fr) auto;
     row-gap: 1px;
     padding-block: 6px;
+    /* `touch-target-size`: this width is a tablet, and the whole row is the
+       control. 38px is a pointer number. */
+    min-height: 44px;
   }
   .run-row__mark {
     grid-area: 1 / 1;
@@ -457,7 +530,7 @@
     min-width: 0;
   }
   .run-row__num {
-    font-size: 11.5px;
+    font-size: 12.5px;
     text-align: left;
   }
   .run-row__num:nth-child(2)::after {

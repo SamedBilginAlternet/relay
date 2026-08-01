@@ -334,8 +334,10 @@ function ColumnHeads({ last }: { last: string }) {
       <span />
       <span />
       <span className="t-label">Zaman</span>
-      <span className="t-label">Adım</span>
-      <span className="t-label">Token</span>
+      {/* The two the narrow layout drops: neither decides anything, and the
+          screen-reader label on every row still spells both out. */}
+      <span className="t-label runs__drop">Adım</span>
+      <span className="t-label runs__drop">Token</span>
       <span className="t-label">Tutar</span>
       <span className="t-label">{last}</span>
     </div>
@@ -378,7 +380,7 @@ function RunRow({
           differs per status and the button's label spells it out.
         */}
         <span className={`run-row__mark ${status.className}`} aria-hidden>
-          <Icon size={14} />
+          <Icon size={15} />
         </span>
         <span className="run-row__goal">
           {/* The goal is what gives way when the column is short — the id is the

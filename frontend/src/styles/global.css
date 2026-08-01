@@ -25,9 +25,20 @@
   /* The step between surfaces, used instead of a shadow. */
   --line: rgba(17, 17, 17, 0.09);
   --line-soft: rgba(17, 17, 17, 0.06);
-  /* Machine text: one size, one colour, everywhere it appears. */
+  /*
+    Machine text: one size, one colour, everywhere it appears.
+
+    13.5, not 12.5. Mono sets an 0.6em advance against Inter's ~0.5em, which
+    makes a monospaced digit read about a pixel smaller than sans at the same
+    value — and these figures are the whole content of the columns they sit in.
+    The colour is not the problem and does not move: #3f3f46 is 10.4:1 on the
+    surface, well past AA.
+  */
   --fg-machine: #3f3f46;
-  --machine-size: 12.5px;
+  --machine-size: 13.5px;
+  /* One content width for every app screen, so the left edge does not move
+     between them (#69). Read by `.page__inner--app` in screens.css. */
+  --page-w: 1240px;
   --r-inset: 8px;
 }
 
