@@ -133,12 +133,13 @@ Notlar:
 
 ---
 
-## 5. Google — Gmail + Calendar (OAuth)
+## 5. Google — Gmail + Calendar + Sheets (OAuth)
 
 **Nereden:** [console.cloud.google.com](https://console.cloud.google.com)
 
 1. Yeni proje: `relay-hackathon`
-2. **APIs & Services → Library** → etkinleştir: **Gmail API**, **Google Calendar API**
+2. **APIs & Services → Library** → etkinleştir: **Gmail API**, **Google Calendar API**,
+   **Google Sheets API**
 3. **OAuth consent screen** → *External* → uygulama adı `Relay`, destek e-postası kendi adresin
    → **Test users**'a `samedbilgin322@gmail.com` ekle. (Test modu yeterli; yayın onayı beklemiyoruz.)
 4. **Scopes**:
@@ -146,6 +147,7 @@ Notlar:
    - `https://www.googleapis.com/auth/calendar.readonly` *(sensitive)*
    - `https://www.googleapis.com/auth/gmail.compose` *(restricted)* — `gmail.createDraft` için.
    - `https://www.googleapis.com/auth/calendar.events` *(sensitive)* — `calendar.createEvent` için.
+   - `https://www.googleapis.com/auth/spreadsheets` *(sensitive)* — `sheets.appendRow` için.
 
    > **Bu izin gönderebilir.** Google'ın izin ekranında görünen metni "Manage drafts and
    > send emails" ve `messages.send`'i de kapsıyor. Gmail'de **yalnız taslak** diye bir
@@ -170,12 +172,13 @@ Refresh token bağlantı config'ine şifreli yazılır; ilk izinden sonra bir da
 > Google doğrulaması **ve** yıllık CASA güvenlik değerlendirmesi istiyor; bu bir ürün kararı,
 > kod değişikliği değil.
 
-> Kapsam genişlediğinde (`gmail.compose`, `calendar.events`) **eski bağlantı bozulmaz**: okuma
-> işleri aynen çalışmaya devam eder, yalnız o yazma adımı çalışmaz ve araç Türkçe bir cümleyle
-> "Bağlantılar'dan yeniden bağlan" der. `/api/oauth/google/status` bunu ayrı ayrı söyler —
-> `connected: true, canCompose: false` veya `canCreateEvent: false` = yeniden bağlanma gerekiyor.
+> Kapsam genişlediğinde (`gmail.compose`, `calendar.events`, `spreadsheets`) **eski bağlantı
+> bozulmaz**: okuma işleri aynen çalışmaya devam eder, yalnız o yazma adımı çalışmaz ve araç
+> Türkçe bir cümleyle "Bağlantılar'dan yeniden bağlan" der. `/api/oauth/google/status` bunu
+> ayrı ayrı söyler — `connected: true` yanında `canCompose`, `canCreateEvent` veya
+> `canAppendRow` `false` ise yeniden bağlanma gerekiyor.
 
-#### 4.1 `calendar.createEvent` — takvime toplantı koymak
+### 5.1 `calendar.createEvent` — takvime toplantı koymak
 
 | Ne | Değer |
 |---|---|
@@ -201,12 +204,49 @@ Bilmen gereken iki davranış:
   ("Deniz Arslan") döndürüyor; adım isimden adres türetmez, adımı hata ile durdurur. Onay
   ekranında adresi kendin yazabilir ya da katılımcısız onaylayıp kişiyi Takvim'den ekleyebilirsin.
 
+### 5.2 `sheets.appendRow` — takip tablosuna satır eklemek
+
+| Ne | Değer |
+|---|---|
+| Eklenecek scope | `https://www.googleapis.com/auth/spreadsheets` |
+| Ayrıca | **APIs & Services → Library → Google Sheets API** etkinleştirilmeli (scope tek başına yetmez, API kapalıysa 403 gelir) |
+| Nereye | Google Cloud Console → **OAuth consent screen → Data access (Scopes)** |
+| Sonra | **Bağlantılar → Google → Yeniden bağlan** |
+
+**Yeniden onay vermezsen ne olur:** hiçbir şey bozulmaz. Brifing, mail, takvim ve takvim kaydı
+aynen çalışır; yalnız `sheets.appendRow` adımı *"Google izni tabloya yazmayı kapsamıyor;
+Bağlantılar'dan Google'a yeniden bağlan"* diyerek durur.
+
+**İki bağlantı ayarı (Bağlantılar → Google → form):**
+
+| Anahtar | Değer | Not |
+|---|---|---|
+| `defaultSpreadsheetId` | Tablonun kimliği ya da adresi | Adresi olduğu gibi yapıştırabilirsin: `docs.google.com/spreadsheets/d/<kimlik>/edit` içinden kimlik okunur |
+| `defaultSheetName` | Sekme adı | Boş bırakılırsa `Sayfa1`. İngilizce arayüzlü Sheets'te ilk sekmenin adı `Sheet1`'dir — bu ayarı düzeltmezsen Google `Unable to parse range` döner |
+
+Bunlar süs değil. `SlackTool.PostMessage` bağlantıdaki `defaultChannel`'ı onay ekranından
+**önce** çözüyor; aynı yol burada da işliyor (`withDefaults` + `ToolAgent.CONTAINER_DEFAULTS`),
+yani onay ekranı "hangi tabloya" sorusuna boş değil gerçek cevabı gösteriyor. Ayarları boş
+bırakırsan onay ekranında hedef boş görünür ve adım büyük ihtimalle 404 ile düşer.
+
+**Tablonun bu Google hesabıyla paylaşılmış olması gerekir.** Scope, hesabın açabildiği
+tablolara ulaşır; hesabın erişimi olmayan bir tabloya scope da yetmez.
+
+Bilmen gereken iki davranış:
+
+- **Yalnız ekler.** `values.append` + `insertDataOption=INSERT_ROWS`: satır sonuncunun altına
+  yazılır, var olan hiçbir hücrenin üstüne yazılmaz. Araç hücre **okuyamaz** da — tablodaki
+  veri hiçbir zaman akış geçmişine düşmez.
+- **Hücre metindir** (`valueInputOption=RAW`). `USER_ENTERED` olsaydı modelin yazdığı
+  `=IMPORTXML(...)` gibi bir hücre paylaşılan dosyada canlı formüle dönerdi. Bedeli: `1.500`
+  sayı değil metin olarak durur. Ucuz olan bu.
+
 > İzin ekranında "Google bu uygulamayı doğrulamadı" uyarısı normaldir — test kullanıcısı olduğun
 > için *Advanced → Go to Relay (unsafe)* ile devam edilir.
 
 ---
 
-### 5.1 Groq kotası: neden beş anahtar bir anahtar kadar
+### 6.1 Groq kotası: neden beş anahtar bir anahtar kadar
 
 Canlıda beş anahtarın beşi bir saniye içinde 429 aldı ve ürün stub'a düştü. Sebep
 anahtar sayısı değil:
@@ -236,7 +276,7 @@ Kota bittiğinde ne yapılır, ucuzdan pahalıya:
 Bir demo günü ölçüsü: bir brifing yenilemesi ~2.300 token. 100k/gün ≈ 40 yenileme
 artı akışlar. QA yükünü demo gününde canlıya bindirmeyin.
 
-### 5.2 İkinci sağlayıcı: bedava biterse ücretli devralsın
+### 6.2 İkinci sağlayıcı: bedava biterse ücretli devralsın
 
 Groq'un bedava planında duvar **günlük token** (TPD). Duvarı olmayan bir sağlayıcı
 arkaya konursa, bedava kota bittiği anda ürün stub'a düşmek yerine ondan devam eder.

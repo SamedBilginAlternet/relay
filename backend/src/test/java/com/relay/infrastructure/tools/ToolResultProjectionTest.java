@@ -144,6 +144,7 @@ class ToolResultProjectionTest {
                 new SlackTool.ListChannels("replay", FIXTURES),
                 new SlackTool.PostMessage("replay", FIXTURES),
                 new CalendarCreateEventTool("replay", FIXTURES, null, "Europe/Istanbul"),
+                new SheetsTool.AppendRow("replay", FIXTURES, null),
                 new NotionTool.CreatePage("replay", FIXTURES));
 
         for (AbstractTool tool : tools) {

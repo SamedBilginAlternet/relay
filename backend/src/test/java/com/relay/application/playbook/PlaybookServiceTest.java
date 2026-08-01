@@ -50,7 +50,8 @@ class PlaybookServiceTest {
                         "replay", FIXTURES, null, "Europe/Istanbul"),
                 new com.relay.infrastructure.tools.CalendarCreateEventTool(
                         "replay", FIXTURES, null, "Europe/Istanbul"),
-                new SlackTool.PostMessage("replay", FIXTURES)));
+                new SlackTool.PostMessage("replay", FIXTURES),
+                new com.relay.infrastructure.tools.SheetsTool.AppendRow("replay", FIXTURES, null)));
         TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
         TestDoubles.InMemoryConnectionRepository connections = new TestDoubles.InMemoryConnectionRepository();
         for (String provider : connectedProviders) {
@@ -162,5 +163,20 @@ class PlaybookServiceTest {
         assertThat(run.status().wire()).isEqualTo("awaiting_approval");
         assertThat(run.steps()).extracting(step -> step.toolName())
                 .containsExactly("jira.searchIssues", "slack.postMessage");
+    }
+
+    /**
+     * The blocker scan ends twice: Slack is what the team reads today, the spreadsheet row is
+     * what somebody reads in a month. The row rides the google connection, so a workspace that
+     * never connected Google simply does not get that step — see the test above, where the
+     * same playbook comes back two steps long.
+     */
+    @Test
+    void the_blocker_scan_writes_its_row_when_the_workspace_has_a_sheet() {
+        Run run = rig("jira", "slack", "google").playbooks().start("blocker-taramasi", 1.0);
+
+        assertThat(run.steps()).extracting(step -> step.toolName())
+                .containsExactly("jira.searchIssues", "slack.postMessage", "sheets.appendRow");
+        assertThat(run.status().wire()).isEqualTo("awaiting_approval");
     }
 }

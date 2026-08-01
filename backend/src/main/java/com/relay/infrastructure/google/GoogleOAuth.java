@@ -64,14 +64,29 @@ public class GoogleOAuth {
     public static final String CALENDAR_EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
     /**
-     * Reading is what the daily brief needs; composing is what answering a mail needs, and
-     * writing an event is what agreeing to meet again needs.
+     * Appending a row to a spreadsheet the user names.
+     *
+     * <p>Google has no append-only and no single-file Sheets scope. {@code spreadsheets} is
+     * the narrowest grant that can write a cell, and it reaches every spreadsheet the account
+     * can already open — so "Relay only ever adds a line to the sheet you configured" is a
+     * promise <em>our code</em> keeps ({@code SheetsTool.AppendRow} talks to one endpoint,
+     * appends, and can neither overwrite nor read a cell back) and not one the grant enforces.
+     * The alternative, {@code drive.file}, only reaches files the app itself created, which is
+     * exactly the sheet the user does not have.
+     */
+    public static final String SPREADSHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
+
+    /**
+     * Reading is what the daily brief needs; the three writes are what the rest of a day
+     * needs — answering a mail, agreeing to meet again, and putting the result somewhere the
+     * people who do not open Jira can see it.
      */
     public static final String SCOPES = String.join(" ",
             "https://www.googleapis.com/auth/gmail.readonly",
             COMPOSE_SCOPE,
             "https://www.googleapis.com/auth/calendar.readonly",
             CALENDAR_EVENTS_SCOPE,
+            SPREADSHEETS_SCOPE,
             "openid", "email");
 
     /**
@@ -244,6 +259,9 @@ public class GoogleOAuth {
         // connected=true and canCreateEvent=false, and the screen can say which button to press.
         out.put("canCreateEvent", connections.findByProvider(PROVIDER)
                 .map(connection -> granted(connection, CALENDAR_EVENTS_SCOPE))
+                .orElse(false));
+        out.put("canAppendRow", connections.findByProvider(PROVIDER)
+                .map(connection -> granted(connection, SPREADSHEETS_SCOPE))
                 .orElse(false));
         out.put("redirectUri", redirectUri);
         out.put("startUrl", "/api/oauth/google/start");

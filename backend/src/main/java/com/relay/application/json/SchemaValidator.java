@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * Small, dependency-free JSON Schema check — enough for tool parameters:
  * {@code type}, {@code required}, {@code properties}, {@code enum}, {@code items},
- * {@code minimum}/{@code maximum}, {@code minLength}.
+ * {@code minimum}/{@code maximum}, {@code minLength}, {@code minItems}.
  *
  * <p>The point is a hard gate in front of every tool call, so a hallucinated parameter
  * set never reaches Jira or Slack.
@@ -90,6 +90,12 @@ public final class SchemaValidator {
         }
 
         if (value.isArray()) {
+            // An empty array satisfies "required" — it is neither null nor a blank string —
+            // so without this a row with no cells in it reaches the provider as a write that
+            // writes nothing. minItems is the only place the gate can say so.
+            if (schema.has("minItems") && value.size() < schema.get("minItems").asInt()) {
+                errors.add(path + " must have at least " + schema.get("minItems").asInt() + " items");
+            }
             JsonNode items = schema.get("items");
             if (items != null) {
                 for (int i = 0; i < value.size(); i++) {

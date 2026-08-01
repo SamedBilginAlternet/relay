@@ -37,6 +37,7 @@ class ToolSchemaTest {
                 new CalendarTool.ListToday("replay", FIXTURES, null, "Europe/Istanbul"),
                 new CalendarUpcomingTool("replay", FIXTURES, null, "Europe/Istanbul"),
                 new CalendarCreateEventTool("replay", FIXTURES, null, "Europe/Istanbul"),
+                new SheetsTool.AppendRow("replay", FIXTURES, null),
                 new NotionTool.CreatePage("replay", FIXTURES));
     }
 
@@ -71,12 +72,17 @@ class ToolSchemaTest {
         Tool event = new CalendarCreateEventTool("replay", FIXTURES, null, "Europe/Istanbul");
         assertThat(event.risk()).isEqualTo(RiskLevel.WRITE);
         assertThat(event.risk().defaultMode().wire()).isEqualTo("ask");
+        Tool row = new SheetsTool.AppendRow("replay", FIXTURES, null);
+        assertThat(row.risk()).isEqualTo(RiskLevel.WRITE);
+        assertThat(row.risk().defaultMode().wire()).isEqualTo("ask");
     }
 
     @Test
     void googleToolsShareTheGoogleConnection() {
         assertThat(new GmailTool.ListToday("replay", FIXTURES, null).provider()).isEqualTo("google");
         assertThat(new CalendarTool.ListToday("replay", FIXTURES, null, "UTC").provider()).isEqualTo("google");
+        // sheets.* is a tool namespace, not a connection: the row rides the same grant.
+        assertThat(new SheetsTool.AppendRow("replay", FIXTURES, null).provider()).isEqualTo("google");
         assertThat(new GitHubTool.AddComment("replay", FIXTURES).provider()).isEqualTo("github");
     }
 

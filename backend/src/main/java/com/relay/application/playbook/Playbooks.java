@@ -39,16 +39,26 @@ public final class Playbooks {
                     Move.optional("Notion'a not sayfası aç", "notion.createPage", Map.of()),
                     Move.optional("Kanala bildir", "slack.postMessage", Map.of())));
 
+    /**
+     * "Neye takıldık, kimde bekliyor."
+     *
+     * <p>It ends twice on purpose. The Slack message is what the team reads today; the
+     * spreadsheet row is what somebody reads in a month, when the question is whether the
+     * same thing keeps happening. Both are optional, so a workspace with only Jira still
+     * gets the scan, and both stop at the approval gate.
+     */
     public static final Playbook BLOCKERS = new Playbook(
             "blocker-taramasi",
             "Takılan işler",
             "Blocker etiketli açık kayıtları bul, hangileri kimde bekliyor çıkar ve ekibe "
-                    + "kayıt anahtarlarıyla birlikte özet geç.",
-            "Jira taranır, Slack özeti onayına gelir",
+                    + "kayıt anahtarlarıyla birlikte özet geç. Sonra takip tablosuna bugünün "
+                    + "tarihi, kayıt sayısı ve en uzun bekleyen kayıtla bir satır ekle.",
+            "Jira taranır; Slack özeti ve tablo satırı ayrı ayrı onayına gelir",
             List.of(
                     Move.required("Blocker kayıtlarını bul", "jira.searchIssues",
                             Map.of("jql", "labels = blocker AND statusCategory != Done ORDER BY updated DESC")),
-                    Move.optional("Ekibe özet gönder", "slack.postMessage", Map.of())));
+                    Move.optional("Ekibe özet gönder", "slack.postMessage", Map.of()),
+                    Move.optional("Takip tablosuna satır ekle", "sheets.appendRow", Map.of())));
 
     public static final Playbook PR_REVIEW = new Playbook(
             "pr-durumu",

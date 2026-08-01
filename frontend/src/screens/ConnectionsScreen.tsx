@@ -40,17 +40,38 @@ type ProviderDef = {
   fields: FieldDef[];
   /** Google has no token to paste; setting it up is a consent screen, not a form. */
   oauth?: boolean;
+  /**
+   * What the form itself is about, when that is not what the tile is about. Google's
+   * tile explains the connection; its form explains two optional settings that have
+   * nothing to do with connecting.
+   */
+  settingsBlurb?: string;
 };
 
 export const PROVIDERS: ProviderDef[] = [
   {
     provider: 'google',
     title: 'Google',
-    blurb: 'Gmail ve Takvim. Günün özetini okur; cevap taslağı ve takip toplantısı onayınla yazılır.',
+    blurb: 'Gmail, Takvim ve Sheets. Günün özetini okur; taslak cevap, takip toplantısı ve tablo satırı onayınla yazılır.',
     marks: ['gmail', 'calendar'],
     console: { href: 'https://myaccount.google.com/permissions', label: 'Google hesap izinleri' },
-    fields: [],
     oauth: true,
+    settingsBlurb:
+      'Takip tablosu: sheets.appendRow bir satırı buraya ekler. Boş bırakılırsa satırın nereye gideceğini modelin bulması gerekir — onay ekranında hedefin boş görünmesinin sebebi budur.',
+    fields: [
+      {
+        key: 'defaultSpreadsheetId',
+        label: 'Varsayılan tablo (opsiyonel)',
+        placeholder: 'docs.google.com/spreadsheets/d/… ya da yalnız kimlik',
+        hint: 'Tablonun adresini olduğu gibi yapıştırabilirsin; kimlik adresin içinden okunur.',
+      },
+      {
+        key: 'defaultSheetName',
+        label: 'Varsayılan sayfa (opsiyonel)',
+        placeholder: 'Sayfa1',
+        hint: 'Boş bırakılırsa Sayfa1. İngilizce Sheets’te ilk sayfanın adı Sheet1.',
+      },
+    ],
   },
   {
     provider: 'jira',
@@ -270,7 +291,7 @@ export function ConnectionsScreen() {
 
         {!loading && chosen?.oauth && <GoogleSetup connection={connections.google} />}
 
-        {!loading && chosen && !chosen.oauth && (
+        {!loading && chosen && (!chosen.oauth || chosen.fields.length > 0) && (
           <ProviderSetup
             key={chosen.provider}
             def={chosen}
@@ -373,9 +394,9 @@ function GoogleSetup({ connection }: { connection: Connection | undefined }) {
     <section className="card" aria-label="Google kurulumu">
       <p className="t-caption">
         Token yapıştırılmaz: Google’ın izin ekranından geçersin, yetki sunucuda şifreli saklanır.
-        Okuma izinleri (gmail.readonly, calendar.readonly) yanında iki yazma izni istenir:
-        gmail.compose taslak cevap için, calendar.events takip toplantısı için. Yazma adımlarının
-        ikisi de onay kapısından geçer.
+        Okuma izinleri (gmail.readonly, calendar.readonly) yanında üç yazma izni istenir:
+        gmail.compose taslak cevap için, calendar.events takip toplantısı için, spreadsheets
+        takip tablosuna satır eklemek için. Üçü de onay kapısından geçer.
       </p>
 
       {loading && <div className="skeleton" style={{ height: 56 }} />}
@@ -468,10 +489,12 @@ function ProviderSetup({
   return (
     <section className="card" aria-label={`${def.title} kurulumu`}>
       <p className="t-caption">
-        {def.blurb}{' '}
-        <a href={def.console.href} target="_blank" rel="noreferrer noopener">
-          {def.console.label}
-        </a>
+        {def.settingsBlurb ?? def.blurb}{' '}
+        {!def.settingsBlurb && (
+          <a href={def.console.href} target="_blank" rel="noreferrer noopener">
+            {def.console.label}
+          </a>
+        )}
       </p>
 
       <div className="field-grid">

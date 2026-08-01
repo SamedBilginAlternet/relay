@@ -73,6 +73,7 @@ onay kapısı, aynı şeffaflık. Yani Bugün ekranı yeni bir motor değil, mot
 | `gmail.createDraft` | WRITE | Taslak cevap — **gönderilmez**, taslaklar klasörüne düşer |
 | `calendar.listToday` | READ | Bugünün etkinlikleri |
 | `calendar.createEvent` | WRITE | Takip toplantısı — onay ister, davetler onaydan sonra gider. **Brifingde yok**: yazma aracı brifinge girmez |
+| `sheets.appendRow` | WRITE | Takip tablosuna tek satır — yalnız ekler, üstüne yazmaz. **Brifingde yok** |
 | `github.listMyPullRequests` | READ | `review-requested` + `author` |
 | `github.listMyIssues` | READ | `assignee:@me` |
 | `github.addComment` | WRITE | Onay ister |

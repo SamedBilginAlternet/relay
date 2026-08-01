@@ -19,9 +19,9 @@
  *     is there to hold.
  *
  * The keys come from the registered tools' `schema()` (Jira, Slack, Gmail,
- * Calendar, GitHub, Notion). Matching is case-insensitive because the schemas are not
- * consistent themselves — Jira's create step spells it `issueType` in one place
- * and `issuetype` in another.
+ * Calendar, Sheets, GitHub, Notion). Matching is case-insensitive because the
+ * schemas are not consistent themselves — Jira's create step spells it
+ * `issueType` in one place and `issuetype` in another.
  */
 const LABELS: Record<string, string> = {
   // Jira
@@ -62,6 +62,11 @@ const LABELS: Record<string, string> = {
   startsat: 'Başlangıç',
   endsat: 'Bitiş',
   attendees: 'Katılımcılar',
+
+  // Sheets
+  spreadsheetid: 'Tablo',
+  sheetname: 'Sayfa',
+  values: 'Satır',
 
   // GitHub
   repo: 'Depo',

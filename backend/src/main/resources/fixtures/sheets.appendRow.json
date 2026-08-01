@@ -1,0 +1,10 @@
+{
+  "spreadsheetId": "{{spreadsheetId}}",
+  "sheetName": "{{sheetName}}",
+  "updatedRange": "Sayfa1!A14:D14",
+  "updatedRows": 1,
+  "updatedCells": 4,
+  "values": "{{values}}",
+  "overwritten": false,
+  "url": "https://docs.google.com/spreadsheets/d/{{spreadsheetId}}/edit"
+}

@@ -38,6 +38,9 @@ const TOOL_AGENTS: Record<string, string> = {
   // wrong about a specialist the product actually ships.
   calendar: 'Takvim Uzmanı',
   notion: 'Notion Uzmanı',
+  // sheets.* is its own tool namespace even though it rides the google connection, so
+  // AgentRole builds `sheets-agent` and Ekip would otherwise print it raw.
+  sheets: 'Tablo Uzmanı',
   generalist: 'Genel Uzman',
 };
 
