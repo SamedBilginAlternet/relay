@@ -1,10 +1,10 @@
-import { ArrowRight, History, RefreshCw } from 'lucide-react';
+import { History, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '../components/EmptyState';
 import { LoadError } from '../components/LoadError';
-import { StatusPill } from '../components/StatusPill';
 import { getRunSource } from '../data';
 import { formatRelative, formatTokens, formatUsd } from '../lib/format';
+import { runStatusMeta } from '../lib/status';
 import type { RunSummary } from '../types/api';
 import '../styles/screens.css';
 
@@ -137,17 +137,20 @@ export function HistoryScreen({ onOpen }: Props) {
               </h2>
               <span className="t-caption">Bu akışlar durdu; devam etmesi senin kararına bağlı.</span>
             </div>
-            <ul className="runs__list">
-              {waiting.map((row) => (
-                <RunRow
-                  key={row.id}
-                  row={row}
-                  withId={repeated.has(row.goal)}
-                  action="Karar ver"
-                  onOpen={onOpen}
-                />
-              ))}
-            </ul>
+            <div className="runs__frame">
+              <ColumnHeads last="Karar" />
+              <ul className="runs__list">
+                {waiting.map((row) => (
+                  <RunRow
+                    key={row.id}
+                    row={row}
+                    withId={repeated.has(row.goal)}
+                    action="Karar ver"
+                    onOpen={onOpen}
+                  />
+                ))}
+              </ul>
+            </div>
           </section>
         )}
 
@@ -159,14 +162,42 @@ export function HistoryScreen({ onOpen }: Props) {
               </h2>
               <span className="t-caption">{settled.length} kayıt</span>
             </div>
-            <ul className="runs__list">
-              {settled.map((row) => (
-                <RunRow key={row.id} row={row} withId={repeated.has(row.goal)} onOpen={onOpen} />
-              ))}
-            </ul>
+            <div className="runs__frame">
+              <ColumnHeads last="Durum" />
+              <ul className="runs__list">
+                {settled.map((row) => (
+                  <RunRow key={row.id} row={row} withId={repeated.has(row.goal)} onOpen={onOpen} />
+                ))}
+              </ul>
+            </div>
           </section>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The names of the machine columns, written once at the top of the list.
+ *
+ * <p>Every row used to carry its own units — `4 adım`, `4.246 token` — which is
+ * the same three words printed forty-five times and the reason the numbers had
+ * to be packed left instead of aligned. Naming the column once buys the row a
+ * bare, right-aligned figure that lines up with the one above it.
+ *
+ * <p>Presentation only: it is a `div`, not a table head and not a list item, so
+ * the lists on this screen stay lists of runs.
+ */
+function ColumnHeads({ last }: { last: string }) {
+  return (
+    <div className="runs__cols" aria-hidden>
+      <span />
+      <span />
+      <span className="t-label">Zaman</span>
+      <span className="t-label">Adım</span>
+      <span className="t-label">Token</span>
+      <span className="t-label">Tutar</span>
+      <span className="t-label">{last}</span>
     </div>
   );
 }
@@ -182,27 +213,54 @@ function RunRow({
   action?: string;
   onOpen: (runId: string) => void;
 }) {
+  const status = runStatusMeta(row.status);
+  const Icon = status.Icon;
+  /*
+    The button's own label replaces everything inside it for a screen reader, so
+    the facts the columns carry have to be spelled out here — with the units the
+    row no longer prints, because a bare "3" read out loud is not a step count.
+  */
+  const label = [
+    `${row.goal} — ${action ?? status.label}`,
+    formatRelative(row.createdAt),
+    `${row.stepCount} adım`,
+    `${formatTokens(row.costTokens)} token`,
+    formatUsd(row.costUsd),
+  ].join(', ');
   return (
     <li className="run-row">
-      <button
-        type="button"
-        className="run-row__btn"
-        onClick={() => onOpen(row.id)}
-        aria-label={action ? `${row.goal} — ${action}` : row.goal}
-      >
-        <span className="run-row__main">
-          <span className="run-row__goal">{row.goal}</span>
-          <span className="run-row__meta">
-            <span>{formatRelative(row.createdAt)}</span>
-            {withId && <code className="t-mono">#{shortId(row.id)}</code>}
-            <span>{row.stepCount} adım</span>
-            <span>{formatTokens(row.costTokens)} token</span>
-            <span>{formatUsd(row.costUsd)}</span>
-          </span>
+      <button type="button" className="run-row__btn" onClick={() => onOpen(row.id)} aria-label={label}>
+        {/*
+          The left gutter is the only column the eye has to walk to find a
+          failure in a page of finished runs, so the mark stays in it whatever
+          the row says on the right. Colour is never the whole signal: the glyph
+          differs per status and the button's label spells it out.
+        */}
+        <span className={`run-row__mark ${status.className}`} aria-hidden>
+          <Icon size={14} />
         </span>
-        {action && <span className="run-row__action">{action}</span>}
-        <StatusPill status={row.status} />
-        <ArrowRight size={16} aria-hidden className="run-row__chevron" />
+        <span className="run-row__goal">
+          {/* The goal is what gives way when the column is short — the id is the
+              only thing telling two runs of the same prompt apart, so it never
+              leaves the row with it. */}
+          <span className="run-row__text">{row.goal}</span>
+          {withId && <code className="run-row__id t-mono">#{shortId(row.id)}</code>}
+        </span>
+        {/* `display: contents` on wide screens, so these four sit in the row's
+            own grid and line up with the heads; a wrapped strip under the goal
+            once the columns no longer fit. */}
+        <span className="run-row__nums">
+          <span className="run-row__num t-mono">{formatRelative(row.createdAt)}</span>
+          <span className="run-row__num t-mono">{row.stepCount}</span>
+          <span className="run-row__num t-mono">{formatTokens(row.costTokens)}</span>
+          <span className="run-row__num t-mono">{formatUsd(row.costUsd)}</span>
+        </span>
+        {/* Every run in the waiting block carries the same status, so the last
+            column says the thing that is not already in the heading: what the
+            reader is being asked to do. */}
+        <span className={`run-row__end${action ? ' run-row__end--act' : ` ${status.className}`}`}>
+          {action ?? status.label}
+        </span>
       </button>
     </li>
   );
