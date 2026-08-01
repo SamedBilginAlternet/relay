@@ -271,8 +271,9 @@ kalırlar).
 `application/port/Tool.java` tek genişleme noktası: `name()`, `description()`, `schema()`,
 `risk()`, `execute()`, `withDefaults()`. Yeni entegrasyon = bu arayüzü uygulayan bir
 `@Component`; Spring toplar, `ToolRegistryImpl` LLM'e sunar, `PolicyEngine` riske göre
-varsayılan politikayı atar. Orkestratör değişmez. Şu an 15 araç kayıtlı: `jira.*` (6),
-`github.*` (3), `gmail.*` (3), `calendar.listToday`, `slack.*` (2).
+varsayılan politikayı atar. Orkestratör değişmez. Şu an **18 araç** kayıtlı (`GET /api/health`
+→ `tools.count`): `jira.*` (7), `github.*` (3), `gmail.*` (4), `calendar.*` (2), `slack.*` (2).
+Risk dağılımı: 12 `read`, 6 `write`, **0 `destructive`** — §10'daki sınır bu sayıdan geliyor.
 
 `AbstractTool.execute` ortak zincir: süre ölçümü → **şema kapısı** (parametreler geçersizse
 sağlayıcıya hiç gidilmez, `mode: rejected`) → live/replay kararı → hata eşleme (istisna mesajı

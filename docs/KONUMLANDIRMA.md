@@ -18,45 +18,73 @@ kaldıramayacağı bir cümle — ve jüri sorusunda kırılır. "Developer ür�
 
 Konumlandırma tartışmasının tamamı bu tabloya bakarak çözülüyor.
 
-### Kayıtlı araçlar (15) ve risk seviyeleri
+### Kayıtlı araçlar (18) ve risk seviyeleri
 
-| Sağlayıcı | OKUMA | YAZMA |
-|---|---|---|
-| **Jira** | `searchIssues` · `getIssue` · `listMyIssues` | `updateIssue` · `addComment` · `createIssue` |
-| **Slack** | `listChannels` | `postMessage` |
-| **GitHub** | `listMyPullRequests` · `listMyIssues` | `addComment` |
-| **Gmail** | `listToday` · `getMessage` · `search` | **yok** |
-| **Takvim** | `listToday` | **yok** |
+> Kaynak: `GET /api/health` → `"tools":{"count":18}` ve `GET /api/policies`.
+> Tablo canlıdan üretildi; sunumda bu tablodan konuşulur.
+
+| Sağlayıcı | OKUMA (12) | YAZMA (6) | SİLME (0) |
+|---|---|---|---|
+| **Jira** | `searchIssues` · `getIssue` · `listMyIssues` · `getComments` | `createIssue` · `updateIssue` · `addComment` | yok |
+| **Slack** | `listChannels` | `postMessage` | yok |
+| **GitHub** | `listMyPullRequests` · `listMyIssues` | `addComment` | yok |
+| **Gmail** | `listToday` · `getMessage` · `search` | `createDraft` | yok |
+| **Takvim** | `listToday` · `listUpcoming` | yok | yok |
+
+Sağlayıcı sayısı dört, beş değil: Gmail ve Takvim tek bir `google` bağlantısında oturuyor
+(`GoogleTool.provider()`).
+
+İki satır §0'ın eski hâline göre değişti ve ikisi de sunumda söylenecek:
+**`gmail.createDraft` artık kayıtlı ve `write` riskli** (§3 C1 kararı uygulandı — taslak
+yazılıyor, `gmail.send` hâlâ **yok**, ayrım korunuyor), **`calendar.listUpcoming` eklendi**
+(Toplantı öncesi hazırlık akışının kaynağı).
 
 Kritik gözlem: **eylem yüzeyi Jira + Slack + GitHub'dan ibaret.** Gmail ve Takvim
 salt-okunur. Yani Relay "beyaz yakalının maili" konusunda **taslak yazabiliyor ama
 gönderemiyor**, "takvimi" konusunda **görebiliyor ama toplantı kuramıyor**. Bir araca
 gerçekten *yazdığı* yer ekip araçları.
 
-### Hazır akışlar (`Playbooks.java` — 4 adet)
+### Hazır akışlar (`Playbooks.java` — 5 adet, raftaki sırayla)
 
-| Akış | Zinciri | Kim için? |
-|---|---|---|
-| **Günün özeti** | Jira + GitHub + Takvim oku → Slack'e durum mesajı | Ekibi olan biri |
-| **Blocker taraması** | `labels = blocker` JQL → Slack özeti | Yazılım ekibi lideri |
-| **PR durumu** | Review bekleyen PR'lar → Slack hatırlatma | Yazılım ekibi lideri |
-| **Maili tickete çevir** | Gmail oku → Jira kaydı aç → Slack'e bildir | Gelen talebi işe çeviren herkes |
+> Kaynak: `GET /api/playbooks`. Sıra ekrandaki sıradır (`Playbooks.ALL`).
 
-Dördünün de **Slack'te bitmesi** tesadüf değil: `Playbooks.java` sınıf yorumunda yazdığı gibi
-her akış "ends by telling someone what changed". Bu bir bilgi işleme aracı değil,
-**bir koordinasyon aracı**. Fark önemli — konumlandırmanın çıkış noktası bu.
+| # | Akış (ekrandaki adı) | Zinciri | Kim için? |
+|---|---|---|---|
+| 1 | **Maili işe çevir** | Gmail oku → Jira kaydı aç → Slack'e bildir | Gelen talebi işe çeviren herkes |
+| 2 | **Günün özeti** | Jira + GitHub + Takvim oku → Slack'e durum mesajı | Ekibi olan biri |
+| 3 | **Toplantı öncesi hazırlık** | Takvim + Jira + Gmail oku → **hiç yazmaz** | Toplantıya giren herkes |
+| 4 | **Takılan işler** | `labels = blocker` JQL → Slack özeti | Yazılım ekibi lideri |
+| 5 | **Bekleyen incelemeler** | Review bekleyen PR'lar → Slack hatırlatma | Yazılım ekibi lideri |
 
-### Ekranlar
+§0'ın eski hâline göre üç değişiklik: **`toplanti-hazirligi` eklendi** (beşinci akış),
+**`Maili işe çevir` başa alındı** (§3 A4), **`Blocker taraması`/`PR durumu` başlıkları
+jargondan çıkarıldı** (§3 A3 — `id`'ler sabit kaldı, API kırılmadı).
 
-`Bugün` (brifing) · `Sohbet` (serbest hedef) · `Geçmiş` (denetim izi) · `Bağlantılar` · Onboarding.
+Beşin dördünün **Slack'te bitmesi** tesadüf değil: `Playbooks.java` sınıf yorumunda yazdığı
+gibi her akış "ends by telling someone what changed". Bu bir bilgi işleme aracı değil,
+**bir koordinasyon aracı**. Fark önemli — konumlandırmanın çıkış noktası bu. Tek istisna
+**Toplantı öncesi hazırlık**: hiçbir şey yazmaz, onay istemez — okunacak bir şey toplar.
 
-### Kodda var, arayüzde yok
+### Ekranlar (üst barda 6 sekme)
+
+`Bugün` (`#/`, eylem akışı) · `Sohbet` (`#/sohbet`, serbest hedef + akış paneli) ·
+`Geçmiş` (`#/history`, denetim izi) · `Bağlantılar` (`#/connections`) ·
+`Politikalar` (`#/politikalar`) · `Panel` (`#/panel`, akış istatistikleri).
+
+Üst barda **olmayan**, ama var olan ekranlar: `#/sor` (Postana sor — hesap menüsünden,
+karar #59), `#/onboarding` (tanıtım turu — hesap menüsünden tekrar açılır), `#/giris`,
+`#/kayit`.
+
+§0'ın eski hâline göre iki ekran eklendi (**Politikalar**, **Panel**) ve bir ekran üst
+bardan çıktı (**Postana sor**). Sunum bu bardan okunur — sekme sayısı yediyken üç
+dakikada gezilemiyordu.
+
+### Kodda var, arayüzde bir tık uzakta
 
 `POST /api/ask` — "kargolarım gelmiş mi?", "KAN-4 ne durumda?" gibi soruları **kullanıcının
 kendi hesaplarından, kaynak göstererek** yanıtlıyor (`AskService` + `SourceRouter`,
-salt-okunur, akış başlatmıyor). Frontend'de bu uca **tek bir çağrı yok** (grep: sıfır sonuç).
-Elimizdeki en "herhangi bir beyaz yakalı" özelliği yazılmış, test edilmiş ve **görünmüyor.**
-Bu, §3'teki en ucuz hamlenin gerekçesi.
+salt-okunur, akış başlatmıyor). Ekranı yazıldı (`#/sor`) ama üst bardan çekildi; gerekçesi
+§3 B1'de. Demoda açılmaz.
 
 ### Dürüst cevap: bu kimin gününü kurtarıyor?
 
@@ -117,8 +145,8 @@ ritim `Bugün` ekranının varlık sebebi ve `MORNING` playbook'unun adı.
 | **09:12** | Kart: *"Ayşe: Ödeme akışında müşteri şikâyeti var"* → **"Bu bir iş talebi gibi görünüyor"** + `Jira kaydı aç` pili. Basar. | `InsightService` sınıflandırdı; `POST /api/runs/from-suggestion` akışı başlattı |
 | **09:13** | Plan çıkar, `jira.createIssue` **onay kapısında bekler**. Parametreleri görür, proje anahtarını düzeltmek için reddeder, gerekçe yazar. | `PolicyEngine`: WRITE → `ask`. Red gerekçesi `AgentJournal` üzerinden Koordinatör'e gider, adım revize edilir |
 | **09:15** | Revize adımı onaylar. Kayıt açılır, `#urun` kanalına bildirim düşer. | `jira.createIssue` → `slack.postMessage`, ikisi de ayrı onaydan geçti |
-| **11:40** | "Ne takıldı?" — **Blocker taraması** akışını çalıştırır. | `Playbooks.BLOCKERS`: JQL taraması otomatik akar, Slack özeti onay bekler |
-| **14:30** | 2 gündür bekleyen PR'ları hatırlatır. | `Playbooks.PR_REVIEW` |
+| **11:40** | "Ne takıldı?" — **Takılan işler** akışını çalıştırır. | `Playbooks.BLOCKERS`: JQL taraması otomatik akar, Slack özeti onay bekler |
+| **14:30** | 2 gündür bekleyen PR'ları hatırlatır. | `Playbooks.PR_REVIEW` — raftaki adı **Bekleyen incelemeler** |
 | **17:50** | **Günün özeti** akışı: Jira + PR + toplantılar → ekibe kapanış mesajı. | `Playbooks.MORNING` |
 | **Ertesi gün** | Müdür sorar: "bu kaydı kim, neden açtı?" `Geçmiş` → akış → adımlar, kararlar, red gerekçesi, token, USD. | `Step.decision` + `rejectReason` + `AgentMessage` + `CostMeter` |
 
@@ -136,16 +164,19 @@ Bu günün hiçbir adımında kod yazılmıyor. Hepsi koordinasyon.
 — dördü de her beyaz yakalının stack'i. Tek istisna **GitHub**. Ve GitHub'da bile yaptığımız
 şey kod değil, yönetim sorusu: "review bekleyen PR'ım var mı, kaç gündür bekliyor?"
 
-**Ama sunum yüzeyi geliştirici ağırlıklı. Somut olarak:**
+**Ama sunum yüzeyi geliştirici ağırlıklıydı. Somut olarak — ve tablo artık bir tarihçe:**
 
-| Nerede | Ne yazıyor | Sorun |
+| Nerede | Ne yazıyordu | Bugün |
 |---|---|---|
-| `frontend/src/components/Landing.tsx` → `SUGGESTIONS` | Üç örneğin üçü de Jira/Slack mühendislik cümlesi; altlarında mono yazıyla `jira.searchIssues · jira.updateIssue · slack.postMessage` | **En büyük tek etken.** Jürinin gördüğü ilk ekran ona API metot adları gösteriyor |
-| `frontend/src/components/Composer.tsx` → `PLACEHOLDER_LONG` | *"Blocker etiketli Jira işlerini bul…"* | Boş kutu bile mühendislik jargonuyla konuşuyor |
-| `Playbooks.java` → `BLOCKERS`, `PR_REVIEW` | "Blocker taraması", "PR durumu" | Dört akıştan ikisinin **başlığı** Jira/GitHub jargonu |
-| `DEMO.md` §0.5 | Açılış insight kartı: *"Ödeme servisi staging'de patlıyor"* | Demonun 12. saniyesindeki tek cümle bir **staging hatası** |
+| `frontend/src/components/Landing.tsx` → `SUGGESTIONS` | Üç örneğin üçü de Jira/Slack mühendislik cümlesi | **A1 uygulandı** — ilk örnek *"Bugünkü maillerime bak…"* |
+| `frontend/src/components/Composer.tsx` → `PLACEHOLDER_LONG` | *"Blocker etiketli Jira işlerini bul…"* | **A2 uygulandı** — aynı mail cümlesi |
+| `Playbooks.java` → `BLOCKERS`, `PR_REVIEW` | "Blocker taraması", "PR durumu" | **A3 uygulandı** — "Takılan işler", "Bekleyen incelemeler" |
+| `Playbooks.ALL` sırası | Mail akışı sonda | **A4 uygulandı** — "Maili işe çevir" rafın ilk sırasında |
+| `DEMO.md` §0.5 | Açılış insight kartı: *"Ödeme servisi staging'de patlıyor"* | **Ç1 uygulandı** — kart bir müşteri talebi (`DEMO-VERI.md` §1.1) |
 
-Yani: **ürün beyaz yakalı işi yapıyor, arayüz geliştirici diliyle konuşuyor.**
+Yani: **ürün beyaz yakalı işi yapıyordu, arayüz geliştirici diliyle konuşuyordu.** A grubu
+bittiği için bu satırlar artık bir kontrol listesi değil, "ne değişti" kaydı — sunumda
+"jargonu neden temizlediniz" sorusunun cevabı burada.
 
 ### Ne değişirse ürün beyaz yaka asistanına döner — maliyetiyle
 
@@ -190,14 +221,14 @@ göstermek.
 
 | # | Ne | Mimari maliyet | Karar |
 |---|---|---|---|
-| C1 | `gmail.createDraft` / `gmail.sendMessage` (WRITE) | `GmailTool.java`'ya bir iç sınıf (~60 satır, `Search` sınıfı birebir şablon). **Ama** `GoogleOAuth.SCOPES` (satır 41) değişmek zorunda → `gmail.send` hassas scope, Google doğrulaması **bizim kontrolümüzde değil** (PRD §5'in Gmail için verdiği kararın aynısı) ve `include_granted_scopes=true` olduğu için **bağlı her kullanıcı yeniden onay vermek zorunda**. Ayrıca PRD §6 "Gmail gönderme"yi bilerek kapsam dışı ilan etmiş — bu bilinçli bir geri alma olur. | **Hayır.** Yol haritası slaytı |
+| C1 | `gmail.createDraft` / `gmail.sendMessage` (WRITE) | `GmailTool.java`'ya bir iç sınıf (~60 satır, `Search` sınıfı birebir şablon). **Ama** `GoogleOAuth.SCOPES` değişmek zorunda → `gmail.send` hassas scope, Google doğrulaması **bizim kontrolümüzde değil** ve `include_granted_scopes=true` olduğu için **bağlı her kullanıcı yeniden onay vermek zorunda**. | **Yarısı yapıldı.** `gmail.createDraft` kayıtlı ve canlı (`gmail.compose` scope'u verildi, `#/politikalar`'da `yazma` riskiyle görünüyor). `gmail.send` **yapılmadı ve yapılmayacak** — ayrım korunuyor: taslak geri alınabilir, gönderilen mail geri alınamaz. Sunumda söylenecek cümle: *"Mail yazıyoruz, göndermiyoruz — taslağı siz gönderiyorsunuz."* |
 | C2 | `calendar.createEvent` (WRITE) | Aynı yapı, aynı scope sorunu (`calendar.events`). | **Hayır.** Yol haritası |
 | C3 | Notion / Outlook / Drive aracı | Yeni `Tool` sınıfı **+ yeni `Connection` sağlayıcısı + `ConnectionsScreen`'e kart + muhtemelen yeni OAuth akışı**. `Tool` arayüzü tek sınıfla eklenebiliyor ama bağlantı yüzeyi eklenmiyor. | **Hayır.** 48 saatte olmaz, jüri sorarsa "uzantı noktası hazır" de |
 
-**C grubunun sunumdaki karşılığı:** *"Gmail ve Takvim bugün salt-okunur — bilinçli bir karar,
-çünkü yazma scope'ları Google'ın doğrulama sürecine bağlı. `Tool` arayüzü hazır; mail
-yazmak bizim için bir sınıf, Google için bir onay süreci."* Bu cümle dürüst, teknik ve
-zayıflığı güce çeviriyor.
+**C grubunun sunumdaki karşılığı:** *"Gmail'de taslak yazıyoruz, göndermiyoruz; Takvim
+salt-okunur — ikisi de bilinçli, çünkü gönderme ve takvim yazma scope'ları Google'ın
+doğrulama sürecine bağlı. `Tool` arayüzü hazır; mail göndermek bizim için bir sınıf,
+Google için bir onay süreci."* Bu cümle dürüst, teknik ve zayıflığı güce çeviriyor.
 
 ---
 
