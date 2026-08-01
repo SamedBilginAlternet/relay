@@ -71,7 +71,9 @@ Run          id, goal, status(planning|awaiting_approval|running|done|failed|can
 
 Step         id, runId, ordinal, title, role, toolName, params(jsonb), status,
              decision(auto|approved|rejected), rejectReason,
-             result(jsonb), error, startedAt, finishedAt, tokens, costUsd
+             result(jsonb), error, startedAt, finishedAt, tokens, costUsd,
+             paramsLocked (parametreleri onay kapısında insan yazdı — uzman
+             ajan da, adres düzeltmesi de üzerine yazmaz)
 
 AgentMessage id, runId, stepId?, fromAgent, toAgent, content, createdAt
 
@@ -102,7 +104,7 @@ Oturum: rastgele 32 baytlık opak token çereze (`relay_session`, HttpOnly · Se
 | `POST` | `/api/runs` | `{goal}` → `{runId}` — planlama başlar |
 | `GET` | `/api/runs/{id}` | Run + adımlar + mesajlar (tam durum) |
 | `GET` | `/api/runs/{id}/stream` | **SSE** — canlı olaylar |
-| `POST` | `/api/runs/{id}/steps/{stepId}/approve` | Onay — bitmiş ya da iptal edilmiş koşuda **409** |
+| `POST` | `/api/runs/{id}/steps/{stepId}/approve` | Onay. İsteğe bağlı gövde `{params}` — kullanıcının ekranda düzelttiği alanlar; aracın şemasından geçmezse **400 + alan bazlı `fields`** ve adım onayda kalır. Bitmiş ya da iptal edilmiş koşuda **409** |
 | `POST` | `/api/runs/{id}/steps/{stepId}/reject` | `{reason}` — gerekçe ajana gider |
 | `POST` | `/api/runs/{id}/cancel` | Akışı durdur — başlamış araç çağrısı tamamlanır, kalan adımlar `rejected` olur, koşu `cancelled` kapanır. Bitmiş koşuda **409** |
 | `POST` | `/api/runs/{id}/rerun` | Aynı hedefi tekrar çalıştır |
