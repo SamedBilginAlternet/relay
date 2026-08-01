@@ -1,6 +1,57 @@
 /* Relay — design tokens straight from docs/DESIGN.md (v2, light) */
 
 /*
+  The pointer halo (components/PointerHalo.tsx) and the light behind the page.
+
+  Both are transform/opacity only and sit under `pointer-events: none`, so they
+  cannot intercept a click on a gate; and both are drawn only when the reader
+  has not asked for less motion.
+*/
+.halo {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  margin: -50% 0 0 -50%;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent-line);
+  background: rgba(109, 40, 217, 0.06);
+  pointer-events: none;
+  will-change: transform, width, height;
+}
+
+/*
+  A slow wash of colour behind the top of the page. It moves over half a minute,
+  which is below the threshold anyone watches — the screen simply is not flat,
+  and no single frame of a demo is a still life.
+*/
+.aurora {
+  position: fixed;
+  inset: -20vh 0 auto 0;
+  height: 70vh;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 44% at 18% 30%, rgba(109, 40, 217, 0.13), transparent 70%),
+    radial-gradient(32% 38% at 78% 18%, rgba(37, 99, 235, 0.1), transparent 72%),
+    radial-gradient(30% 36% at 52% 46%, rgba(219, 39, 119, 0.07), transparent 74%);
+  filter: blur(6px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .aurora {
+    animation: aurora-drift 34s ease-in-out infinite alternate;
+  }
+}
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(-2%, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(3%, 2%, 0) scale(1.08);
+  }
+}
+
+/*
   Buttons answer the press. A write in this product is a decision somebody
   signed for, and a button that does not move under the finger leaves them
   wondering whether it took — which on the approval gate is the one place we
