@@ -157,4 +157,38 @@ class ClosingSummaryTest {
         assertThat(run.messages()).last().satisfies(message ->
                 assertThat(message.content()).startsWith("Akış bitti:"));
     }
+
+    /**
+     * Live: a search returned KAN-11 down to KAN-1 and the closing line reported
+     * "KAN-11, KAN-12 ve KAN-13". The last two do not exist. The grounding guard covers
+     * parameters headed for a provider; this text goes straight to the person.
+     */
+    @Test
+    void a_summary_that_names_a_record_the_run_never_saw_is_dropped() {
+        Run run = driveOneReadStep(new ScriptedLlm(
+                "3 kayıt bulundu: KAN-11, KAN-12 ve KAN-13.", false));
+
+        assertThat(run.messages()).noneSatisfy(message ->
+                assertThat(message.content()).contains("KAN-12"));
+        assertThat(run.messages()).last().satisfies(message ->
+                assertThat(message.content()).startsWith("Akış bitti:"));
+    }
+
+    @Test
+    void a_summary_that_only_names_what_came_back_survives() {
+        Run run = driveOneReadStep(new ScriptedLlm(
+                "3 blocker kaydı bulundu: RELAY-14, RELAY-21, RELAY-33.", false));
+
+        assertThat(run.messages()).anySatisfy(message ->
+                assertThat(message.content()).contains("RELAY-14"));
+    }
+
+    /** Prose with no record key at all is not suspicious — most summaries look like this. */
+    @Test
+    void a_summary_without_any_key_is_left_alone() {
+        Run run = driveOneReadStep(new ScriptedLlm("Bugün bekleyen bir iş çıkmadı.", false));
+
+        assertThat(run.messages()).anySatisfy(message ->
+                assertThat(message.content()).isEqualTo("Bugün bekleyen bir iş çıkmadı."));
+    }
 }

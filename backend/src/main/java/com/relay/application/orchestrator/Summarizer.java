@@ -65,7 +65,7 @@ public class Summarizer {
                 return null;
             }
             String text = clean(response.content());
-            if (text == null) {
+            if (text == null || invents(text, run)) {
                 return null;
             }
             return new Outcome(text, response.totalTokens(), response.costUsd());
@@ -94,6 +94,37 @@ public class Summarizer {
             lines.add(line.toString());
         }
         return String.join("\n", lines);
+    }
+
+    /** {@code KAN-42}, {@code REL-7} — the shape of a record key in the text we show. */
+    private static final java.util.regex.Pattern RECORD_KEY =
+            java.util.regex.Pattern.compile("\\b[A-Z][A-Z0-9]{1,9}-\\d+\\b");
+
+    /**
+     * Does the closing line name a record that never appeared in the run?
+     *
+     * <p>Live: a search returned KAN-11 down to KAN-1 and the summary reported them as
+     * "KAN-11, KAN-12 ve KAN-13". Neither of the last two exists. The grounding guard that
+     * stops an invented key from reaching a provider covers <em>parameters</em>; this text
+     * goes straight to the person, unchecked, and it is the last thing they read.
+     *
+     * <p>The whole product rests on not making things up, so a summary that does gets
+     * dropped rather than corrected — the cost line still closes the run honestly.
+     */
+    private static boolean invents(String text, Run run) {
+        java.util.regex.Matcher keys = RECORD_KEY.matcher(text);
+        if (!keys.find()) {
+            return false;
+        }
+        String evidence = run.goal() + " " + steps(run);
+        keys.reset();
+        while (keys.find()) {
+            if (!evidence.contains(keys.group())) {
+                LOG.log(Level.WARNING, "closing summary named {0}, which the run never saw", keys.group());
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Guards against an empty answer or a model that replied with JSON anyway. */
