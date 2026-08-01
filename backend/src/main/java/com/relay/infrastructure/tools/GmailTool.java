@@ -348,9 +348,12 @@ public abstract class GmailTool extends GoogleTool {
      * leaves the mailbox, the text sits in Drafts, and the approval gate has already
      * shown it (and let it be edited) before it is created.
      *
-     * <p>Only {@code drafts.create} is reachable from here. There is no code path to
-     * {@code messages.send} and the OAuth scope Relay asks for ({@code gmail.compose})
-     * cannot send either, so "it will not mail on your behalf" is enforced twice.
+     * <p>Only {@code drafts.create} is reachable from here: one endpoint, one method, and a
+     * test that fails the moment a second URL appears. That is the whole of the guarantee —
+     * the scope behind it, {@code gmail.compose}, is a restricted scope that also permits
+     * {@code messages.send} ("Manage drafts and send emails" on the consent screen), and
+     * Gmail offers nothing narrower that can create a draft. The user's mail stays put
+     * because this class refuses to move it, not because Google is stopping us.
      */
     @Component
     public static class CreateDraft extends GmailTool {

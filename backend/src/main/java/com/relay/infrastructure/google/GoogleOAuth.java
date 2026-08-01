@@ -39,8 +39,17 @@ public class GoogleOAuth {
 
     /**
      * The one write Relay asks Google for: a draft in the user's own Drafts folder.
-     * {@code gmail.compose} cannot send — it can only create and edit drafts — so the
-     * grant itself, not just our code, rules out mail leaving on the user's behalf.
+     *
+     * <p>Read the grant honestly. {@code gmail.compose} is one of Google's <em>restricted</em>
+     * scopes and its consent-screen wording is "Manage drafts and send emails" — it carries
+     * {@code messages.send} as well as {@code drafts.create}. Gmail has no draft-only scope:
+     * the three that can create a draft ({@code gmail.compose}, {@code gmail.modify},
+     * {@code mail.google.com}) all permit sending, and this is the narrowest of them.
+     *
+     * <p>So "Relay will not mail on your behalf" is a promise <em>our code</em> keeps, not one
+     * the grant enforces: {@code GmailTool.CreateDraft} reaches exactly one endpoint and a
+     * test holds it there. Saying otherwise would be telling the user a permission is narrower
+     * than the screen they are about to approve.
      */
     public static final String COMPOSE_SCOPE = "https://www.googleapis.com/auth/gmail.compose";
 

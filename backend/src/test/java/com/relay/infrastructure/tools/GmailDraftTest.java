@@ -22,9 +22,12 @@ import org.junit.jupiter.api.Test;
  * <p>Four of them, and each one is here because the alternative is a bad day:
  *
  * <ul>
- *   <li><b>It never sends.</b> The product promise is "Relay will not mail on your behalf".
- *       The only URL this tool may reach is {@code /drafts}; a future edit that adds
- *       {@code messages/send} has to break a test to get there.</li>
+ *   <li><b>It never sends.</b> The product promise is "Relay will not mail on your behalf",
+ *       and this test is the only thing holding it. The scope Relay asks for,
+ *       {@code gmail.compose}, is restricted and permits {@code messages.send} too — Gmail
+ *       has no draft-only scope — so the guarantee is ours to keep in code: the only URL
+ *       this tool may reach is {@code /drafts}, and an edit that adds {@code messages/send}
+ *       has to break a test to get there.</li>
  *   <li><b>A reply belongs to its conversation.</b> A draft that starts a new thread next to
  *       the mail it answers is worse than no draft — the user has to notice before sending.</li>
  *   <li><b>Turkish survives.</b> A mail header is US-ASCII. "Ödeme servisi patlıyor" written
@@ -251,8 +254,11 @@ class GmailDraftTest {
         // The new permission is asked for, and the old ones are still asked for with it.
         assertThat(GoogleOAuth.SCOPES).contains(GoogleOAuth.COMPOSE_SCOPE)
                 .contains("gmail.readonly").contains("calendar.readonly");
-        // gmail.send is not among them, and never will be.
-        assertThat(GoogleOAuth.SCOPES).doesNotContain("gmail.send");
+        // gmail.compose is the narrowest scope that can create a draft — it already carries
+        // sending, so the two broader ones buy nothing and cost the user's whole mailbox.
+        assertThat(GoogleOAuth.SCOPES)
+                .doesNotContain("gmail.modify")
+                .doesNotContain("https://mail.google.com/");
     }
 
     // ---- plumbing ---------------------------------------------------------

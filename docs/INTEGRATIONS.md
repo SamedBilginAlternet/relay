@@ -79,11 +79,18 @@ Sonra **Reinstall to Workspace** → yeni `xoxb-...` token. Kanal tarafında bir
 2. **APIs & Services → Library** → etkinleştir: **Gmail API**, **Google Calendar API**
 3. **OAuth consent screen** → *External* → uygulama adı `Relay`, destek e-postası kendi adresin
    → **Test users**'a `samedbilgin322@gmail.com` ekle. (Test modu yeterli; yayın onayı beklemiyoruz.)
-4. **Scopes** — iki okuma, bir taslak:
+4. **Scopes** — üçü de Google'ın **restricted** sınıfında:
    - `https://www.googleapis.com/auth/gmail.readonly`
    - `https://www.googleapis.com/auth/calendar.readonly`
    - `https://www.googleapis.com/auth/gmail.compose` — `gmail.createDraft` için.
-     Bu izin **gönderemez**, yalnız taslak oluşturur; `gmail.send` istenmiyor.
+
+   > **Bu izin gönderebilir.** Google'ın izin ekranında görünen metni "Manage drafts and
+   > send emails" ve `messages.send`'i de kapsıyor. Gmail'de **yalnız taslak** diye bir
+   > scope yok: taslak oluşturabilen üç scope (`gmail.compose`, `gmail.modify`,
+   > `mail.google.com`) da göndermeye izin veriyor; `gmail.compose` bunların en darı.
+   > Yani "Relay senin adına mail göndermez" garantisini **kod** veriyor
+   > (`GmailTool.CreateDraft` tek uca gidiyor, testle kilitli), grant değil. Kullanıcıya
+   > izin ekranından farklı bir şey vaat etme.
 5. **Credentials → Create credentials → OAuth client ID → Web application**
    Authorized redirect URIs:
    ```
@@ -94,6 +101,11 @@ Sonra **Reinstall to Workspace** → yeni `xoxb-...` token. Kanal tarafında bir
 
 Sonrası uygulamada: Bağlantılar → Google → **Bağlan** → Google izin ekranı → geri dönüş.
 Refresh token bağlantı config'ine şifreli yazılır; ilk izinden sonra bir daha sorulmaz.
+
+> **Restricted scope, yayın planı:** test modunda (test users listesi) sorun yok — `gmail.readonly`
+> zaten restricted'dı ve öyle çalışıyor. Uygulama *Production*'a alınacaksa restricted scope'lar
+> Google doğrulaması **ve** yıllık CASA güvenlik değerlendirmesi istiyor; bu bir ürün kararı,
+> kod değişikliği değil.
 
 > Kapsam genişlediğinde (`gmail.compose` eklendi) **eski bağlantı bozulmaz**: okuma işleri
 > aynen çalışmaya devam eder, yalnız taslak yazma çalışmaz ve araç Türkçe bir cümleyle
