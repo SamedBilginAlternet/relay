@@ -265,6 +265,12 @@ public class Coordinator {
         }
 
         boolean anyFailed = run.steps().stream().anyMatch(s -> s.status() == StepStatus.FAILED);
+        // A rejection is not a failure — refusing a write is the product working. But a run
+        // where *nothing* ran and every step was rejected (policy forbade it, or the user said
+        // no) used to close as "Tamamlandı", because REJECTED is not FAILED. Nothing on the
+        // screen contradicted it. Saying a run succeeded when it did no work is the one thing
+        // this product cannot afford to get wrong, so it closes as failed and the trail says
+        // which rule or which person stopped it.
         finish(run, anyFailed ? RunStatus.FAILED : RunStatus.DONE);
     }
 
@@ -418,10 +424,21 @@ public class Coordinator {
         run.replaceSteps(repaired);
         step.params(ToolAgent.withoutIdentifiers(step.params()));
         step.sendBack();
+        // The identifiers this step was approved with have just been taken away from it, and
+        // the lookup is going to hand it different ones. Keeping the approval would run the
+        // write on parameters nobody saw — the exact thing retryWithProviderFeedback clears a
+        // decision to prevent. The parameters cannot be refreshed here, because the step whose
+        // result they come from has not run yet; the gate re-derives them on the way back.
+        boolean write = policyEngine.evaluate(step.toolName()).ask();
+        if (write) {
+            step.decision(null);
+        }
 
         journal.say(run, step.id(), AgentRole.COORDINATOR, AgentRole.USER,
                 "Adım " + step.ordinal() + " kaydı adıyla değil varsayımla hedefliyordu."
-                        + " Plana önce " + lookupTool + " adımı eklendi.");
+                        + " Plana önce " + lookupTool + " adımı eklendi."
+                        + (write ? " Kayıt bulunduktan sonra parametreler yeniden üretilip"
+                                 + " tekrar onayına gelecek." : ""));
         runs.save(run);
         events.publish(run.id(), RunEvent.of(RunEvent.RUN_PLANNED, Map.of("steps", stepViews(run.steps()))));
         publishCost(run);
