@@ -1542,49 +1542,17 @@ a.btn {
   gap: 4px;
 }
 
-.run-card {
-  display: flex;
-  align-items: center;
-  gap: var(--s-16);
-  width: 100%;
-  text-align: left;
-  padding: var(--s-16);
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  cursor: pointer;
-  min-height: 44px;
-  transition: border-color 160ms ease-out, background-color 160ms ease-out, transform 160ms ease-out;
-}
-.run-card:hover {
-  border-color: #d1d5db;
-  background: var(--bg-subtle);
-}
-.run-card:active {
-  transform: scale(0.995);
-}
-/* the trailing chevron/status must never be squeezed into a sliver */
-.run-card > svg,
-.run-card > .status-pill {
-  flex: 0 0 auto;
-}
-.run-card__main {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.run-card__goal {
-  font-size: 15px;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
+/*
+  `.run-card`, `.run-card__main` and `.run-card__goal` were here until #163, and
+  they had not been on a screen since #124 took the shadowed two-line card off
+  Geçmiş. Dead CSS is not free: when Akışlar went back to cards the new list took
+  the obvious class names, and these rules — a flex row with 16px of padding and
+  `box-shadow: var(--shadow)` — quietly applied to it. A card 34px taller than
+  its own contents, wearing the shadow the redesign exists to avoid, and nothing
+  in the new stylesheet to explain either.
+
+  `.run-card__meta` below stays: StepRow still draws one.
+*/
 .run-card__meta {
   display: flex;
   flex-wrap: wrap;

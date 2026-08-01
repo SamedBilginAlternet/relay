@@ -92,8 +92,14 @@ export class MockRunSource implements RunSource {
     throw new Error(`Akış bulunamadı: ${runId}`);
   }
 
-  async listRuns(options?: { status?: RunSummary['status']; size?: number }): Promise<RunSummary[]> {
+  async listRuns(options?: {
+    status?: RunSummary['status'];
+    size?: number;
+    page?: number;
+  }): Promise<RunSummary[]> {
     await delay(180);
+    const size = options?.size;
+    const from = size == null ? 0 : (options?.page ?? 0) * size;
     const live = [...this.runs.values()].map((p) => p.run);
     return [...live, ...this.history]
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -114,7 +120,11 @@ export class MockRunSource implements RunSource {
       // The API filters server-side; the mock has every run in hand, so it filters here.
       // Same contract either way: asking for a status answers with all of it.
       .filter((row) => !options?.status || row.status === options.status)
-      .slice(0, options?.size ?? undefined);
+      // Paged the way the server pages, and not because the offline twin has enough
+      // runs to need it: a caller that walks the pages until one comes back short
+      // (HistoryScreen does) would walk for ever against a source that answered every
+      // page with the first one. An offline demo that hangs is worse than no demo.
+      .slice(from, size == null ? undefined : from + size);
   }
 
   /**

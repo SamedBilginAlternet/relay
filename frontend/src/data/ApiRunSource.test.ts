@@ -57,6 +57,26 @@ it('the_progress_the_server_counted_survives_the_row_being_rebuilt', async () =>
   expect(rows[0]?.doneStepCount).toBe(1);
 });
 
+/**
+ * The page has to reach the server, because a caller counting on it stops when a page
+ * comes back short. Akışlar walks `GET /api/runs` to the end of the log — if `page` were
+ * dropped here every request would answer with the first hundred, the walk would see a
+ * full page for ever, and it would only stop at its own ceiling with five copies of the
+ * newest hundred runs in hand.
+ *
+ * <p>`page=0` is not sent: it is the server's default, and a query string that spells out
+ * every default is one nobody can read in a network log.
+ */
+it('the_page_asked_for_is_the_page_the_request_asks_the_server_for', async () => {
+  fetchMock.mockResolvedValue(jsonResponse({ items: [ROW] }));
+
+  await new ApiRunSource('/api').listRuns({ size: 100, page: 2 });
+  expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/api/runs?size=100&page=2');
+
+  await new ApiRunSource('/api').listRuns({ size: 100, page: 0 });
+  expect(String(fetchMock.mock.calls[1]?.[0])).toBe('/api/runs?size=100');
+});
+
 it('a_counted_zero_is_kept_apart_from_a_missing_count', async () => {
   fetchMock.mockResolvedValue(jsonResponse({ items: [{ ...ROW, doneStepCount: 0 }] }));
   const counted = await new ApiRunSource('/api').listRuns();

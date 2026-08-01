@@ -98,10 +98,17 @@ export class ApiRunSource implements RunSource {
     return this.request<Run>(`/runs/${encodeURIComponent(runId)}`);
   }
 
-  async listRuns(options?: { status?: RunSummary['status']; size?: number }): Promise<RunSummary[]> {
+  async listRuns(options?: {
+    status?: RunSummary['status'];
+    size?: number;
+    page?: number;
+  }): Promise<RunSummary[]> {
     const query = new URLSearchParams();
     if (options?.status) query.set('status', options.status);
     if (options?.size) query.set('size', String(options.size));
+    // Sent only when asked for. `page=0` is the server's default, and a query string
+    // that spells out every default is a query string nobody can read in a network log.
+    if (options?.page) query.set('page', String(options.page));
     const path = query.toString() ? `/runs?${query}` : '/runs';
     // The history endpoint is paginated; accept array / {items} / Spring {content}.
     const body = await this.request<unknown>(path);

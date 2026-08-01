@@ -1,36 +1,76 @@
 import { History, ShieldQuestion, RefreshCw } from 'lucide-react';
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '../components/EmptyState';
 import { LoadError } from '../components/LoadError';
+import { RunCards } from '../components/RunCards';
 import { TabStrip } from '../components/TabStrip';
 import { getRunSource } from '../data';
 import type { RunSummary } from '../types/api';
 import '../styles/screens.css';
 
 /*
-  The grid arrives in its own chunk, on purpose.
+  The list is imported, not lazily loaded, and that is the whole of what #156's
+  chunk was for.
 
-  ag-grid community is ~190KB gzipped before a single column is defined —
-  larger than the entire rest of this product put together. Bundled with
-  everything else it would be paid for by the chat screen, the approval gate
-  and the landing page, none of which have a table on them. Split out, the
-  first paint of the app is unchanged and the cost falls only on the screen
-  that asked for it, in parallel with the request for the rows it will hold.
-
-  The fallback is the same skeleton the fetch already shows, so on a cold visit
-  the reader sees one loading state rather than two in a row.
+  ag-grid arrived in its own `React.lazy` chunk because it was 232KB gzipped —
+  larger than the entire rest of this product put together — and the chat
+  screen and the landing page had no business paying for a table they do not
+  have. The list is cards now (see components/RunCards.tsx): the filtering, the
+  sorting and the paging it kept are a few hundred lines in this app's own
+  bundle, so the chunk, the Suspense boundary and the second loading state that
+  came with them are all gone with it.
 */
-const RunsGrid = lazy(() =>
-  import('../components/RunsGrid').then((module) => ({ default: module.RunsGrid })),
-);
 
 type Props = { onOpen: (runId: string) => void };
 
 /** The one status that is waiting on a person rather than on the machine. */
 const WAITING = 'awaiting_approval';
 
-/** How many rows one visit asks for. The server caps a page at 100. */
+/** How many rows one request asks for. The server caps a page at 100. */
 const PAGE = 100;
+
+/**
+ * How many of those requests one visit is allowed to make.
+ *
+ * <p>The table pages through what is in hand, so what is in hand has to be the log and not
+ * its first page: live the server holds 222 runs, one request answered with 100, and a
+ * pager over those 100 would print `1 – 13 / 100` — a page size wearing the clothes of a
+ * total, which is the exact bug the note line under the tabs was written to fix (#124).
+ *
+ * <p>Five is a ceiling, not a page count: the walk stops the moment a short page says the
+ * log is exhausted, so the live box costs three requests and a fresh one costs a single
+ * request. What the ceiling buys is that a box with fifty thousand runs cannot turn one
+ * visit into five hundred requests — and when it is hit, the note says so in words rather
+ * than letting the pager imply the log ends at row 500.
+ */
+const MAX_REQUESTS = 5;
+
+/**
+ * The whole log, or as much of it as the ceiling allows.
+ *
+ * <p>Two ways to stop, and both matter. A page shorter than the one asked for means the
+ * server has no more rows — the ordinary end. A page that adds nothing new means the
+ * server does not understand `page` and is answering every request with the same first
+ * hundred; walking on would stack five copies of it and report 500 runs that do not
+ * exist. Neither case is treated as an error: what came back is what there is.
+ */
+export async function walkRuns(
+  listRuns: (options: { status?: RunSummary['status']; size: number; page: number }) => Promise<
+    RunSummary[]
+  >,
+  status?: RunSummary['status'],
+): Promise<{ rows: RunSummary[]; complete: boolean }> {
+  const rows: RunSummary[] = [];
+  const seen = new Set<string>();
+  for (let page = 0; page < MAX_REQUESTS; page += 1) {
+    const batch = await listRuns({ status, size: PAGE, page });
+    const fresh = batch.filter((row) => !seen.has(row.id));
+    for (const row of fresh) seen.add(row.id);
+    rows.push(...fresh);
+    if (batch.length < PAGE || fresh.length === 0) return { rows, complete: true };
+  }
+  return { rows, complete: false };
+}
 
 /**
  * Which list is on screen.
@@ -134,6 +174,7 @@ export function HistoryScreen({ onOpen }: Props) {
   const [loading, setLoading] = useState(true);
 
   const [parked, setParked] = useState<RunSummary[] | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [tab, choose] = useTabInHash();
 
   /*
@@ -149,18 +190,26 @@ export function HistoryScreen({ onOpen }: Props) {
     parameter answers with the ordinary page, and the tab would then claim finished runs
     are waiting on a decision. Filtering costs nothing and makes the count true whatever
     comes back.
+
+    Both are walked to the end rather than read one page deep (#163). The table pages
+    through what is in hand, so what is in hand has to be the log: with 122 of the live
+    box's 222 runs behind the first page, a pager over that page would move inside the
+    newest hundred and quietly present it as the whole history.
   */
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const source = getRunSource();
-      const [page, waitingRows] = await Promise.all([
-        source.listRuns({ size: PAGE }),
-        source.listRuns({ status: 'awaiting_approval', size: PAGE }).catch(() => null),
+      const list = (options: { status?: RunSummary['status']; size: number; page: number }) =>
+        source.listRuns(options);
+      const [log, waitingRows] = await Promise.all([
+        walkRuns(list),
+        walkRuns(list, WAITING).catch(() => null),
       ]);
-      setRows(page);
-      setParked(waitingRows);
+      setRows(log.rows);
+      setTruncated(!log.complete);
+      setParked(waitingRows ? waitingRows.rows : null);
     } catch (err) {
       setError(err);
     } finally {
@@ -191,13 +240,13 @@ export function HistoryScreen({ onOpen }: Props) {
   const nothingAtAll = !loading && rows != null && all.length === 0 && waiting.length === 0;
 
   /*
-    How many rows a column filter is currently hiding.
+    How many runs a filter is currently hiding.
 
-    A table that quietly drops half its rows because a filter is set two
-    scrolls up is how a reader concludes the data is gone. The count above the
-    table is the one line on screen that can say otherwise, so it says it —
-    and it is reset whenever the list underneath changes, because a leftover
-    "12 / 40" against a different list is worse than none.
+    A list that quietly drops half its cards because a box is filled in above
+    it is how a reader concludes the data is gone. The count above the list is
+    the one line on screen that can say otherwise, so it says it — and it is
+    reset whenever the list underneath changes, because a leftover "12 / 40"
+    against a different list is worse than none.
   */
   const [hiddenBy, setHiddenBy] = useState<{ shownRows: number; total: number } | null>(null);
   useEffect(() => setHiddenBy(null), [tab]);
@@ -282,29 +331,37 @@ export function HistoryScreen({ onOpen }: Props) {
                       page size wearing the clothes of a total: the server holds 182 runs
                       and the caption said 20.
 
-                      It is also where a column filter has to own up to what it is
-                      hiding — announced, because the rows it removed vanish without a
-                      word for anyone not looking at the funnel in the header. */}
+                      `En yeni N` was the honest form of that while the screen only ever
+                      read one page. It walks the log now, so the number is the log — and
+                      the qualifier goes, because "the newest 222 of 222" is a hedge
+                      against nothing. It comes back the moment the walk was cut short by
+                      its own ceiling, which is the one case where there is more history
+                      than this list holds and the pager cannot say so.
+
+                      It is also where a filter has to own up to what it is hiding —
+                      announced, because the cards it removed vanish without a word for
+                      anyone not looking at the box that removed them. */}
                   <p className="runs__note" aria-live="polite">
                     {hiddenBy
-                      ? `${hiddenBy.total} kayıttan ${hiddenBy.shownRows} tanesi gösteriliyor — sütun filtresi etkin.`
+                      ? `${hiddenBy.total} kayıttan ${hiddenBy.shownRows} tanesi gösteriliyor — filtre etkin.`
                       : tab === 'bekleyen'
                         ? `Bu ${shown.length} akış durdu; devam etmesi senin kararına bağlı.`
-                        : `En yeni ${shown.length} çalıştırma, yeniden eskiye.`}
+                        : truncated
+                          ? `En yeni ${shown.length} çalıştırma, yeniden eskiye — daha eskisi bu listede yok.`
+                          : `${shown.length} çalıştırma, yeniden eskiye.`}
                   </p>
-                  <div className="runs__frame">
-                    <Suspense fallback={<div className="skeleton" style={{ height: 240 }} />}>
-                      <RunsGrid
-                        rows={shown}
-                        repeated={repeated}
-                        onOpen={onOpen}
-                        lastHeader={tab === 'bekleyen' ? 'Karar' : 'Durum'}
-                        action={tab === 'bekleyen' ? 'Karar ver' : undefined}
-                        waiting={tab === 'bekleyen'}
-                        onFilterChange={onFilterChange}
-                      />
-                    </Suspense>
-                  </div>
+                  {/* No frame around the list. A panel holding a column of
+                      panels is the card-in-a-card the log spent #124 getting
+                      out of; the cards are the surface now, and they sit on
+                      the canvas like every other list of objects. */}
+                  <RunCards
+                    rows={shown}
+                    repeated={repeated}
+                    onOpen={onOpen}
+                    action={tab === 'bekleyen' ? 'Karar ver' : undefined}
+                    waiting={tab === 'bekleyen'}
+                    onFilterChange={onFilterChange}
+                  />
                 </>
               )}
             </section>

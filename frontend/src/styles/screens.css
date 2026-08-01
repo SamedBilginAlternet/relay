@@ -217,27 +217,39 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Geçmiş — a log, not a stack of cards (issues #68, #124, #127)       */
+/* Geçmiş — cards again, on purpose (issues #68, #124, #127, #163)     */
 /*                                                                     */
-/* The list was already one frame with hairlines between rows (#68),    */
-/* but the row inside it was still a card's worth of content: two       */
-/* lines, a shadowed frame around the lot, and every machine fact       */
-/* packed left behind the goal, so `4.246 token` and `614 token` ended  */
-/* in different places on consecutive rows. Nothing lined up down the   */
-/* page, which is the whole point of a list you scan.                   */
+/* HISTORY, BECAUSE THE END OF IT REVERSES THE START.                   */
 /*                                                                     */
-/* v3 turns it into one grid, shared by the column heads and every      */
-/* row under them: a fixed left gutter for the state mark, prose in     */
-/* the middle, and the machine columns right-aligned and monospaced so  */
-/* the digits stack. The units moved into the head, printed once, so    */
-/* the row keeps a bare figure and fits on one line at 34px.            */
+/* v1 was a stack of cards: two lines, a shadowed frame around each,    */
+/* and every machine fact packed left behind the goal, so `4.246        */
+/* token` and `614 token` ended in different places on consecutive      */
+/* rows. Nothing lined up down the page (#68).                          */
 /*                                                                     */
-/* v4 hands that grid to ag-grid, to buy per-column filtering. The      */
-/* look above is unchanged and is now stated as theme params in         */
-/* components/RunsGrid.tsx — every one of them a `var()` pointing back  */
-/* at global.css, so there is still exactly one definition of what a    */
-/* hairline and a machine figure are. Only `.runs`, `.runs__note` and   */
-/* `.runs__frame` are still drawn here.                                 */
+/* v2/v3 turned it into one grid shared by the column heads and every   */
+/* row: fixed gutter for the state mark, prose in the middle, machine   */
+/* columns right-aligned and monospaced so the digits stack. The units  */
+/* moved into the head, printed once, and the row fitted on one line.   */
+/*                                                                     */
+/* v4 handed that grid to ag-grid, to buy per-column filtering (#156).  */
+/*                                                                     */
+/* v5 is cards, at every width, by the owner's decision (#163) — made   */
+/* with the three issues above in front of them. The reason given is    */
+/* the one this file cannot argue with: at 1440x900 the table was       */
+/* 181px of a 900px viewport, under 176px of heading, and it read as a  */
+/* band floating in a page rather than as the screen's subject.         */
+/*                                                                     */
+/* WHAT THE REVERSAL IS NOT ALLOWED TO COST. #68 was never about the    */
+/* frame; it was about alignment. styles/runs-cards.css therefore keeps */
+/* every card on one grid — mark, goal, state and four fixed figure     */
+/* tracks — so the digits still stack down the page, and it keeps the   */
+/* shadow ban, which was about noise rather than about corners. If you  */
+/* are here to make a card's contents flow, read #68 first.             */
+/*                                                                     */
+/* Only `.runs` and `.runs__note` are still drawn here. `.runs__frame`  */
+/* is gone with the table: a panel holding a column of panels is the    */
+/* card-in-a-card #124 removed, and it does not come back just because  */
+/* the cards did.                                                       */
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
@@ -366,26 +378,11 @@
 }
 
 /*
-  Surface two of three: a panel on the canvas, held by a hairline instead of
-  a shadow. Nothing inside it gets a frame of its own.
-*/
-.runs__frame {
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  overflow: hidden;
-}
-/*
-  The table inside the frame is ag-grid now (see components/RunsGrid.tsx and
-  styles/runs-grid.css). Everything that used to live here — the seven-column
-  grid template shared by the heads and the rows, the hairline between rows,
-  the two media queries that dropped Adım/Token at 1180 and reflowed to two
-  lines at 860 — is expressed there instead: the first two as theme params,
-  the third as a `hide` on the column def, because ag-grid owns its own column
-  widths and a media query cannot reach them.
-
-  What stays here is the frame, which is not the table's: it is the same panel
-  the empty state and every other list on this screen sits in.
+  The list itself is styles/runs-cards.css: the card, the grid inside it that
+  keeps the figures in line, the three controls above it and the pager under
+  it. Nothing about it is drawn here, and the panel that used to hold it is
+  not either — surface two is the card now, and a panel around a column of
+  panels is the card-in-a-card #124 took out.
 */
 
 /* ------------------------------------------------------------------ */

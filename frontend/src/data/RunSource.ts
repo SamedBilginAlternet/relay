@@ -42,8 +42,17 @@ export interface RunSource {
    * The history page, newest first. `status` narrows it to one status and asks the server
    * for the whole set rather than whichever of them fell on the first page — the top bar
    * counts runs waiting on a person, and the screen it links to has to hold all of them.
+   *
+   * <p>`page` is 0-based and `size` is capped by the server at 100, which together are the
+   * only way to reach a run older than the hundredth: with 222 runs recorded live, one
+   * request answers with 100 of them and says nothing about the other 122. A caller that
+   * wants the log rather than its first page walks the pages until one comes back short.
    */
-  listRuns(options?: { status?: RunSummary['status']; size?: number }): Promise<RunSummary[]>;
+  listRuns(options?: {
+    status?: RunSummary['status'];
+    size?: number;
+    page?: number;
+  }): Promise<RunSummary[]>;
   rerun(runId: string): Promise<{ runId: string }>;
   /**
    * Stops the flow. Answers with the run as it stands: already `cancelled` when it was

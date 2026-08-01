@@ -1,0 +1,338 @@
+/* ------------------------------------------------------------------ */
+/* Akışlar — a list of cards (issue #163)                              */
+/*                                                                     */
+/* This file replaces runs-grid.css, and with it the ag-grid theme it   */
+/* was a companion to. Read the header of components/RunCards.tsx for   */
+/* why the table became cards; what this file has to get right is the   */
+/* half of the table that was never in dispute.                         */
+/*                                                                     */
+/* #68's complaint was NOT the frame. It was that `4.246 token` and     */
+/* `614 token` ended in different places on consecutive rows, so a      */
+/* column of figures could not be read as a column. Every card below is */
+/* therefore the same grid: the mark on the same x, the goal from the   */
+/* same x, the state against the same right edge, and the four figures  */
+/* in fixed tracks with the value right-aligned against its unit. Flow  */
+/* the contents of a card and that is undone — which is the one change  */
+/* to this file that would take the screen back to 2025.                */
+/*                                                                     */
+/* Cards are quiet: one hairline, `--r-card`, no shadow between items.  */
+/* The shadow ban (DESIGN.md, three surfaces) is about noise, not about */
+/* corners — a page of cards with a shadow each is a page that hums.    */
+/* ------------------------------------------------------------------ */
+
+.runs-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+}
+
+/* ---- the controls above the list ----------------------------------- */
+
+/*
+  Three controls, permanently visible. They were a row of floating filters
+  under the column heads; there are no column heads now, and hiding them behind
+  a disclosure would fail the same test it failed there — below 1024px this
+  screen is read on a tablet, where there is no hover to reveal anything.
+
+  The search box takes the room that is left because the goal is the field
+  people actually type in; the two selects are as wide as their longest option.
+*/
+.runs-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+}
+.runs-tools__field {
+  /* `touch-target-size`: the same 44px floor `.tab` takes, for the same
+     reason — this screen is read on a tablet below 1024px. */
+  min-height: 44px;
+  padding: 0 var(--s-12);
+  border: 1px solid var(--line);
+  border-radius: var(--r-btn);
+  background: var(--surface);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--fg);
+}
+.runs-tools__field:first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.runs-tools__select {
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+.runs-tools__field:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---- the list ------------------------------------------------------- */
+
+.runs-cards__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  /* 8px, and the card's own hairline is what separates two runs. Wider and the
+     list stops reading as one thing; touching and it is the strip again. */
+  gap: var(--s-8);
+}
+
+.runs-cards__none {
+  margin: 0;
+  padding: var(--s-24) 0;
+  font-size: 13.5px;
+  color: var(--fg-muted);
+}
+
+/* ---- one card ------------------------------------------------------- */
+
+/*
+  Surface two: a panel on the canvas, held by a hairline. Radius `--r-card`,
+  the same one every other panel in the product uses, so a run does not look
+  like a different kind of object from the panel it used to sit inside.
+*/
+.run-card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+/*
+  The whole card is the control, so the button is the card: one tab stop, one
+  hit area, and a hover state that cannot disagree with what is clickable.
+  `Karar ver` is a word on it, not a second button — a nested control leading
+  to the same screen is two tab stops for one destination.
+
+  The grid is the contract with #68. Three columns and two rows: the mark
+  spans both rows on the left, the goal and the figures stack in the middle,
+  and the state is held against the right edge — an edge, so its position does
+  not move with the length of the word in front of it.
+*/
+.run-card__open {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'mark goal state'
+    'mark figs state';
+  align-items: center;
+  column-gap: var(--s-12);
+  row-gap: 6px;
+  width: 100%;
+  padding: var(--s-12) var(--s-16);
+  border: 0;
+  border-radius: var(--r-card);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.run-card__open:hover {
+  background: var(--bg-subtle);
+}
+/*
+  The card draws the focus ring, not the browser's default on a full-width
+  block: `outline-offset` inside the card would trace the padding box and read
+  as a second border.
+*/
+.run-card__open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The scan column: same x on every card, whatever the card says on the right.
+   Walk it down the page and a failure is the only red thing on it. */
+.run-card__mark {
+  grid-area: mark;
+  display: grid;
+  place-items: center;
+  align-self: center;
+}
+/* Every card in the queue carries the same status, so its mark stops being a
+   second colour on the card and joins the state it is part of. */
+.runs-cards[data-waiting='true'] .run-card__mark {
+  color: var(--accent);
+}
+
+.run-card__goal {
+  grid-area: goal;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+  min-width: 0;
+  /* The card's primary content, one step above the page's own caption — the
+     hierarchy the row settled on in #127 and the reason the card is 70px. */
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--fg);
+}
+.run-card__text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Only repeated goals carry one. No `#`: it was read as an issue number, and
+   on a screen whose goals are full of `RUN-88` that is the one thing a run id
+   must not look like. */
+.run-card__id {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--fg-faint);
+}
+
+.run-card__state {
+  grid-area: state;
+  justify-self: end;
+  align-self: center;
+  padding-left: var(--s-8);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* Violet is the state, not the decoration: this run is waiting on a person. */
+.run-card__state--act {
+  color: var(--accent);
+}
+.run-card__state--act::after {
+  content: ' ›';
+}
+
+/*
+  The machine layer. Fixed tracks, not a flow: this is the whole of #68.
+
+  Each track holds a value and its unit, and the value is right-aligned against
+  the unit — so the digits of `1.200` and `614` end at the same x on every card
+  in the list, and `token` starts at the same x under it. A `·`-separated
+  sentence of the same four facts would read fine on one card and would be
+  unscannable on fifteen.
+*/
+.run-card__figs {
+  grid-area: figs;
+  display: grid;
+  grid-template-columns: 108px 84px 116px 96px;
+  column-gap: var(--s-12);
+  justify-content: start;
+  align-items: baseline;
+}
+.run-card__fig {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+.run-card__value {
+  font-size: var(--machine-size);
+  font-weight: 500;
+  color: var(--fg-machine);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The unit the column head used to print once. It is prose, so it is Inter,
+   and it is faint, so the eye reads the figures as a column and the words only
+   when it needs them. */
+.run-card__unit {
+  font-size: 12px;
+  color: var(--fg-faint);
+}
+
+/*
+  Narrow. The four tracks need ~440px and a phone does not have it beside a
+  goal, so they become two rows of two — still fixed tracks, so two cards still
+  agree about where a figure sits. The state moves under the goal for the same
+  reason it dropped out of the row layout at this width: at 360px it was taking
+  a third of the line from the sentence people are actually reading.
+*/
+@media (max-width: 640px) {
+  .run-card__open {
+    grid-template-columns: 20px minmax(0, 1fr);
+    grid-template-areas:
+      'mark goal'
+      'mark state'
+      'figs figs';
+  }
+  .run-card__state {
+    justify-self: start;
+    padding-left: 0;
+  }
+  .run-card__figs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 4px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* The pager                                                           */
+/*                                                                     */
+/* On the canvas under the list, not in a bar of its own: it is the     */
+/* list's footer, and a filled strip would be a fourth surface on a     */
+/* screen that has three.                                               */
+/* ------------------------------------------------------------------ */
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-8);
+  padding-top: var(--s-4);
+}
+/* Machine facts, so mono and tabular: the range does not jump about as the
+   digits change under it. */
+.pager__summary {
+  margin: 0;
+  font-size: var(--machine-size);
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.pager__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+.pager__page {
+  margin: 0 var(--s-8);
+  font-size: 13px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+.pager__page b {
+  font-weight: 600;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+.pager__btn {
+  /* `touch-target-size` again, and this time it is the whole reason these are
+     not 28px icon buttons: a pager is the one control on the screen a reader
+     presses repeatedly, on a tablet, without looking. */
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-btn);
+  background: var(--surface);
+  font-size: 16px;
+  line-height: 1;
+  color: var(--fg);
+  cursor: pointer;
+}
+.pager__btn:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
+.pager__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* Disabled, not hidden: a pager whose first button disappears on page one is a
+   pager that changes width every time it is used. */
+.pager__btn:disabled {
+  color: var(--fg-faint);
+  opacity: 0.5;
+  cursor: default;
+}
