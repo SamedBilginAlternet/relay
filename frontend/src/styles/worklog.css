@@ -91,6 +91,71 @@
   overflow-wrap: anywhere;
 }
 
+/* A payload long enough to be a document leaves the sentence and takes the
+   inset ground every other machine block on the screen already sits on. The
+   sentence around it stays a sentence; the cargo stops interleaving with it. */
+.worklog__fact--block {
+  display: block;
+  margin: 4px 0 2px;
+  padding: 6px 10px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-inset);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+/* The human rows already stand on --bg-subtle; the block steps to --surface
+   there so it stays one step away from what it sits on (crew.css's rule). */
+.worklog__row--goal .worklog__fact--block,
+.worklog__row--tome .worklog__fact--block {
+  background: var(--surface);
+}
+
+/* ------------------------------------------------------------------ */
+/* A step's boundary                                                   */
+/*                                                                     */
+/* Four steps produce twenty rows, and the rows do not say where one    */
+/* step's conversation ends and the next begins — the reader had to     */
+/* re-derive the structure from "Adım 2 sende" mid-sentence. The wire   */
+/* already carries the structure (stepId on every step-scoped message), */
+/* so it is drawn: one slim labelled rule per step, the ordinal in the  */
+/* machine layer, the step's own title beside it. Not a card, not a     */
+/* colour — the same hairline the log already speaks, pulled up to      */
+/* --line so it outranks the row separators under it.                   */
+/* ------------------------------------------------------------------ */
+
+.worklog__step {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+  margin-top: var(--s-8);
+  padding: 8px var(--log-inset) 2px;
+  border-top: 1px solid var(--line);
+}
+.worklog__step:first-child {
+  margin-top: 0;
+  border-top: 0;
+}
+/* The boundary owns the separation; a hairline right under it would be noise. */
+.worklog__step + .worklog__row {
+  border-top: 0;
+}
+.worklog__step-n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--fg-machine);
+  white-space: nowrap;
+}
+.worklog__step-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-faint);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Present on every row, and losing to everything on it. */
 .worklog__time {
   justify-self: end;

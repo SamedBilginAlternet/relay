@@ -38,7 +38,7 @@ function message(overrides: Partial<AgentMessage> = {}): AgentMessage {
   };
 }
 
-function run(messages: AgentMessage[]): Run {
+function run(messages: AgentMessage[], steps: Run['steps'] = []): Run {
   return {
     id: '6cf275fd-ebe0-41c5-b62e-938eb148c0ec',
     goal: 'Bugünkü maillerime bak',
@@ -46,15 +46,36 @@ function run(messages: AgentMessage[]): Run {
     costTokens: 22174,
     costUsd: 0.0078,
     budgetUsd: null,
-    steps: [],
+    steps,
     messages,
     createdAt: NOW,
     finishedAt: NOW,
   };
 }
 
-function show(messages: AgentMessage[]) {
-  return render(<ChatPanel run={run(messages)} phase="ready" error={null} readOnly />);
+function step(id: string, ordinal: number, title: string): Run['steps'][number] {
+  return {
+    id,
+    ordinal,
+    title,
+    role: 'jira-agent',
+    toolName: 'jira.listMyIssues',
+    params: {},
+    status: 'done',
+    decision: 'auto',
+    pausedBy: null,
+    rejectReason: null,
+    result: null,
+    error: null,
+    tokens: 0,
+    costUsd: 0,
+    startedAt: null,
+    finishedAt: null,
+  };
+}
+
+function show(messages: AgentMessage[], steps: Run['steps'] = []) {
+  return render(<ChatPanel run={run(messages, steps)} phase="ready" error={null} readOnly />);
 }
 
 beforeEach(() => {
@@ -158,6 +179,68 @@ it('the_log_follows_the_run_instead_of_staying_where_the_reader_was', () => {
 
   expect(scrollTo).toHaveBeenCalled();
   expect(scrollTo.mock.calls.at(-1)![0]).toMatchObject({ top: expect.any(Number) });
+});
+
+it('a_step_boundary_is_drawn_once_where_its_first_message_lands', () => {
+  // Twenty rows for four steps read as one grey column; the wire's own stepId
+  // says where a step's conversation starts, and that is where — and the only
+  // place where — a boundary row is drawn. Global traffic gets none.
+  const steps = [step('s1', 1, 'Jira kayıtlarını getir'), step('s2', 2, "PR'ları getir")];
+  const { container } = show(
+    [
+      message({ stepId: null, content: 'Plan hazır.' }),
+      message({ stepId: 's1', content: 'Adım 1 sende.' }),
+      message({ stepId: 's1', content: 'jira.listMyIssues tamam (480 ms).' }),
+      message({ stepId: 's2', content: 'Adım 2 sende.' }),
+    ],
+    steps,
+  );
+
+  const boundaries = [...container.querySelectorAll('.worklog__step')];
+  expect(boundaries.map((b) => b.textContent)).toEqual([
+    'Adım 1Jira kayıtlarını getir',
+    "Adım 2PR'ları getir",
+  ]);
+});
+
+it('an_unknown_step_id_draws_no_boundary_rather_than_an_empty_one', () => {
+  const { container } = show([message({ stepId: 'ghost', content: 'Adım 1 sende.' })]);
+  expect(container.querySelector('.worklog__step')).toBeNull();
+});
+
+it('the_same_minute_prints_its_stamp_once_but_stays_on_the_record', () => {
+  // Fifteen rows all saying 18:17 is a column carrying no information (the
+  // live run d80fadfc, verbatim). The text yields within a minute; the
+  // machine-readable time stays on every row — the record is not thinned.
+  const { container } = show([
+    message(),
+    message(),
+    message({ createdAt: '2026-08-01T07:14:00Z' }),
+  ]);
+
+  const times = [...container.querySelectorAll('.worklog__row .worklog__time')];
+  expect(times.map((t) => t.getAttribute('datetime'))).toEqual([
+    NOW,
+    NOW,
+    NOW,
+    '2026-08-01T07:14:00Z',
+  ]);
+  // Goal row leads with the stamp; the two rows in its minute stay silent; the
+  // next minute speaks again.
+  expect(times.map((t) => (t.textContent ?? '') !== '')).toEqual([true, false, false, true]);
+});
+
+it('a_payload_long_enough_to_be_a_document_leaves_the_sentence', () => {
+  const long = `slack.postMessage çağrılıyor: {"text":"Günaydın! Bugünkü durumum ve review bekleyen PR listesi"}`;
+  const { container } = show([message({ content: long }), message({ content: 'jira.listMyIssues çağrılıyor: {}' })]);
+
+  const blocks = [...container.querySelectorAll('code.worklog__fact--block')];
+  expect(blocks.length).toBe(1);
+  expect(blocks[0]!.textContent).toContain('Günaydın');
+
+  // The short `{}` stays inline: pulling it out would cost more than it buys.
+  const inline = [...container.querySelectorAll('code.worklog__fact')].map((e) => e.textContent);
+  expect(inline).toContain('{}');
 });
 
 it('splitting_a_line_never_loses_a_character_of_it', () => {

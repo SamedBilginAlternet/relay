@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from 'motion/react';
 import { Bot, MessageSquare, TriangleAlert, User } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { Fragment, useEffect, useMemo, useRef } from 'react';
 import { formatTime } from '../lib/format';
 import type { RunPhase } from '../store/runStore';
 import type { AgentMessage, Run } from '../types/api';
@@ -93,13 +93,31 @@ export function splitMachine(line: string): Fragment[] {
   return out;
 }
 
+/**
+ * A parameter object long enough to be read as a document, not as a word.
+ *
+ * <p>`slack.postMessage çağrılıyor: {"text":"Günaydın! …"}` put six lines of
+ * payload in the middle of a Turkish clause on the live trail — the sentence
+ * and its cargo interleaved until neither could be skimmed. Past this length
+ * the object leaves the line and takes a ground of its own; `{}` and small
+ * id objects stay inline, where pulling them out would cost more than it buys.
+ */
+const BLOCK_PAYLOAD = 48;
+
 /** The body of one row: sans by default, mono where the machine speaks. */
 function Line({ text }: { text: string }) {
   return (
     <>
       {splitMachine(text).map((part, i) =>
         part.machine ? (
-          <code key={i} className="worklog__fact">
+          <code
+            key={i}
+            className={
+              part.text.startsWith('{') && part.text.length > BLOCK_PAYLOAD
+                ? 'worklog__fact worklog__fact--block'
+                : 'worklog__fact'
+            }
+          >
             {part.text}
           </code>
         ) : (
@@ -124,6 +142,13 @@ export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = fal
     () => [...(run?.messages ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     [run?.messages],
   );
+
+  /*
+    The step a message belongs to, for the boundary rows below. Every step-scoped
+    message arrives with the step's id (AgentJournal.say), so the grouping key is
+    the wire's own — no Turkish sentence is ever parsed to find where a step starts.
+  */
+  const stepsById = useMemo(() => new Map((run?.steps ?? []).map((s) => [s.id, s])), [run?.steps]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -192,39 +217,67 @@ export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = fal
 
             {messages.map((m, i) => {
               const toUser = isToUser(m);
+              const prev = messages[i - 1];
+
+              /*
+                A step's first message opens a boundary row: "Adım 2 · Review
+                bekleyen PR'ları getir". 20 rows for 4 steps read as one grey
+                column until the reader re-derived the structure from the
+                sentences; the boundary is that structure, drawn once. Global
+                traffic (the plan, the closing summary) carries no stepId and
+                gets no boundary — it belongs to the run, not to a step.
+              */
+              const boundary =
+                m.stepId && m.stepId !== (prev?.stepId ?? null) ? stepsById.get(m.stepId) : undefined;
+
+              /*
+                Same minute as the row above → the stamp text yields (Slack's
+                rule). The machine-readable time stays on every row: the visual
+                column is deduplicated, the record is not.
+              */
+              const stamp = formatTime(m.createdAt);
+              const shown = stamp !== formatTime(prev?.createdAt ?? run.createdAt);
+
               return (
-                <motion.li
-                  key={m.id}
-                  className={`worklog__row ${toUser ? 'worklog__row--tome' : 'worklog__row--a2a'}`}
-                  aria-label={
-                    toUser
-                      ? `${agentLabel(m.fromAgent)} sana yazdı`
-                      : `Ajan mesajı: ${agentLabel(m.fromAgent)} → ${agentLabel(m.toAgent)}`
-                  }
-                  {...enter(i + 1)}
-                >
-                  <span className="worklog__who">
-                    <Mark agent={m.fromAgent} />
-                    {agentLabel(m.fromAgent)}
-                  </span>
-                  <p className="worklog__line">
-                    {/* The route is machine routing and is set as such — and only
-                        where there is one: a message to the person is addressed
-                        to them, not forwarded to them. */}
-                    {!toUser && (
-                      <>
-                        <span className="worklog__arrow" aria-hidden>
-                          →
-                        </span>
-                        <span className="worklog__to">{agentLabel(m.toAgent)}</span>
-                      </>
-                    )}
-                    <Line text={m.content} />
-                  </p>
-                  <time className="worklog__time" dateTime={m.createdAt}>
-                    {formatTime(m.createdAt)}
-                  </time>
-                </motion.li>
+                <Fragment key={m.id}>
+                  {boundary && (
+                    <motion.li className="worklog__step" {...enter(i + 1)}>
+                      <span className="worklog__step-n">Adım {boundary.ordinal}</span>
+                      <span className="worklog__step-title">{boundary.title}</span>
+                    </motion.li>
+                  )}
+                  <motion.li
+                    className={`worklog__row ${toUser ? 'worklog__row--tome' : 'worklog__row--a2a'}`}
+                    aria-label={
+                      toUser
+                        ? `${agentLabel(m.fromAgent)} sana yazdı`
+                        : `Ajan mesajı: ${agentLabel(m.fromAgent)} → ${agentLabel(m.toAgent)}`
+                    }
+                    {...enter(i + 1)}
+                  >
+                    <span className="worklog__who">
+                      <Mark agent={m.fromAgent} />
+                      {agentLabel(m.fromAgent)}
+                    </span>
+                    <p className="worklog__line">
+                      {/* The route is machine routing and is set as such — and only
+                          where there is one: a message to the person is addressed
+                          to them, not forwarded to them. */}
+                      {!toUser && (
+                        <>
+                          <span className="worklog__arrow" aria-hidden>
+                            →
+                          </span>
+                          <span className="worklog__to">{agentLabel(m.toAgent)}</span>
+                        </>
+                      )}
+                      <Line text={m.content} />
+                    </p>
+                    <time className="worklog__time" dateTime={m.createdAt} title={stamp}>
+                      {shown ? stamp : null}
+                    </time>
+                  </motion.li>
+                </Fragment>
               );
             })}
           </ol>
