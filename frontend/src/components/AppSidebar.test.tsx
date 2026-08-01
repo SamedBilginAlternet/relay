@@ -118,7 +118,7 @@ function parked(id: string, goal: string): RunSummary {
 
 /** The live list ships closed; a test that wants rows says so, like a user would. */
 async function openLive() {
-  const head = await screen.findByRole('button', { name: /Canlı akışlar/ });
+  const head = await screen.findByRole('button', { name: /Açık işler/ });
   expect(head.getAttribute('aria-expanded')).toBe('false');
   fireEvent.click(head);
   return head;
@@ -408,7 +408,7 @@ it('the_live_list_starts_closed_and_still_says_how_many_are_running', async () =
 
   show();
 
-  const head = await screen.findByRole('button', { name: /Canlı akışlar/ });
+  const head = await screen.findByRole('button', { name: /Açık işler/ });
   expect(head.getAttribute('aria-expanded')).toBe('false');
   expect(head.textContent).toContain('2');
   // Closed means closed: no rows in the document, not rows hidden with CSS this
@@ -428,7 +428,7 @@ it('a_list_left_open_is_still_open_on_the_next_visit', async () => {
   );
 
   const first = show();
-  fireEvent.click(await screen.findByRole('button', { name: /Canlı akışlar/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /Açık işler/ }));
   await screen.findByTitle('Kararını bekleyen iş');
   first.unmount();
 
@@ -437,7 +437,7 @@ it('a_list_left_open_is_still_open_on_the_next_visit', async () => {
 
   expect(await screen.findByTitle('Kararını bekleyen iş')).not.toBeNull();
   expect(
-    (await screen.findByRole('button', { name: /Canlı akışlar/ })).getAttribute('aria-expanded'),
+    (await screen.findByRole('button', { name: /Açık işler/ })).getAttribute('aria-expanded'),
   ).toBe('true');
 });
 

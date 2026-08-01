@@ -1,7 +1,6 @@
 import { motion, useReducedMotion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getRunSource } from '../data';
-import { formatRelative } from '../lib/format';
 import { enterProps } from '../lib/motion';
 import { runStatusMeta } from '../lib/status';
 import type { Run, RunSummary } from '../types/api';
@@ -80,6 +79,22 @@ export function orderLiveRuns(rows: RailRun[]): RailRun[] {
 export function progressLabel(stepCount: number, done: number | null): string | null {
   if (stepCount <= 0) return null;
   return done == null ? `${stepCount} adım` : `${done}/${stepCount} adım`;
+}
+
+/**
+ * The same fact, without its unit, for the row itself.
+ *
+ * <p>The rail is 260px wide and the row is one line. `adım` is the same four letters
+ * printed once per live flow — 28 times on the live box — to say what the shape `3/12`
+ * already says under a heading that reads "Sürüyor". The word survives where it is read
+ * as prose: the collapsed rail's tooltip and the row's accessible name (#136).
+ *
+ * <p>An en dash, not a zero, when the server sent no count: `–/12` says nobody counted,
+ * `0/12` claims nothing has run.
+ */
+export function progressFigure(stepCount: number, done: number | null): string | null {
+  if (stepCount <= 0) return null;
+  return `${done == null ? '–' : done}/${stepCount}`;
 }
 
 function summaryToRail(row: RunSummary): RailRun {
@@ -223,7 +238,10 @@ export function TaskRail({ runs, currentRunId, onOpen, tight = false }: Props) {
   let index = 0;
   const group = (title: string, items: RailRun[], key: string) =>
     items.length === 0 ? null : (
-      <div className="rail__group" key={key}>
+      /* The waiting group wears the same amber as the nav badge, because it is the
+         same set: two numbers in one column that share a colour are read as one
+         fact, and two that do not are read as two (#136). */
+      <div className={`rail__group${key === 'waiting' ? ' rail__group--waiting' : ''}`} key={key}>
         <h2 className="rail__grouphead t-label">
           {title}
           <span className="rail__count t-mono">{items.length}</span>
@@ -269,6 +287,7 @@ function Row({
 }) {
   const status = runStatusMeta(row.status);
   const progress = progressLabel(row.stepCount, row.done);
+  const figure = progressFigure(row.stepCount, row.done);
   /*
     Collapsed, the row is a status icon and nothing else, so the whole sentence moves into
     the tooltip. The browser's own `title` rather than the CSS one the nav items use: this
@@ -288,15 +307,26 @@ function Row({
         title={title}
       >
         <status.Icon size={14} aria-hidden className={`rail__icon ${status.className}`} />
-        <span className="rail__body">
-          <span className="rail__goal">{row.goal}</span>
-          <span className="rail__meta">
-            <span className={`rail__status ${status.className}`}>{status.label}</span>
-            {progress && <span className="rail__fact t-mono">{progress}</span>}
-            <span className="rail__fact t-mono">{formatRelative(row.createdAt)}</span>
+        {/*
+          Two atoms on one line. The row used to carry four — goal, status word, progress
+          and age — which is 84 data points across 28 live flows, and one of them said a
+          third time what the group head above and the coloured icon beside it already
+          said. The age went with it: how long ago a flow started is not a decision made
+          in a navigation column (#136).
+
+          The facts that left the row did not leave the product. The status is the icon
+          and the group it is in; the whole sentence, the status and the progress are all
+          in the accessible name below and in `title`.
+        */}
+        <span className="rail__goal">{row.goal}</span>
+        {figure && (
+          <span className="rail__fact t-mono" aria-hidden>
+            {figure}
           </span>
+        )}
+        <span className="sr-only">
+          {` — ${status.label}${progress ? `, ${progress}` : ''}${current ? ', şu an açık' : ''}`}
         </span>
-        {current && <span className="sr-only">— şu an açık</span>}
       </button>
     </motion.li>
   );

@@ -30,7 +30,9 @@ vi.mock('../data', () => ({
   RUN_SOURCE_KIND: 'api',
 }));
 
-const { TaskRail, useLiveRuns, orderLiveRuns, progressLabel } = await import('./TaskRail');
+const { TaskRail, useLiveRuns, orderLiveRuns, progressFigure, progressLabel } = await import(
+  './TaskRail'
+);
 type RailRun = Parameters<typeof orderLiveRuns>[0][number];
 
 function summary(over: Partial<RunSummary> & { id: string }): RunSummary {
@@ -161,7 +163,13 @@ it('the_open_run_is_the_only_row_marked_as_open', () => {
   expect(marked[0]?.textContent).toContain('Süren iş');
 });
 
-it('a_row_says_its_status_and_how_far_along_it_is', () => {
+/**
+ * The row is one line in a 260px column (#136): a coloured glyph, the goal, and the
+ * figure. The status word left the row because the group head above it and the glyph
+ * beside it already carried it — but it must not leave the product, so it stays in the
+ * name a screen reader hears, with the unit the figure drops.
+ */
+it('a_row_shows_the_figure_and_says_the_status_where_it_is_read_as_prose', () => {
   render(
     <TaskRail
       runs={[rail({ id: 'r-1', status: 'awaiting_approval', stepCount: 5, done: 3 })]}
@@ -170,10 +178,21 @@ it('a_row_says_its_status_and_how_far_along_it_is', () => {
     />,
   );
 
-  expect(screen.getByText('Onay bekliyor')).not.toBeNull();
-  expect(screen.getByText('3/5 adım')).not.toBeNull();
+  expect(screen.getByText('3/5')).not.toBeNull();
   // Machine facts stay in the mono layer (DESIGN.md v3, rule 1).
-  expect(screen.getByText('3/5 adım').className).toContain('t-mono');
+  expect(screen.getByText('3/5').className).toContain('t-mono');
+  const name = screen.getByRole('button').textContent ?? '';
+  expect(name).toContain('Onay bekliyor');
+  expect(name).toContain('3/5 adım');
+});
+
+it('the_figure_drops_the_unit_the_spoken_name_keeps', () => {
+  expect(progressFigure(5, 3)).toBe('3/5');
+  // A counted zero is a fact — this flow is planned and has not started a step yet.
+  expect(progressFigure(5, 0)).toBe('0/5');
+  // Nobody counted. An en dash says so; a zero would claim nothing has run.
+  expect(progressFigure(5, null)).toBe('–/5');
+  expect(progressFigure(0, 0)).toBeNull();
 });
 
 it('clicking_a_row_asks_for_that_run_by_id', () => {
@@ -272,6 +291,6 @@ it('a_row_that_arrives_without_the_count_says_the_total_rather_than_zero', async
   await waitFor(() => expect(result.current).toHaveLength(1));
   expect(result.current[0]?.done).toBeNull();
   render(<TaskRail runs={result.current} currentRunId={null} onOpen={() => {}} />);
-  expect(screen.getByText('4 adım')).not.toBeNull();
-  expect(screen.queryByText('0/4 adım')).toBeNull();
+  expect(screen.getByText('–/4')).not.toBeNull();
+  expect(screen.queryByText('0/4')).toBeNull();
 });

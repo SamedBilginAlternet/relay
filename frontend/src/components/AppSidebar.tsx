@@ -396,14 +396,19 @@ export function AppSidebar({
             aria-expanded={liveOpen}
             aria-controls="sb-live-list"
             onClick={toggleLive}
-            data-tip="Canlı akışlar"
+            data-tip="Açık işler"
           >
             {tight ? (
               <Activity size={17} aria-hidden />
             ) : (
               <ChevronRight size={14} aria-hidden className="sb__chev" />
             )}
-            <span className="sb__label">Canlı akışlar</span>
+            {/* "Açık işler", not "Canlı akışlar". `Akışlar` is a destination three rows
+                above with a count of its own, and two headings sharing a noun made the
+                two numbers unreadable as a pair: the reader could not tell whether one
+                was a subset of the other. Different noun, different colour, different
+                type layer (#136). */}
+            <span className="sb__label">Açık işler</span>
             <span className={tight ? 'sb__badge sb__badge--live' : 'sb__count t-mono'}>
               {liveRuns.length}
             </span>

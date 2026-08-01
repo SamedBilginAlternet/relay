@@ -15,7 +15,6 @@
 .rail {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   min-height: 0;
   padding: 0 0 var(--s-8);
 }
@@ -24,13 +23,25 @@
   display: flex;
   flex-direction: column;
 }
+.rail__group + .rail__group {
+  margin-top: var(--s-8);
+}
 
+/*
+  Sentence case, not uppercase (#136). Tracked capitals are the highest
+  reading-effort-per-pixel type there is, and the column had two of these
+  stacked above a list already made of small text.
+*/
 .rail__grouphead {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 0;
-  padding: 8px 8px 5px;
+  padding: 10px 8px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
   position: sticky;
   top: 0;
   z-index: 1;
@@ -40,10 +51,22 @@
 
 .rail__count {
   margin-left: auto;
-  font-size: var(--machine-size);
+  font-size: 12px;
   color: var(--fg-machine);
   letter-spacing: 0;
   text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  The one place two numbers in this column had to be reconciled: the nav badge
+  counts the flows stopped on YOU, this group is those same flows. Same amber,
+  so the two 8s are visibly one 8 and the grey total below is self-evidently
+  the superset. Drawn instead of explained (#136).
+*/
+.rail__group--waiting .rail__grouphead,
+.rail__group--waiting .rail__count {
+  color: var(--warn);
 }
 
 .rail__list {
@@ -56,12 +79,17 @@
   margin: 0;
 }
 
+/*
+  One line: icon, goal, figure. `align-items: center` because there is no
+  second line for the icon to hang above any more.
+*/
 .rail__row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 8px 9px 7px;
+  min-height: 36px;
+  padding: 7px 8px 7px 5px;
   border: 0;
   /* The 3px is the state channel: transparent until the row is the open one. */
   border-left: 3px solid transparent;
@@ -92,53 +120,42 @@
 
 .rail__icon {
   flex: 0 0 auto;
-  margin-top: 3px;
-}
-
-.rail__body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
 }
 
 .rail__goal {
-  font-size: 13.5px;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
   line-height: 1.35;
   color: var(--fg);
-  /* Two lines, then the goal is cut. The whole sentence is in `title=` and, once
-     the row is clicked, at the top of the panel. */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
+  /* One line. Two lines of a truncated sentence is not twice as much sentence,
+     it is twice as much column — and the whole sentence is in `title=` and at
+     the top of the panel once the row is pressed. */
+  white-space: nowrap;
   overflow: hidden;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
 }
 
 .rail__row--current .rail__goal {
   font-weight: 600;
 }
 
-.rail__meta {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 2px 7px;
-  min-width: 0;
-}
-
-.rail__status {
-  font-size: 12px;
-  line-height: 1.3;
-  font-weight: 600;
-}
-
 .rail__fact {
-  font-size: var(--machine-size);
+  flex: 0 0 auto;
+  font-size: 12px;
   line-height: 1.3;
   color: var(--fg-machine);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  `touch-target-size`, kept where it applies. 36px is a pointer number and the
+  rail only exists as a column above 1024px; below that the same list is a
+  drawer opened with a finger.
+*/
+.sb-drawer .rail__row {
+  min-height: 44px;
 }
 
 /* ------------------------------------------------------------------ */
@@ -167,7 +184,8 @@
   margin-top: 0;
 }
 
-.sb--tight .rail__body,
+.sb--tight .rail__goal,
+.sb--tight .rail__fact,
 .sb--tight .rail__grouphead {
   position: absolute;
   width: 1px;

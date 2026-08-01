@@ -184,7 +184,7 @@ html[data-sidebar='tight'] {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 .sb__li {
@@ -223,7 +223,8 @@ html[data-sidebar='tight'] {
 */
 .sb__item--current {
   color: var(--accent);
-  font-weight: 650;
+  /* 600, not 650: a faux-bolded weight is a seventh type register for no gain. */
+  font-weight: 600;
   background: var(--accent-soft);
 }
 
@@ -248,7 +249,7 @@ html[data-sidebar='tight'] {
 
 .sb__rule {
   height: 1px;
-  margin: var(--s-8) 6px;
+  margin: var(--s-12) 10px;
   border: 0;
   background: var(--line);
 }
@@ -381,7 +382,7 @@ html[data-sidebar='tight'] {
 }
 
 /* ------------------------------------------------------------------ */
-/* Canlı akışlar — the half of the column that is not navigation       */
+/* Açık işler — the half of the column that is not navigation         */
 /*                                                                     */
 /* This is what makes it a sidebar rather than a table of contents: it */
 /* says what is happening, not only where you can go. It is the run    */
@@ -424,7 +425,7 @@ html[data-sidebar='tight'] {
   align-items: center;
   gap: 6px;
   width: 100%;
-  min-height: 36px;
+  min-height: 40px;
   margin: 0;
   padding: 4px 8px;
   border: 0;
@@ -432,10 +433,13 @@ html[data-sidebar='tight'] {
   background: transparent;
   color: var(--fg-faint);
   font: inherit;
-  font-size: 11.5px;
+  /* Sentence case, at the column's own machine size. Tracked capitals cost the
+     most reading effort per pixel of any setting on screen, and this was the
+     second such heading stacked in one column (#136). */
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  text-transform: none;
   text-align: left;
   cursor: pointer;
   position: relative;
@@ -461,7 +465,7 @@ html[data-sidebar='tight'] {
 .sb__count {
   margin-left: auto;
   color: var(--fg-machine, var(--fg-faint));
-  font-size: var(--machine-size);
+  font-size: 12px;
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
