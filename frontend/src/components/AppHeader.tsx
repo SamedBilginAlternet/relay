@@ -1,7 +1,8 @@
 import { BarChart3, History, MessageSquare, Plug, ShieldCheck, Sun } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Route } from '../lib/router';
+import '../styles/screens.css';
 
 type Props = {
   route: Route;
@@ -31,6 +32,14 @@ const ITEMS: { hash: string; label: string; match: Route['name'][]; Icon: Lucide
 
 export function AppHeader({ route, onNavigate }: Props) {
   const ref = useRef<HTMLElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  /*
+    Which sides of the strip have destinations behind them. Below 960px the nav
+    scrolls sideways, and it did so with no sign at all: at 390px two of six
+    tabs were off-screen and the only clue was a word clipped by the viewport
+    edge. There is no `:hover` on a phone, so the strip has to say it itself.
+  */
+  const [cut, setCut] = useState({ start: false, end: false });
 
   /*
     The bar floats over the scrolling content (that is what makes the frosted
@@ -50,6 +59,47 @@ export function AppHeader({ route, onNavigate }: Props) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const measure = () => {
+      const slack = nav.scrollWidth - nav.clientWidth;
+      setCut({
+        start: nav.scrollLeft > 1,
+        // 1px of tolerance: fractional layout widths otherwise leave a fade
+        // switched on over a strip that has nothing left to show.
+        end: slack > 1 && nav.scrollLeft < slack - 1,
+      });
+    };
+    measure();
+    nav.addEventListener('scroll', measure, { passive: true });
+    const ro = new ResizeObserver(measure);
+    ro.observe(nav);
+    return () => {
+      nav.removeEventListener('scroll', measure);
+      ro.disconnect();
+    };
+  }, []);
+
+  /*
+    Land on Panel from a link and the tab for it was off-screen: the bar
+    claimed you were nowhere. Scroll it into the rail by hand rather than with
+    `scrollIntoView`, which would also scroll the page vertically to reach a
+    bar that is already fixed at the top of it.
+  */
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !active) return;
+    const left = active.offsetLeft;
+    const right = left + active.offsetWidth;
+    const pad = 16;
+    if (left - pad < nav.scrollLeft) nav.scrollLeft = Math.max(0, left - pad);
+    else if (right + pad > nav.scrollLeft + nav.clientWidth) {
+      nav.scrollLeft = right + pad - nav.clientWidth;
+    }
+  }, [route.name]);
 
   return (
     <header className="header" ref={ref}>
@@ -72,7 +122,11 @@ export function AppHeader({ route, onNavigate }: Props) {
         failure (issue #12). On narrow viewports the strip wraps to its own
         row and scrolls horizontally instead of dropping the text.
       */}
-      <nav className="nav" aria-label="Ana gezinme">
+      <nav
+        className={`nav${cut.start ? ' nav--cut-start' : ''}${cut.end ? ' nav--cut-end' : ''}`}
+        aria-label="Ana gezinme"
+        ref={navRef}
+      >
         {ITEMS.map((item) => {
           const active = item.match.includes(route.name);
           return (

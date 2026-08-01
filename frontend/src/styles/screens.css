@@ -26,6 +26,42 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* Nav — a strip that admits it scrolls (issue #71)                    */
+/*                                                                     */
+/* At 390px the rail is 364px wide and holds 560px of tabs, with no    */
+/* scrollbar (hidden on purpose), no hover, and nothing but a clipped  */
+/* word at the edge to suggest there is more. The fade is drawn only   */
+/* on a side that still has a destination behind it — AppHeader        */
+/* measures on scroll and on resize — so it disappears at the end of   */
+/* the strip instead of lying about a seventh tab.                     */
+/* ------------------------------------------------------------------ */
+
+.nav--cut-end {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent 100%);
+}
+.nav--cut-start {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 36px);
+  mask-image: linear-gradient(to right, transparent 0, #000 36px);
+}
+.nav--cut-start.nav--cut-end {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 36px,
+    #000 calc(100% - 36px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 36px,
+    #000 calc(100% - 36px),
+    transparent 100%
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Geçmiş — one card, thin rules, decisions first (issue #68)          */
 /*                                                                     */
 /* Twenty runs used to mean twenty cards: border, radius, shadow and    */
