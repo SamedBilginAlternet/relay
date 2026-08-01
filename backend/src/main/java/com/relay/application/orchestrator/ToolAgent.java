@@ -20,7 +20,9 @@ import com.relay.domain.Step;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * The specialist. Knows one tool per step: finalises the parameters against that
@@ -172,7 +174,7 @@ public class ToolAgent {
                         .filter(candidate -> candidate.provider().equals(write.provider()))
                         .filter(candidate -> candidate.risk() == com.relay.domain.RiskLevel.READ)
                         .filter(candidate -> {
-                            String name = candidate.name().toLowerCase();
+                            String name = candidate.name().toLowerCase(Locale.ROOT);
                             return name.contains("search") || name.contains("list");
                         })
                         .map(Tool::name)
@@ -231,7 +233,7 @@ public class ToolAgent {
         var fields = params.fields();
         while (fields.hasNext()) {
             var field = fields.next();
-            if (!HUMAN_TEXT_FIELDS.contains(field.getKey().toLowerCase()) || !field.getValue().isTextual()) {
+            if (!HUMAN_TEXT_FIELDS.contains(field.getKey().toLowerCase(Locale.ROOT)) || !field.getValue().isTextual()) {
                 continue;
             }
             if (com.relay.application.text.Filler.looksLikeFiller(field.getValue().asText())) {
@@ -261,7 +263,7 @@ public class ToolAgent {
         }
         String haystack = (run.goal() + " " + Json.preview(previousResults(run, step), 4000)
                 + " " + (connection == null ? "" : String.join(" ", connection.config().values())))
-                .toLowerCase();
+                .toLowerCase(Locale.ROOT);
 
         var fields = params.fields();
         while (fields.hasNext()) {
@@ -270,7 +272,11 @@ public class ToolAgent {
                 continue;
             }
             String value = field.getValue().asText().trim();
-            if (value.isEmpty() || value.contains(" ") || haystack.contains(value.toLowerCase())) {
+            // A value with a space in it used to be waved through untested. Whether something
+            // is a record key is decided by the field's *name*, not by how it is spelled, so
+            // "issueKey": "KAN 42" is exactly as much of a claim about an existing record as
+            // "KAN-42" is — and was the one nobody checked.
+            if (value.isEmpty() || mentions(haystack, value)) {
                 continue;
             }
             return tool.name() + " için " + UNGROUNDED + ": " + field.getKey() + "=" + value
@@ -304,18 +310,18 @@ public class ToolAgent {
         }
         String haystack = (run.goal() + " " + Json.preview(previousResults(run, step), 4000)
                 + " " + (connection == null ? "" : String.join(" ", connection.config().values())))
-                .toLowerCase();
+                .toLowerCase(Locale.ROOT);
 
         ObjectNode corrected = ((ObjectNode) params).deepCopy();
         boolean changed = false;
         var fields = params.fields();
         while (fields.hasNext()) {
             var field = fields.next();
-            if (!ADDRESS_FIELDS.contains(field.getKey().toLowerCase()) || !field.getValue().isTextual()) {
+            if (!ADDRESS_FIELDS.contains(field.getKey().toLowerCase(Locale.ROOT)) || !field.getValue().isTextual()) {
                 continue;
             }
             String value = field.getValue().asText().trim();
-            if (value.isEmpty() || haystack.contains(value.toLowerCase())) {
+            if (value.isEmpty() || mentions(haystack, value)) {
                 continue;
             }
             corrected.put(field.getKey(), "");
@@ -338,9 +344,32 @@ public class ToolAgent {
     private static final java.util.Set<String> CONTAINER_FIELDS = java.util.Set.of(
             "projectkey", "project", "repo", "repository", "owner", "channel", "channelid");
 
+    /**
+     * Did the run really see this value, as a value — or does it just happen to sit inside a
+     * longer one?
+     *
+     * <p>{@code contains} answered the second question and called it the first. A previous
+     * step that returned {@code KAN-10} therefore vouched for {@code KAN-1}, and the gate
+     * that exists to stop Relay closing a stranger's record opened on the exact case it was
+     * built for: an issue that exists, but is the wrong one. Nothing failed loudly — the
+     * write succeeded, on somebody else's ticket.
+     *
+     * <p>The boundary excludes {@code -} and {@code _} as well as word characters, because
+     * that is what record keys are made of: {@code KAN-1} must not match inside
+     * {@code KAN-10}, and {@code PR-7} must not match inside {@code PR-77}. A provider
+     * specific pattern ({@code [A-Z]+-\d+} and so on) would be more precise and would have
+     * to be maintained per provider for ever; a boundary is provider independent, and being
+     * wrong here costs a lookup step rather than a stranger's record.
+     */
+    private static boolean mentions(String haystack, String value) {
+        return Pattern.compile("(?<![\\w-])" + Pattern.quote(value.toLowerCase(Locale.ROOT)) + "(?![\\w-])")
+                .matcher(haystack)
+                .find();
+    }
+
     /** Names that point at one specific, already existing record. */
     private static boolean isIdentifier(String field) {
-        String name = field.toLowerCase();
+        String name = field.toLowerCase(Locale.ROOT);
         if (CONTAINER_FIELDS.contains(name)) {
             return false;
         }
@@ -492,7 +521,7 @@ public class ToolAgent {
         }
         StringBuilder sb = new StringBuilder();
         connection.config().forEach((key, value) -> {
-            if (SETTING_FIELDS.contains(key.toLowerCase()) && value != null && !value.isBlank()) {
+            if (SETTING_FIELDS.contains(key.toLowerCase(Locale.ROOT)) && value != null && !value.isBlank()) {
                 sb.append("- ").append(key).append(" = ").append(value.trim()).append('\n');
             }
         });
