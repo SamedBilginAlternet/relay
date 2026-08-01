@@ -248,6 +248,46 @@ class InsightServiceTest {
                 .containsExactly("İncele ve yorumla");
     }
 
+    /**
+     * "Toplantıya katılmadan önce şuna bak" (#31). The reminder is the move for a meeting
+     * nobody has anything on; the move for a meeting with a subject is walking in knowing
+     * what has happened on that subject. The clue is the title the user typed, so nothing
+     * is invented — and a title that says only which ritual it is ("Sprint planlama") gives
+     * nothing to search for, which is the case below it.
+     */
+    @Test
+    void a_meeting_with_a_subject_offers_to_gather_what_is_on_it_first() {
+        ToolRegistry withSearch = new ToolRegistryImpl(List.of(
+                new JiraTool.SearchIssues("replay", new FixtureStore()),
+                new SlackTool.PostMessage("replay", new FixtureStore())));
+        BriefItem event = new BriefItem("calendar:2", "calendar", "event", "",
+                "Hackathon takvimi incele", "", "05:00", "Samed Bilgin",
+                "https://calendar.example/2", "2026-08-01T02:00:00Z", BriefItem.DEFAULT,
+                Map.of("eventId", "2"));
+
+        InsightService.Insight insight = new InsightService(
+                new TestDoubles.StaticLlmClient("nope"), withSearch).heuristic(event, "KAN");
+
+        InsightService.Action prep = insight.actions().get(0);
+        assertThat(prep.tool()).isEqualTo("jira.searchIssues");
+        assertThat(prep.label()).isEqualTo("Toplantı öncesi hazırlık");
+        assertThat(String.valueOf(prep.params().get("jql")))
+                .contains("Hackathon").contains("takvimi").contains("incele");
+        // The sentence says why to press it, not what the button already says.
+        assertThat(insight.summary()).isNotEqualToIgnoringCase("Toplantı öncesi hazırlık");
+        assertThat(insight.summary()).contains("Hackathon takvimi incele");
+    }
+
+    /** Turkish casing: "İZLEME" and "izleme" are one word, on any default locale. */
+    @Test
+    void a_dotted_capital_i_folds_to_the_same_clue_as_its_lowercase() {
+        assertThat(InsightService.fold("İZLEME")).isEqualTo(InsightService.fold("izleme"));
+        assertThat(InsightService.fold("IŞIK")).isEqualTo(InsightService.fold("ışık"));
+        // A word that only names the ritual is dropped whichever way it was capitalised.
+        assertThat(InsightService.meetingClues("SPRINT PLANLAMA")).isEmpty();
+        assertThat(InsightService.meetingClues("Sprint planlama")).isEmpty();
+    }
+
     private static String label(InsightService.Insight insight) {
         return insight.actions().isEmpty() ? "" : insight.actions().get(0).label();
     }

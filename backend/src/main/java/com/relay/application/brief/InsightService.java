@@ -510,16 +510,95 @@ public class InsightService {
         return new Insight(item.id(), "fyi", "low", "Bilgilendirme: " + item.title() + ".", List.of());
     }
 
-    /** A meeting starting today: the move that helps is telling the people who forgot. */
+    /**
+     * A meeting starting today. Two different moves, and the first one is the useful one:
+     * walk in knowing what has happened on the subject since last time. Reminding the people
+     * who forgot is what is left when the title gives nothing to look for.
+     */
     private Insight meetingNext(BriefItem item) {
         String at = item.meta() == null || item.meta().isBlank() ? "bugün" : item.meta();
         String where = ref(item, "meetingUrl");
         List<Action> actions = new ArrayList<>();
+        boolean prepared = prep(actions, meetingClues(item.title()));
         slack(actions, "Katılımcılara hatırlat", "Hatırlatma: " + item.title() + " bugün " + at
                 + (where.isBlank() ? link(item) : " — " + where));
         return new Insight(item.id(), "scheduling", "normal",
-                "Bugün " + at + ": " + item.title() + " — katılımcılara hatırlatma geç.",
+                prepared
+                        ? "Bugün " + at + ": " + item.title()
+                                + " — konusunda ne birikmiş, girmeden önce görmek işine yarar."
+                        : "Bugün " + at + ": " + item.title() + " — katılımcılara hatırlatma geç.",
                 capped(actions));
+    }
+
+    /**
+     * "Toplantı öncesi hazırlık" — the records that mention what the meeting is about.
+     *
+     * <p>The clue is the meeting's own title, so the search is grounded in something the user
+     * wrote rather than in a guess: no title worth searching, no button. Read-only, so pressing
+     * it opens no approval gate; what comes back is whatever Jira has, and an empty result
+     * stays empty — nobody downstream is asked to fill it in.
+     *
+     * @return whether a preparation action was added
+     */
+    private boolean prep(List<Action> actions, List<String> clues) {
+        if (clues.isEmpty() || !has("jira.searchIssues")) {
+            return false;
+        }
+        List<String> terms = new ArrayList<>();
+        for (String clue : clues) {
+            terms.add("text ~ \"" + clue + "\"");
+        }
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("jql", String.join(" OR ", terms) + " ORDER BY updated DESC");
+        params.put("maxResults", 10);
+        actions.add(new Action("jira.searchIssues", "Toplantı öncesi hazırlık", params));
+        return true;
+    }
+
+    /** Title words that describe the ritual, not the subject — every meeting has them. */
+    private static final Set<String> MEETING_NOISE = Set.of(
+            "toplanti", "toplantisi", "gorusme", "gorusmesi", "planlama", "haftalik", "gunluk",
+            "aylik", "sync", "sprint", "meeting", "weekly", "daily", "monthly", "call", "standup",
+            "review", "retro", "demo", "kickoff", "ile", "ve", "icin", "the", "and", "with");
+
+    /**
+     * Up to three words from a meeting title worth searching for.
+     *
+     * <p>Turkish casing is the trap here: {@code "İZLEME".toLowerCase()} is {@code "i̇zleme"}
+     * under a Turkish default locale and {@code "i̇zleme"} again under any other, neither of
+     * which equals {@code "izleme"}. So folding is explicit rather than locale-dependent, and
+     * "Hackathon Takvimi" and "hackathon takvimi" produce the same clue.
+     */
+    static List<String> meetingClues(String title) {
+        List<String> out = new ArrayList<>();
+        if (title == null || title.isBlank()) {
+            return out;
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        for (String word : title.split("[^\\p{L}\\p{N}]+")) {
+            if (word.length() < 3) {
+                continue;
+            }
+            String folded = fold(word);
+            if (MEETING_NOISE.contains(folded) || !seen.add(folded)) {
+                continue;
+            }
+            out.add(word);
+            if (out.size() == 3) {
+                break;
+            }
+        }
+        return out;
+    }
+
+    /** Lowercase without the Turkish dotted/dotless-i trap, and without its diacritics. */
+    static String fold(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim().replace('I', 'ı').replace('İ', 'i').toLowerCase(Locale.ROOT)
+                .replace('ı', 'i').replace('ş', 's').replace('ğ', 'g')
+                .replace('ü', 'u').replace('ö', 'o').replace('ç', 'c');
     }
 
     // ---- action builders --------------------------------------------------
