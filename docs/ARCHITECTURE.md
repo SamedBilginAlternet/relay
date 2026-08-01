@@ -475,11 +475,16 @@ PostgreSQL + Flyway. Ana kümeler (`domain/` saf Java, JPA karşılıkları
 | Küme | Alanlar |
 |---|---|
 | `Run` (`domain/Run.java:14-26`) | `id, goal, status(planning\|awaiting_approval\|running\|done\|failed\|cancelled), createdAt, finishedAt, costTokens, costUsd, budgetUsd(null=tavansız), budgetOverridden, steps[], messages[]` |
-| `Step` (`domain/Step.java:14-91`) | `id, runId, ordinal(onarımda kayar), title, role, toolName, params(jsonb), status, decision(auto\|approved\|rejected), rejectReason, result(jsonb), error, lastProviderError, paramsLocked, pausedBy(policy\|budget), startedAt, finishedAt, tokens, costUsd, model, premiumCostUsd, attempts` |
+| `Step` (`domain/Step.java:14-91`) | `id, runId, ordinal(onarımda kayar), title, role, toolName, params(jsonb), status(pending\|running\|awaiting_approval\|done\|failed\|rejected\|skipped), decision(auto\|approved\|rejected), rejectReason, result(jsonb), error, lastProviderError, paramsLocked, pausedBy(policy\|budget), startedAt, finishedAt, tokens, costUsd, model, premiumCostUsd, attempts` — `skipped` (#168): ön koşulu boş çıkan adım; gerekçe `result` jsonb'sinde `{skipped:true, reason}` olarak durur, göç gerekmedi çünkü `status` kısıtsız `varchar(32)` |
 | `AgentMessage` | `runId, stepId?, fromAgent, toAgent, content, createdAt` — zaman çizelgesinin kaynağı |
 | `Connection` (`domain/Connection.java:12-17`) | `provider (jira\|github\|slack\|google\|notion)`, `config` — AES-GCM şifreli (`AesGcmCipher`, anahtar `APP_ENCRYPTION_KEY`); `toString` yalnız anahtar adlarını basar (`:59-63`) |
 | `ToolPolicy` (`domain/ToolPolicy.java:4`) | `provider, toolName(PK), mode(auto\|ask\|forbidden)` — yalnız operatör override'ları; efektif liste kayıttan türetilir |
 | `User` / `UserSession` | e-posta `Locale.ROOT` ile küçültülür; oturum token'ının yalnız SHA-256'sı durur |
+
+Adım sayaçları: `Views.runSummary` `stepCount`, `doneStepCount` **ve** `skippedStepCount`
+taşır (#168). Ekrandaki payda atlanan adımlar kadar küçülür ve atlama sözle söylenir
+(`1/1 adım · 2 atlandı`) — `1/3` sonsuza dek "takıldı" gibi okunur, `3/3` ise hiç
+yapılmamış işi yapılmış sayar.
 
 **Para kuralları** — bu ürünün satış cümlesi "harcadığını sayar", o yüzden kurallar sert:
 
