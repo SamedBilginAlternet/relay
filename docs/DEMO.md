@@ -285,3 +285,6 @@ Bir okuma, dört kapı, dört onay — **23.166 token, $0,0041**. Ardından "Tab
 akışı aynı satırı geri okuyup Slack'e doğru özetledi (3.743 token, $0,0008): yazdığını
 okuyabilen sistem. İzin akışı da aynı akşam boş ön koşulu üç gerekçeli atlamayla,
 hiçbir şey yazmadan kapattı ($0,0012) — "boş gün" sorusunun canlı cevabı.
+
+Projektör/HDMI arızasında §4'ün önerdiği yedek: [`assets/relay-b2b-demo.mp4`](assets/relay-b2b-demo.mp4)
+— 56 saniye, ürünün kendi canlı ekranlarından, ücretli hiçbir araç kullanılmadan kurgulandı.
