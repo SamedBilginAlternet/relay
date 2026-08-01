@@ -206,7 +206,9 @@ public class Coordinator {
             if (policy.forbidden()) {
                 journal.say(run, step.id(), AgentRole.POLICY, AgentRole.COORDINATOR,
                         "YASAK — " + policy.reason() + ". Adım reddedildi ve iz kaydına yazıldı.");
-                rejectStep(run, step, "policy forbidden: " + policy.reason());
+                // The reason is printed on the step under "Reddetme gerekçesi", so it is the
+                // user's sentence, not a log line — the policy's own half is already Turkish.
+                rejectStep(run, step, "politika izin vermiyor: " + policy.reason());
                 continue;
             }
 

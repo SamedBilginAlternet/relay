@@ -187,7 +187,7 @@ class OrchestratorHappyPathTest {
 
         Step step = run.steps().get(0);
         assertThat(step.status()).isEqualTo(StepStatus.REJECTED);
-        assertThat(step.rejectReason()).contains("forbidden");
+        assertThat(step.rejectReason()).contains("politika izin vermiyor");
         assertThat(run.messages()).anySatisfy(message ->
                 assertThat(message.fromAgent()).isEqualTo("policy"));
     }
