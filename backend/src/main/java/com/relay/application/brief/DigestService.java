@@ -9,6 +9,7 @@ import com.relay.application.port.LlmRequest;
 import com.relay.application.port.LlmResponse;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * The paragraph at the top of the Bugün screen: what today looks like, what to do first and
@@ -139,7 +141,7 @@ public class DigestService {
             return Optional.empty();
         }
         String summary = clamp(root.path("summary").asText(""), MAX_SUMMARY_LENGTH);
-        if (summary.isBlank() || isTemplate(summary)) {
+        if (summary.isBlank() || unusable("summary", summary)) {
             // No summary, no digest. An empty paragraph is worse than a missing one — and
             // live, the Bugün screen printed two ellipses because a small model copied the
             // shape we showed it ({"summary":"…"}) instead of filling it in.
@@ -158,7 +160,7 @@ public class DigestService {
                 continue;
             }
             String why = clamp(node.path("why").asText(node.path("reason").asText("")), MAX_WHY_LENGTH);
-            if (why.isBlank() || isTemplate(why)) {
+            if (why.isBlank() || unusable("why", why)) {
                 continue;
             }
             priorities.add(new Priority(itemId, why));
@@ -169,8 +171,141 @@ public class DigestService {
 
         String advice = clamp(root.path("advice").asText(""), MAX_ADVICE_LENGTH);
         return Optional.of(new Digest(summary, priorities,
-                isTemplate(advice) ? "" : advice,
+                unusable("advice", advice) ? "" : advice,
                 response.totalTokens(), response.costUsd()));
+    }
+
+    // ---- the acceptance gate ----------------------------------------------
+
+    /**
+     * Would a person recognise this as something Relay wrote for them?
+     *
+     * <p>Live, on a healthy model — not degraded, not rate limited — the paragraph at the top
+     * of the screen read <em>"…birlikte beberapaNeeds_reply mailleri bekliyor.
+     * id=gmail:19fbb199a0786906, id=github-pr:…#43…"</em> and, on the next generation,
+     * <em>"…önemli bir vấn"</em>. Three separate failures, all of them cheap to recognise
+     * afterwards and none of them recognisable from inside the prompt: an Indonesian word, a
+     * Vietnamese one, the raw {@code kind} enum, and the internal item ids the prompt uses to
+     * name a row. A 70B model asked for Turkish drifts, and no amount of prompt is a
+     * guarantee — so the answer is checked instead of trusted.
+     *
+     * <p>The rule when a check fires is the one this class already follows: <b>drop the
+     * field</b>. A bad sentence is worse than a missing one, and the counted line
+     * ({@code today}) is written by {@link DayTally} without a model, so the screen still
+     * says what is waiting.
+     *
+     * @param field only for the log line — which part of the answer was thrown away
+     */
+    private static boolean unusable(String field, String text) {
+        String reason = defect(text);
+        if (reason == null) {
+            return false;
+        }
+        LOG.log(Level.INFO, "digest {0} dropped: {1}", field, reason);
+        return true;
+    }
+
+    /** @return what is wrong with the text, or {@code null} when it can be shown */
+    static String defect(String text) {
+        if (text == null || isTemplate(text)) {
+            return "placeholder";
+        }
+        // NFC first: "vấn" arrives either as one code point or as "a" plus two combining
+        // marks, and only the composed form is a letter the scan below can judge.
+        String normalised = Normalizer.normalize(text, Normalizer.Form.NFC);
+        if (MACHINE_HANDLE.matcher(normalised).find()) {
+            return "internal item id";
+        }
+        if (PROMPT_FIELD.matcher(normalised).find()) {
+            return "prompt field name";
+        }
+        if (RAW_ENUM.matcher(normalised).find()) {
+            return "raw enum value";
+        }
+        String foreign = foreignWord(normalised);
+        if (foreign != null) {
+            return "non-Turkish word: " + foreign;
+        }
+        return null;
+    }
+
+    /**
+     * {@code id=gmail:19fb…} — the handles the prompt uses to name a row, never the user's
+     * words. The colon has to be followed by something for a match, because a sentence that
+     * opens "Jira: bugün üç kayıt var" is prose and an id is not.
+     */
+    private static final Pattern MACHINE_HANDLE = Pattern.compile(
+            "(?iu)\\b(?:item)?id\\s*=|\\b(?:github-pr|github-issue|github|gmail|jira|calendar|slack):\\S");
+
+    /** The field names of the prompt's own item lines, echoed back instead of read. */
+    private static final Pattern PROMPT_FIELD = Pattern.compile(
+            "(?iu)\\b(?:kaynak|tür|aciliyet|başlık|kimden|zaman)\\s*=");
+
+    /**
+     * A {@code kind} value shown to the user as it is stored.
+     *
+     * <p>No word boundary in front of the underscored ones on purpose: live the leak arrived
+     * glued to the word before it ({@code beberapaNeeds_reply}), which {@code \b} would let
+     * through. {@code request} and {@code scheduling} are deliberately not here — "pull
+     * request" is ordinary Turkish prose about GitHub, and dropping the day's summary over it
+     * would cost more than it saves.
+     */
+    private static final Pattern RAW_ENUM =
+            Pattern.compile("(?iu)needs_reply|bug_report|\\bfyi\\b");
+
+    /** Turkish letters outside ASCII, plus the circumflexes Turkish still writes (kâğıt). */
+    private static final String TURKISH_LETTERS = "çğıöşüâîûÇĞİÖŞÜÂÎÛ";
+
+    /**
+     * Latin-script words that belong to neither language the screen speaks.
+     *
+     * <p>The script scan below catches Vietnamese, Cyrillic, CJK and Arabic because they are
+     * written with letters Turkish does not have. Indonesian is written with the same
+     * twenty-six letters, so it needs naming: {@code beberapa} ("birkaç") is the one that
+     * reached the screen, and its neighbours in a drifting sentence are listed with it. None
+     * of these is a Turkish or English word — a Turkish summary that trips this list does not
+     * exist.
+     */
+    private static final Set<String> FOREIGN_WORDS = Set.of(
+            "beberapa", "dengan", "untuk", "yang", "adalah", "tetapi", "sebuah", "banyak",
+            "sedang", "harus", "tidak", "sudah", "juga", "atau", "karena", "sangat", "dalam",
+            "kepada", "lainnya", "menunggu", "pesan");
+
+    /**
+     * The first word that is not Turkish or English, or {@code null} when there is none.
+     *
+     * <p>Both alphabets are ASCII plus, for Turkish, {@link #TURKISH_LETTERS} — so a letter
+     * outside that set is by itself proof the model changed language mid-sentence. The
+     * Turkish characters are the whole point of the allow-list: {@code çğıöşü} must survive,
+     * only what is not ours is thrown out.
+     */
+    private static String foreignWord(String text) {
+        StringBuilder word = new StringBuilder();
+        for (int index = 0; index < text.length(); ) {
+            int codePoint = text.codePointAt(index);
+            index += Character.charCount(codePoint);
+            if (Character.isLetter(codePoint)) {
+                if (codePoint > 127 && TURKISH_LETTERS.indexOf(codePoint) < 0) {
+                    return new String(Character.toChars(codePoint));
+                }
+                word.appendCodePoint(codePoint);
+                continue;
+            }
+            String finished = ours(word);
+            if (finished != null) {
+                return finished;
+            }
+        }
+        return ours(word);
+    }
+
+    private static String ours(StringBuilder word) {
+        if (word.isEmpty()) {
+            return null;
+        }
+        String candidate = word.toString();
+        word.setLength(0);
+        return FOREIGN_WORDS.contains(InsightService.fold(candidate)) ? candidate : null;
     }
 
     /**
