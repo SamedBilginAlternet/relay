@@ -1990,16 +1990,11 @@ a.btn {
   color: var(--fg-muted);
 }
 
-.action-pill {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-  color: var(--accent);
-}
-.action-pill:hover:not(:disabled) {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
+/* Every row's button used to wear `.action-pill` — the same soft-purple tint,
+   six times down the list, which made the ACİL row and a 262-day-old pull
+   request equally loud and left the screen with no primary action at all
+   (issue #78). The feed uses the two buttons DESIGN.md §3 already defines:
+   one Primary at the top of the list, Secondary everywhere else. */
 
 /* ---- the source lists, folded away (issue #30) --------------------- */
 /*                                                                     */

@@ -22,12 +22,33 @@ type RowProps = {
    * under it still called itself "1", so the list appeared to start at zero.
    */
   index: number;
+  /**
+   * Is this the one row whose action gets the filled accent button?
+   *
+   * Exactly one row on the screen may say yes. See {@link primaryClass}.
+   */
+  primary: boolean;
   /** `digest.priorities[].why` — why this one is here now. Often absent. */
   why?: string | null;
   busyTool: string | null;
   onAction: (card: InsightCard, action: SuggestedAction) => void;
   onDismiss: (cardId: string) => void;
 };
+
+/**
+ * Primary or Secondary, DESIGN.md §3.
+ *
+ * Every row's button used to be the same soft-purple pill: the ACİL row and a
+ * pull request that had waited 262 days invited the eye equally, six times over,
+ * so the screen never said out loud which thing to do first. DESIGN.md §1 spends
+ * the accent on "the primary button" — singular — and one screen gets one.
+ *
+ * The difference survives greyscale on purpose: filled dark against outlined
+ * white, not two tints of the same hue.
+ */
+function primaryClass(primary: boolean): string {
+  return `btn btn--sm arow__do${primary ? '' : ' btn--outline'}`;
+}
 
 /** `jira:KAN-42` → `KAN-42`. Anything else is not a record and gets nothing. */
 function jiraKey(cardId: string): string | null {
@@ -64,7 +85,7 @@ function extraActions(card: InsightCard): SuggestedAction[] {
  * from — stays one click down, because a feed that shows everything is the
  * section grid again with different borders.
  */
-export function ActionRow({ card, index, why, busyTool, onAction, onDismiss }: RowProps) {
+export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAction, onDismiss }: RowProps) {
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
   const bodyId = useId();
@@ -133,7 +154,7 @@ export function ActionRow({ card, index, why, busyTool, onAction, onDismiss }: R
         {primary && (
           <button
             type="button"
-            className="btn btn--sm action-pill arow__do"
+            className={primaryClass(isPrimary)}
             disabled={busy}
             onClick={() => onAction(card, primary)}
             title={primary.tool}
@@ -192,6 +213,8 @@ export function ActionRow({ card, index, why, busyTool, onAction, onDismiss }: R
 
 type MeetingProps = {
   index: number;
+  /** Does this row carry the screen's one filled button? */
+  primary: boolean;
   /** The meeting's own words: title, room/person, start time in the user's zone. */
   title: string;
   detail: string;
@@ -214,7 +237,7 @@ type MeetingProps = {
  * on the row, in the badge that says "Takvim"; what a meeting is stays legible
  * without spending the one place on the row that says where you are.
  */
-export function MeetingRow({ index, title, detail, onPrepare, busy }: MeetingProps) {
+export function MeetingRow({ index, primary, title, detail, onPrepare, busy }: MeetingProps) {
   const reduce = useReducedMotion();
 
   return (
@@ -241,7 +264,7 @@ export function MeetingRow({ index, title, detail, onPrepare, busy }: MeetingPro
         {onPrepare && (
           <button
             type="button"
-            className="btn btn--sm action-pill arow__do"
+            className={primaryClass(primary)}
             disabled={busy}
             onClick={onPrepare}
           >
@@ -256,6 +279,8 @@ export function MeetingRow({ index, title, detail, onPrepare, busy }: MeetingPro
 
 type GapProps = {
   index: number;
+  /** Does this row carry the screen's one filled button? */
+  primary: boolean;
   status: 'unavailable' | 'error';
   /** "Google Calendar", "Jira" — the thing that is missing, by name. */
   provider: string;
@@ -276,7 +301,7 @@ type GapProps = {
  * reads as one. It sorts last because it is not today's work; it is why some
  * of today's work is missing.
  */
-export function GapRow({ index, status, provider, scope, reason, onAction }: GapProps) {
+export function GapRow({ index, primary, status, provider, scope, reason, onAction }: GapProps) {
   const reduce = useReducedMotion();
   const failed = status === 'error';
 
@@ -309,7 +334,7 @@ export function GapRow({ index, status, provider, scope, reason, onAction }: Gap
           </span>
         </div>
 
-        <button type="button" className="btn btn--sm btn--outline arow__do" onClick={onAction}>
+        <button type="button" className={primaryClass(primary)} onClick={onAction}>
           {failed ? 'Tekrar dene' : 'Bağlantılar’a git'}
         </button>
       </div>

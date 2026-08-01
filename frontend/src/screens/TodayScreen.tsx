@@ -278,6 +278,30 @@ export function TodayScreen({ onNavigate }: Props) {
   const urgentCount = priority.filter((card) => card.urgency === 'high').length;
   const headline = dayHeadline(rowCount, urgentCount);
 
+  /*
+    Which row gets the screen's one filled button (issue #78).
+
+    The list is already ordered, and the numbers already say "start at the top";
+    the accent is the same instruction said with weight instead of words, so it
+    goes to the topmost row that actually has something to press. Rows above it
+    without an action — a meeting with no runnable prep flow — are skipped
+    rather than swallowing the emphasis nobody can act on.
+  */
+  const primaryRow = useMemo(() => {
+    let row = 0;
+    if (meetingRow) {
+      if (canPrepare) return row;
+      row += 1;
+    }
+    for (const card of priority) {
+      if (card.suggestedActions.length > 0) return row;
+      row += 1;
+    }
+    // Every gap row has a button, so the first of them is the fallback; when
+    // there are none either, no row matches and nothing is filled.
+    return gaps.length > 0 ? row : -1;
+  }, [meetingRow, canPrepare, priority, gaps.length]);
+
   /** How much is behind the closed grid, so the disclosure is not a mystery box. */
   const sectionTotal = useMemo(
     () =>
@@ -489,6 +513,7 @@ export function TodayScreen({ onNavigate }: Props) {
                       <MeetingRow
                         key="meeting"
                         index={0}
+                        primary={primaryRow === 0}
                         title={meetingRow.title}
                         detail={meetingRow.detail}
                         busy={starting === MEETING_PREP_ID}
@@ -502,6 +527,7 @@ export function TodayScreen({ onNavigate }: Props) {
                         key={card.id}
                         card={card}
                         index={meetingRow ? i + 1 : i}
+                        primary={primaryRow === (meetingRow ? i + 1 : i)}
                         why={whyById.get(card.id) ?? null}
                         busyTool={busy?.cardId === card.id ? busy.tool : null}
                         onAction={(c, a) => void runAction(c, a)}
@@ -512,6 +538,7 @@ export function TodayScreen({ onNavigate }: Props) {
                       <GapRow
                         key={`gap-${gap.meta.key}`}
                         index={priority.length + i + (meetingRow ? 1 : 0)}
+                        primary={primaryRow === priority.length + i + (meetingRow ? 1 : 0)}
                         status={gap.section.status === 'error' ? 'error' : 'unavailable'}
                         provider={gap.meta.connectLabel}
                         scope={gap.meta.title}
