@@ -1,5 +1,4 @@
 import {
-  ArrowLeft,
   CircleCheck,
   CircleX,
   ExternalLink,
@@ -9,8 +8,10 @@ import {
   RefreshCw,
   ShieldCheck,
   TriangleAlert,
+  X,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LoadError } from '../components/LoadError';
 import { API_BASE_URL, getRunSource } from '../data';
 import { formatRelative } from '../lib/format';
@@ -226,8 +227,15 @@ export const PROVIDERS: ProviderDef[] = [
  * hundred pixels apart inside four forms nobody was filling in.
  *
  * <p>So the default state answers only that question — four tiles, four marks, four states,
- * one screen — and a form is what you get after choosing a provider. One thing at a time is
- * also what keeps the longest form in the product from producing a scrollbar.
+ * one screen — and a form is what you get after choosing a provider.
+ *
+ * <p>WHY THE FORM IS A DIALOG AND NOT A SECOND PAGE. The setup used to replace the grid —
+ * same route, different screen — which meant closing it re-entered the grid from the top:
+ * scroll gone, and the header quietly renamed itself. A form you fill once per provider is
+ * a task over the screen, not a place in the product (`modal-vs-navigation` is about the
+ * inverse: this flow is exactly what modals are for). The grid stays mounted behind the
+ * scrim, hidden from the accessibility tree while the dialog owns it, and closing puts you
+ * back exactly where you were.
  *
  * <p>WHAT WAS NOT TAKEN from the integration-market pattern this is modelled on: the
  * on/off switch in the tile footer. `Connection` has no such field — a connection is stored
@@ -262,37 +270,25 @@ export function ConnectionsScreen() {
 
   return (
     <div className="page">
-      <div className="page__inner page__inner--app">
+      {/*
+        aria-hidden while the dialog is up: `aria-modal` alone does not take the grid out
+        of the accessibility tree in every reader, and the focus trap only guards Tab. The
+        grid stays MOUNTED — that is the point of the dialog — it just stops being part of
+        the conversation until the dialog closes.
+      */}
+      <div className="page__inner page__inner--app" aria-hidden={chosen ? true : undefined}>
         <div className="page__head">
           <div className="page__head-text">
-            <h1 className="t-title">{chosen ? chosen.title : 'Bağlantılar'}</h1>
-            {/*
-              No caption over an open form. The one that stood here vouched for the product
-              — the token is encrypted, never logged, masked on screen — and then told the
-              reader what the button below the form does. Neither is a fact the reader can
-              check from this screen: the encryption claim belongs in docs/ARCHITECTURE.md
-              where it can be traced to code, and a button explains itself by being pressed.
-              The heading already names the provider, which is the only thing the form needs
-              said about it.
-            */}
-            {!chosen && (
-              <p className="t-caption">
-                Relay yalnızca burada bağladığın servislere ulaşır. Kurulumu açmak için bir
-                servise bas.
-              </p>
-            )}
+            <h1 className="t-title">Bağlantılar</h1>
+            <p className="t-caption">
+              Relay yalnızca burada bağladığın servislere ulaşır. Kurulumu açmak için bir
+              servise bas.
+            </p>
           </div>
-          {chosen ? (
-            <button type="button" className="btn btn--outline btn--sm" onClick={() => setOpen(null)}>
-              <ArrowLeft size={14} aria-hidden />
-              Bağlantılar
-            </button>
-          ) : (
-            <button type="button" className="btn btn--outline btn--sm" onClick={() => void load()}>
-              <RefreshCw size={14} aria-hidden className={loading ? 'spin' : undefined} />
-              Yenile
-            </button>
-          )}
+          <button type="button" className="btn btn--outline btn--sm" onClick={() => void load()}>
+            <RefreshCw size={14} aria-hidden className={loading ? 'spin' : undefined} />
+            Yenile
+          </button>
         </div>
 
         {loadError != null && <LoadError error={loadError} onRetry={() => void load()} />}
@@ -306,7 +302,7 @@ export function ConnectionsScreen() {
           </div>
         )}
 
-        {!loading && !chosen && (
+        {!loading && (
           <>
             <div className="int-grid">
               {PROVIDERS.map((p) => (
@@ -328,18 +324,204 @@ export function ConnectionsScreen() {
             </div>
           </>
         )}
+      </div>
 
-        {!loading && chosen?.oauth && <GoogleSetup connection={connections.google} />}
-
-        {!loading && chosen && (!chosen.oauth || chosen.fields.length > 0) && (
-          <ProviderSetup
+      <AnimatePresence>
+        {!loading && chosen && (
+          <ProviderDialog
             key={chosen.provider}
             def={chosen}
             connection={connections[chosen.provider]}
+            onClose={() => setOpen(null)}
             onSaved={(c) => setConnections((cur) => ({ ...cur, [c.provider]: c }))}
           />
         )}
-      </div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * The provider's setup, over the grid instead of in place of it.
+ *
+ * <p>The keyboard contract is the drawer's, copied deliberately rather than abstracted
+ * prematurely (AppSidebar, drawer variant): focus moves in on open, Tab wraps inside,
+ * Escape closes, and closing hands focus back to whatever opened it. The one thing added
+ * on top is `sheet-dismiss-confirm`: a dismiss that would throw typed-but-unsaved fields
+ * away first asks one plain question in the footer — inside the dialog, in the same
+ * design language, not a browser `confirm()` the product cannot style or translate.
+ *
+ * <p>The Google consent link inside is a plain `<a>` to the OAuth start URL. Nothing here
+ * intercepts it: navigating away IS that flow's close.
+ */
+function ProviderDialog({
+  def,
+  connection,
+  onClose,
+  onSaved,
+}: {
+  def: ProviderDef;
+  connection: Connection | undefined;
+  onClose: () => void;
+  onSaved: (c: Connection) => void;
+}) {
+  const reduce = useReducedMotion();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [dirty, setDirty] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const requestClose = useCallback(() => {
+    if (dirty) setConfirming(true);
+    else onClose();
+  }, [dirty, onClose]);
+
+  // The trap effect runs once; going through a ref keeps a keystroke in a field
+  // (which flips `dirty`) from re-running it — a trap that re-runs steals focus
+  // back to the close button in the middle of typing.
+  const requestCloseRef = useRef(requestClose);
+  useEffect(() => {
+    requestCloseRef.current = requestClose;
+  }, [requestClose]);
+
+  // A saved form is no longer worth guarding: the strip, if up, has nothing to ask.
+  useEffect(() => {
+    if (!dirty) setConfirming(false);
+  }, [dirty]);
+
+  /*
+    A dialog is modal, so the keyboard has to be able to get in, move around and get out —
+    the same contract, and the same shape, as the drawer in AppSidebar. Without the Tab
+    wrap, tabbing past the last control lands on the page behind a scrim that cannot be
+    reached with a mouse: reachable in the tree, invisible on screen.
+  */
+  useEffect(() => {
+    const root = panelRef.current;
+    if (!root) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusable = () =>
+      [
+        ...root.querySelectorAll<HTMLElement>(
+          'button, [href], input, [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((el) => !el.hasAttribute('disabled'));
+    focusable()[0]?.focus();
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        requestCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusable();
+      if (items.length === 0) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !root.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+
+    // The grid behind must not scroll under the scrim; the dialog scrolls inside itself.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow;
+      opener?.focus();
+    };
+  }, []);
+
+  const titleId = `conn-dialog-title-${def.provider}`;
+
+  return (
+    <div className="conn-modal">
+      <motion.button
+        type="button"
+        className="conn-modal__scrim"
+        aria-label="Kurulumu kapat"
+        // Reachable by pointer only: the keyboard's ways out are Escape and the X,
+        // and a scrim in the Tab cycle is a stop with nothing visible to stop on.
+        tabIndex={-1}
+        onClick={requestClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: reduce ? 0.1 : 0.2 }}
+      />
+      <motion.div
+        ref={panelRef}
+        className="conn-modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(10px) scale(0.98)' }}
+        animate={reduce ? { opacity: 1 } : { opacity: 1, transform: 'translateY(0px) scale(1)' }}
+        exit={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(8px) scale(0.98)' }}
+        transition={{
+          duration: reduce ? 0.12 : 0.22,
+          ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+        }}
+      >
+        <header className="conn-modal__head">
+          <span className="int__marks" aria-hidden>
+            {def.marks.map((m) => (
+              <BrandMark key={m} provider={m} size={20} />
+            ))}
+          </span>
+          <h2 className="conn-modal__title" id={titleId}>
+            {def.title}
+          </h2>
+          <button
+            type="button"
+            className="btn btn--ghost btn--icon"
+            onClick={requestClose}
+            aria-label="Kurulumu kapat"
+          >
+            <X size={16} aria-hidden />
+          </button>
+        </header>
+
+        <div className="conn-modal__body">
+          {def.oauth && <GoogleSetup connection={connection} />}
+          {(!def.oauth || def.fields.length > 0) && (
+            <ProviderSetup
+              key={def.provider}
+              def={def}
+              connection={connection}
+              onSaved={onSaved}
+              onDirtyChange={setDirty}
+            />
+          )}
+        </div>
+
+        {confirming && (
+          <div className="conn-modal__confirm">
+            <TriangleAlert size={15} aria-hidden />
+            <span>Kaydedilmemiş değişiklik var.</span>
+            <button type="button" className="btn btn--outline btn--sm" onClick={onClose}>
+              Kaydetmeden kapat
+            </button>
+            {/* autoFocus on the safe choice: the strip is the answer to the keystroke
+                the user just made, and Enter should mean "geri dön", never "at". */}
+            <button
+              type="button"
+              className="btn btn--outline btn--sm"
+              onClick={() => setConfirming(false)}
+              autoFocus
+            >
+              Geri dön
+            </button>
+          </div>
+        )}
+      </motion.div>
     </div>
   );
 }
@@ -477,10 +659,13 @@ function ProviderSetup({
   def,
   connection,
   onSaved,
+  onDirtyChange,
 }: {
   def: ProviderDef;
   connection: Connection | undefined;
   onSaved: (c: Connection) => void;
+  /** The dialog guards dismissal; this is how it knows there is something to guard. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { provider, fields } = def;
   const [values, setValues] = useState<Record<string, string>>({});
@@ -490,6 +675,14 @@ function ProviderSetup({
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<ConnectionTestResult | null>(null);
   const [error, setError] = useState<unknown>(null);
+
+  // Dirty means "typed and not yet saved" — exactly the payload `save` would send.
+  // An emptied field is clean here for the same reason save skips it: nothing is lost
+  // by closing on it.
+  const dirty = Object.values(values).some((v) => v.trim().length > 0);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const save = async () => {
     setSaving(true);
@@ -580,6 +773,9 @@ function ProviderSetup({
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Escape' && isSecret && stored) {
+                        // This Escape means "cancel the replacement", not "close the
+                        // dialog" — it stops here so the dialog's trap never sees it.
+                        e.stopPropagation();
                         setValues((v) => ({ ...v, [f.key]: '' }));
                         setReplacing((r) => ({ ...r, [f.key]: false }));
                       }

@@ -963,3 +963,136 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Bağlantılar — the setup dialog                                      */
+/*                                                                     */
+/* The form floats over the grid instead of replacing it, so closing    */
+/* it costs nothing: the tiles, and the scroll position, were there     */
+/* the whole time. The scrim is the drawer's glass (sidebar.css) at     */
+/* the drawer's strength; the panel wears a real shadow because a       */
+/* modal IS elevation — the one place DESIGN.md's soft card shadow      */
+/* is not enough to say "this is above everything".                     */
+/* ------------------------------------------------------------------ */
+
+.conn-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--s-16);
+}
+
+.conn-modal__scrim {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: rgba(17, 17, 17, 0.34);
+  cursor: pointer;
+}
+
+.conn-modal__panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(84dvh, 760px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.conn-modal__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  padding: var(--s-16);
+  padding-bottom: var(--s-12);
+  border-bottom: 1px solid var(--line);
+}
+
+.conn-modal__title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* Google's form is taller than a laptop viewport; the dialog does not grow to
+   match it — the body scrolls inside and the head and confirm strip hold still. */
+.conn-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-16);
+}
+
+/* The panel is the card now. A bordered, shadowed card inside it would be a
+   box in a box saying the same thing twice. Google's two sections keep one
+   hairline between them. */
+.conn-modal__body .card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+.conn-modal__body .card + .card {
+  border-top: 1px solid var(--line);
+  padding-top: var(--s-16);
+}
+
+/* One column at 560px. auto-fit would pack Jira's short fields two abreast,
+   and a form read top-to-bottom is the one thing a narrow dialog is FOR. */
+.conn-modal__body .field-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* `sheet-dismiss-confirm`: the question lives in the footer, in the product's
+   own words, instead of a browser confirm() over it. Amber icon — this is a
+   "waiting on you", not an error. */
+.conn-modal__confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+  padding: var(--s-12) var(--s-16);
+  border-top: 1px solid var(--line);
+  background: var(--bg-subtle);
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+.conn-modal__confirm > svg {
+  flex: 0 0 auto;
+  color: var(--warn);
+}
+.conn-modal__confirm > span {
+  flex: 1 1 160px;
+}
+
+/* Below 640px the centered panel becomes a bottom sheet — same DOM, same trap,
+   different geometry. The product already answers "modal on a phone" this way
+   (.sheet, the workflow panel), and thumbs live at the bottom of the screen. */
+@media (max-width: 640px) {
+  .conn-modal {
+    padding: 0;
+    align-items: end;
+    justify-items: stretch;
+  }
+  .conn-modal__panel {
+    width: 100%;
+    max-height: 92dvh;
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 16px 16px 0 0;
+  }
+}
