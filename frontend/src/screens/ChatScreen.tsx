@@ -1,5 +1,5 @@
 import { ChevronUp, ListChecks } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { BottomSheet } from '../components/BottomSheet';
 import { ChatPanel } from '../components/ChatPanel';
 import { WorkflowPanel } from '../components/WorkflowPanel';
@@ -63,8 +63,31 @@ export function ChatScreen() {
     void openRun(routeRunId);
   }, [routeRunId, openRun]);
 
+  /*
+    …and the run writes its id back, but only for a run that has not written it yet.
+
+    The two effects above and below run in the same commit whenever the hash changes, and
+    they disagree by one render: the effect above asks the store for the run the hash names,
+    while this one still holds the run that was on screen when the click happened. Told only
+    "these differ, so publish mine", it published the OLD id — `replace`, so there was no
+    Back to undo it — and the address bar quietly cancelled the navigation. Nothing else in
+    the product could change the hash while a run was loaded, so nothing exposed it until a
+    row on the rail could.
+
+    The ref is the missing half of the question: it is not "do these differ", it is "did the
+    RUN change". A run that has already published its id stays quiet and lets the hash lead;
+    a run the store has just created (`startRun`, `rerun`) has published nothing, so it
+    still writes itself into the address bar — which is the reason this effect exists.
+  */
+  const publishedRunId = useRef<string | null>(null);
   useEffect(() => {
-    if (!run || run.id === routeRunId) return;
+    if (!run) return;
+    if (run.id === routeRunId) {
+      publishedRunId.current = run.id;
+      return;
+    }
+    if (publishedRunId.current === run.id) return;
+    publishedRunId.current = run.id;
     navigate(`#/sohbet/${run.id}`, { replace: true });
   }, [run, routeRunId, navigate]);
 
