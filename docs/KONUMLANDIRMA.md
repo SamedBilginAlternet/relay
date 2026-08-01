@@ -20,7 +20,7 @@ Konumlandırma tartışmasının tamamı bu tabloya bakarak çözülüyor.
 
 ### Kayıtlı araçlar (18) ve risk seviyeleri
 
-> Kaynak: `GET /api/health` → `"tools":{"count":18}` ve `GET /api/policies`.
+> Kaynak: `GET /api/health/details` → `"tools":{"count":18}` ve `GET /api/policies`.
 > Tablo canlıdan üretildi; sunumda bu tablodan konuşulur.
 
 | Sağlayıcı | OKUMA (12) | YAZMA (6) | SİLME (0) |
@@ -267,7 +267,10 @@ Bu bölüm sunumda **kelimesi kelimesine** uyulacak sınırı çiziyor.
 
 **KURULUR:**
 - *"Yazma adımı onaysız çalışmaz — bu bir ayar değil, ürünün varsayılanı."*
-- *"Her araç risk seviyesiyle kayıtlı: oku otomatik, yaz onaylı, sil yasak."*
+- *"Her araç risk seviyesiyle kayıtlı: oku otomatik, yaz onaylı."* — **üçlü değil ikili.**
+  Motorun üçüncü ayağı (`DESTRUCTIVE` → `forbidden`) kodda var ama bugün **öznesi yok**:
+  kayıtlı 18 aracın hiçbirinin riski `destructive` değil. Cümleyi üçlü kurma; sorulursa
+  §7 cevap 10'daki hâliyle anlat.
 - *"Kim onayladı, kim neyi neden reddetti, hangi adım kaça mal oldu — hepsi kayıtta."*
 - *"Bütçeyi aşan ajan sessizce harcamaz; durur ve sorar."*
 - *"Kurumsal yönetişimin **çekirdeği** burada: politika, onay, iz kaydı, maliyet."*

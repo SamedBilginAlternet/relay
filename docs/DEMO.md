@@ -95,7 +95,7 @@ Cevaplar 15 saniyeyi geçmeyecek şekilde yazıldı. İlk cümle her zaman doğr
 **"n8n'den farkı ne?"** (Zapier'den ayrı bir soru — n8n'i bilen jüri üyesi teknik cevap bekler)
 > n8n'de akışı önceden kurarsın; kurmadığın iş yapılamaz. Relay'de işi o an tarif edersin, plan cümleden çıkar. Asıl fark şu: n8n bir akışı baştan sona koşturur, biz her **yazma** adımında duruyoruz — kim onayladı, neden reddetti, ne kadara mal oldu, hepsi iz kaydında. n8n tekrarlayan boru hatları için; Relay bugünün doğaçlama işi ve onun denetimi için.
 
-Üstelerse üç ayrım: **ne zaman tasarlanıyor** (n8n tasarım zamanı, biz çalışma zamanı) · **kimin izni var** (n8n'de kimlik akışa verilir ve akış onunla ne yaparsa yapar; bizde her araç risk seviyesiyle kayıtlı — oku otomatik, yaz onay, sil yasak) · **sonra ne kanıtlayabiliyorsun** (araç, parametre, süre, onaylayan, token, dolar).
+Üstelerse üç ayrım: **ne zaman tasarlanıyor** (n8n tasarım zamanı, biz çalışma zamanı) · **kimin izni var** (n8n'de kimlik akışa verilir ve akış onunla ne yaparsa yapar; bizde her araç risk seviyesiyle kayıtlı — okuma otomatik, yazma onaylı) · **sonra ne kanıtlayabiliyorsun** (araç, parametre, süre, onaylayan, token, dolar).
 
 **"n8n'de de AI Agent node var"** — en keskin versiyonu, hazırlıklı ol:
 > Doğru, ve o node araçlarıyla sonuna kadar koşar. Bizim iddiamız ajan çalıştırmak değil, **ajanı durdurabilmek**. Az önce gördüğünüz onay kapısı bunun bir örneği; ikincisi ekranda görünmedi ama sistemin içinde: model bir kayıt anahtarını uydurduğunda yazma adımı sağlayıcıya hiç gitmiyor, plana önce o kaydı bulan bir arama adımı ekleniyor. İsterseniz canlı gösterebilirim.
@@ -118,7 +118,7 @@ Bitirirken tamamlayıcı ol, jüri bunu sever: *"n8n kullanan bir ekip Relay'i o
 > Her adım token ve tahmini USD döndürür, akışın toplamı maliyet şeridinde canlı sayar — demoda gördünüz. Akışa bütçe sınırı koyarsınız; ajan sınırı aşarsa **durur ve sorar**, sessizce harcamaz. Adım bazlı kırılım denetim izinde kalır — hangi adım kaça mal oldu, sonradan da görürsünüz.
 
 **"Yeni entegrasyon eklemek ne kadar iş?"**
-> Tek sınıf. `Tool` arayüzü beş üyeli: ad, açıklama, JSON şeması, risk seviyesi, execute. Sınıfı yazınca Spring otomatik toplar, LLM araç listesinde görür, politika motoru risk seviyesine göre varsayılanı atar — okuma otomatik, yazma onaylı, silme yasak. Orkestratöre tek satır dokunulmaz. "3000+ entegrasyon" iddiasının gerçek uzantı noktası bu.
+> Tek sınıf. `Tool` arayüzü beş üyeli: ad, açıklama, JSON şeması, risk seviyesi, execute. Sınıfı yazınca Spring otomatik toplar, LLM araç listesinde görür, politika motoru risk seviyesine göre varsayılanı atar — okuma otomatik, yazma onaylı. Orkestratöre tek satır dokunulmaz. "3000+ entegrasyon" iddiasının gerçek uzantı noktası bu.
 
 **"Ajan döngüsü nerede koşuyor?"**
 > Kendi backend'imizde — Java 21 + Spring Boot, hazır ajan framework'ü yok. Döngü dört rol: **Planner** hedefi adımlara çevirir, **Koordinatör** her adımı ilgili araç uzmanına devreder ve politikayı uygular, **ToolAgent** parametreleri kesinleştirip aracı çağırır, **Verifier** sonucu hedefe karşı denetler. Her geçiş bir olay üretir ve SSE ile arayüze akar — o yüzden her şeyi canlı gördünüz.
@@ -128,7 +128,7 @@ Bitirirken tamamlayıcı ol, jüri bunu sever: *"n8n kullanan bir ekip Relay'i o
 
 **Yedek sorular (gelirse):**
 - *"Neden Groq?"* → Hız: plan 5 saniyenin altında gelmeli, Groq'un çıkarımı bunu sağlıyor. `LlmClient` arayüz — sağlayıcı tek sınıfla değişir.
-- *"Silme işlemleri?"* → Varsayılan **yasak**. Politika motoru DESTRUCTIVE riskli araçları reddeder ve denemeyi iz kaydına yazar. Bilinçli bir üründür kararı.
+- *"Silme işlemleri?"* → **Bugün silen tek bir aracımız yok** — 18 aracın 12'si okuma, 6'sı yazma, sıfırı silme. Motorda `DESTRUCTIVE` → `yasak` kuralı duruyor ve `Politikalar` ekranı bunu açıkça yazıyor: *"şu an kayıtlı hiçbir aracın riski silme değil."* Kuralı önce yazdık, öznesini bilerek eklemedik: 48 saatte geri alınamayan bir işlem eklemek, onay kapısının test edilmediği tek yerdir. **Sakın "silme yasak" diye üçlü bir slogan kurma** — jüri "hangi silme aracınız?" der ve cevap "hiçbiri" olur.
 - *"İş modeli?"* → Koltuk başına abonelik + kullanım (LLM maliyeti zaten adım başına ölçülüyor — faturalama altyapısı bedavaya çıktı). Kurumsal katman: politika ve denetim izi zorunlulukları.
 
 ---
@@ -162,7 +162,7 @@ Tam prova en az **3 kez**: bir kez canlı modda, bir kez `TOOLS_MODE=replay` ile
 
 Demodan **30 dakika önce** başla; her maddeyi sırayla işaretle.
 
-1. ☐ Backend ayakta: `GET /api/health` → `{status: ok, llm: groq}` dönüyor.
+1. ☐ Backend ayakta: `GET /api/health` → `{status: ok}` dönüyor; sağlayıcı için oturumlu `GET /api/health/details` → `llm.provider: groq`.
 2. ☐ **Bağlantılar** ekranında Jira ve Slack token'ları girili; her ikisinde **Bağlantıyı Test Et** yeşil.
 3. ☐ Politikalar doğru: `jira.search/get` → otomatik; `jira.updateIssue`, `jira.addComment`, `slack.postMessage` → **onay iste**. (ALTIN KURAL — §4.)
 4. ☐ Jira KAN projesinde blocker etiketli ticket'lar **In Progress**'e sıfırlandı (önceki provaların Done'ları geri alındı); en az 3 blocker listede.

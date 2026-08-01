@@ -19,17 +19,21 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * login page. The frontend is a single-page app: an HTML redirect would land inside a
  * {@code fetch()} and show up as an unreadable parse error instead of "sign in".
  *
- * <p>Exempt: {@code /api/health} (uptime checks), {@code /api/auth/**} (you cannot sign
- * in through a door that requires being signed in) and {@code /api/oauth/google/callback}
+ * <p>Exempt: {@code /api/health} exactly (uptime checks), {@code /api/auth/**} (you cannot
+ * sign in through a door that requires being signed in) and {@code /api/oauth/google/callback}
  * (Google redirects the browser there and cannot carry our cookie policy). Everything
- * else — including the SSE stream — needs a session.
+ * else — including the SSE stream and {@code /api/health/details} — needs a session.
  */
 public class AuthFilter extends OncePerRequestFilter {
 
     public static final String USER_ATTRIBUTE = "relay.user";
 
+    /**
+     * {@code /api/health} is exempt exactly, never as a prefix — {@code /api/health/details}
+     * is the operator's view and carries what the provider is running on. A prefix here
+     * would hand that to anyone who guessed the path.
+     */
     private static final List<String> EXEMPT_PREFIXES = List.of(
-            "/api/health",
             "/api/auth/",
             "/api/oauth/google/callback");
 

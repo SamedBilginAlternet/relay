@@ -82,7 +82,15 @@ public class RoutingLlmClient implements LlmClient {
         return message != null && message.startsWith("all groq keys exhausted");
     }
 
-    /** What {@code GET /api/health} shows. Never contains a key. */
+    /**
+     * What {@code GET /api/health/details} shows an operator. Never contains a key, and no
+     * longer contains a fingerprint of one.
+     *
+     * <p>It used to list every key as {@code gsk_****tXVT}. The question an operator has is
+     * "how many keys, how many still working" — {@code keysTotal} and {@code keysAvailable}
+     * answer it. Which key is which only ever helped somebody matching a key found
+     * elsewhere against this deployment.
+     */
     public Map<String, Object> health() {
         Map<String, Object> map = new LinkedHashMap<>();
         boolean groqConfigured = primary != null && !primary.keys().empty();
@@ -91,7 +99,6 @@ public class RoutingLlmClient implements LlmClient {
         map.put("degraded", degraded());
         map.put("keysTotal", groqConfigured ? primary.keys().total() : 0);
         map.put("keysAvailable", groqConfigured ? primary.keys().available() : 0);
-        map.put("keys", groqConfigured ? primary.keys().masked() : java.util.List.of());
         map.put("lastError", lastError.get());
         return map;
     }

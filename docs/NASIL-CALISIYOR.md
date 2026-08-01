@@ -248,7 +248,7 @@ Ayrım önemli:
   `Retry-After` değeri varsa o kullanılır ama 60 sn ile **sınırlanır** — düşmanca bir
   `Retry-After` anahtarı saatlerce devre dışı bırakamasın).
 - **401/403/402 (reddedilmiş anahtar)** → `retire()`: kalıcı. Beklemek iptal edilmiş bir
-  anahtarı düzeltmez; soğutmaya alsaydık `/api/health` her 60 saniyede yeşile döner, her
+  anahtarı düzeltmez; soğutmaya alsaydık `/api/health/details` her 60 saniyede yeşile döner, her
   çağrı yine patlardı.
 - **400 (şema hatası)** → rotasyon yok, doğrudan hata. Başka anahtar bunu düzeltmez.
 
@@ -271,7 +271,7 @@ kalırlar).
 `application/port/Tool.java` tek genişleme noktası: `name()`, `description()`, `schema()`,
 `risk()`, `execute()`, `withDefaults()`. Yeni entegrasyon = bu arayüzü uygulayan bir
 `@Component`; Spring toplar, `ToolRegistryImpl` LLM'e sunar, `PolicyEngine` riske göre
-varsayılan politikayı atar. Orkestratör değişmez. Şu an **18 araç** kayıtlı (`GET /api/health`
+varsayılan politikayı atar. Orkestratör değişmez. Şu an **18 araç** kayıtlı (`GET /api/health/details`
 → `tools.count`): `jira.*` (7), `github.*` (3), `gmail.*` (4), `calendar.*` (2), `slack.*` (2).
 Risk dağılımı: 12 `read`, 6 `write`, **0 `destructive`** — §10'daki sınır bu sayıdan geliyor.
 
@@ -297,8 +297,10 @@ bunu `unavailable` sayar — demo verisi gerçek veri gibi sunulmaz.
 
 ## 7. Kimlik ve oturum
 
-`AuthFilter` `/api/**` altındaki her şeyi çerezle korur. Muaf olanlar: `/api/health`,
-`/api/auth/**`, `/api/oauth/google/callback`. Oturumsuz istek **401 + JSON** alır, HTML
+`AuthFilter` `/api/**` altındaki her şeyi çerezle korur. Muaf olanlar: tam olarak `/api/health`,
+`/api/auth/**`, `/api/oauth/google/callback`. `/api/health/details` (operatör görünümü) muaf
+değildir — kimliksiz sağlık ucu yalnız `{status, version}` döner, sağlayıcı ve anahtar
+sayısı oturum ister. Oturumsuz istek **401 + JSON** alır, HTML
 yönlendirme değil — SPA'nın `fetch`'i giriş sayfasını okuyamaz, okursa "parse error" gibi
 görünür.
 

@@ -100,7 +100,8 @@ Oturum: rastgele 32 baytlık opak token çereze (`relay_session`, HttpOnly · Se
 
 | Metot | Yol | Açıklama |
 |---|---|---|
-| `GET` | `/api/health` | `{status, version, llm}` |
+| `GET` | `/api/health` | `{status, version}` — kimliksiz, izleme için |
+| `GET` | `/api/health/details` | `{status, version, llm, tools}` — oturum ister |
 | `POST` | `/api/runs` | `{goal}` → `{runId}` — planlama başlar |
 | `GET` | `/api/runs/{id}` | Run + adımlar + mesajlar (tam durum) |
 | `GET` | `/api/runs/{id}/stream` | **SSE** — canlı olaylar |
@@ -121,7 +122,7 @@ Oturum: rastgele 32 baytlık opak token çereze (`relay_session`, HttpOnly · Se
 | `GET` | `/api/auth/google/start` | Google'a yönlendirir — kapsam yalnız `openid email profile` |
 | `GET` | `/api/auth/google/callback` | Kod → oturum çerezi, ardından SPA'ya döner |
 
-**Koruma.** Bir servlet filtresi (`AuthFilter`) `/api/**` altındaki her şeyi çerezle korur; muaf olanlar `/api/health`, `/api/auth/**` ve `/api/oauth/google/callback`. Oturumsuz istek **401 + JSON** alır, HTML yönlendirme değil — SPA'nın `fetch`'i bir giriş sayfasını okuyamaz.
+**Koruma.** Bir servlet filtresi (`AuthFilter`) `/api/**` altındaki her şeyi çerezle korur; muaf olanlar tam olarak `/api/health`, `/api/auth/**` ve `/api/oauth/google/callback` — `/api/health/details` muaf **değil**. Oturumsuz istek **401 + JSON** alır, HTML yönlendirme değil — SPA'nın `fetch`'i bir giriş sayfasını okuyamaz.
 
 **Google iki ayrı onaydır.** `/api/auth/google/*` yalnızca kimliktir (`openid email profile`, hiçbir token saklanmaz). Gmail/Takvim verisine erişim `/api/oauth/google/*` altındaki ayrı akıştır ve refresh token'ı şifreli `google` bağlantısında tutar. Giriş yapmak posta kutusunu vermek değildir; ikisi asla tek onaya indirgenmemeli.
 
