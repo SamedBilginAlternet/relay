@@ -1,10 +1,13 @@
 package com.relay.infrastructure.llm;
 
+import com.relay.application.port.Clock;
 import com.relay.application.port.LlmClient;
 import com.relay.application.port.LlmRequest;
 import com.relay.application.port.LlmResponse;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -40,9 +43,25 @@ public class RoutingLlmClient implements LlmClient {
 
     private static final Logger LOG = System.getLogger(RoutingLlmClient.class.getName());
 
+    /**
+     * How long the whole chain — every configured tier, every key in each — gets before this
+     * router stops asking providers and answers from the stub instead.
+     *
+     * <p>Live, on 2026-08-01, all three tiers failed inside the same request: the primary
+     * cooling from a 429, the paid tier behind it timing out at its own 30s ceiling, the
+     * third rate-limited too. None of that was a bug in any one tier — each was behaving
+     * exactly as designed — but three sequential worst cases summed to minutes on a screen
+     * that had no way to say it was still trying. A shared deadline does not make a struggling
+     * provider answer faster; it makes "every provider is struggling right now" resolve in
+     * one bounded wait instead of the sum of all of them.
+     */
+    private static final Duration DEFAULT_BUDGET = Duration.ofSeconds(20);
+
     /** In preference order, nulls dropped. Never empty of meaning: it may be empty of tiers. */
     private final List<GroqLlmClient> tiers;
     private final StubLlmClient fallback;
+    private final Clock clock;
+    private final Duration budget;
     /**
      * Set only by failures another key cannot fix (a rejected request, a dead key).
      * Rate limiting is <em>not</em> recorded here: the pool already parks the key and
@@ -61,6 +80,11 @@ public class RoutingLlmClient implements LlmClient {
 
     /** @param tiers in preference order; nulls are the "not configured" case and are dropped */
     public RoutingLlmClient(List<GroqLlmClient> tiers, StubLlmClient fallback) {
+        this(tiers, fallback, Clock.system(), DEFAULT_BUDGET);
+    }
+
+    /** The full shape, plus the clock and the total-chain deadline they are measured against. */
+    public RoutingLlmClient(List<GroqLlmClient> tiers, StubLlmClient fallback, Clock clock, Duration budget) {
         List<GroqLlmClient> kept = new ArrayList<>();
         for (GroqLlmClient tier : tiers) {
             if (tier != null) {
@@ -69,6 +93,8 @@ public class RoutingLlmClient implements LlmClient {
         }
         this.tiers = List.copyOf(kept);
         this.fallback = fallback;
+        this.clock = clock == null ? Clock.system() : clock;
+        this.budget = budget == null ? DEFAULT_BUDGET : budget;
     }
 
     private GroqLlmClient tier(int index) {
@@ -81,13 +107,23 @@ public class RoutingLlmClient implements LlmClient {
 
     @Override
     public LlmResponse complete(LlmRequest request) {
+        Instant deadline = clock.now().plus(budget);
         for (int i = 0; i < tiers.size(); i++) {
             GroqLlmClient tier = tiers.get(i);
             if (!usable(tier)) {
                 continue;
             }
+            if (clock.now().isAfter(deadline)) {
+                // The chain's whole budget is spent, however many tiers are left unread. One
+                // more 10s HTTP timeout would not be "trying harder", it would be the same
+                // wait again with nothing new to show for it — the stub answers now instead.
+                String note = "routing budget (" + budget.toSeconds() + "s) exhausted before tier " + i;
+                lastError.set(lastError.get() == null ? note : lastError.get() + "; " + note);
+                LOG.log(Level.WARNING, note);
+                break;
+            }
             try {
-                LlmResponse response = tier.complete(request);
+                LlmResponse response = tier.complete(request, deadline);
                 if (i == 0) {
                     if (hardFailure.compareAndSet(true, false)) {
                         LOG.log(Level.INFO, "{0} recovered — leaving fallback mode", tier.provider());

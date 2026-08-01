@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.relay.application.json.Json;
+import com.relay.application.port.Clock;
 import com.relay.application.port.LlmClient;
 import com.relay.application.port.LlmRequest;
 import com.relay.application.port.LlmResponse;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Optional;
@@ -68,6 +70,7 @@ public class GroqLlmClient implements LlmClient {
      * to the wrong console.
      */
     private final String provider;
+    private final Clock clock;
 
     public GroqLlmClient(ApiKeyPool keys, HttpTransport transport, String baseUrl, String model,
                          double inputUsdPerMillion, double outputUsdPerMillion) {
@@ -96,6 +99,20 @@ public class GroqLlmClient implements LlmClient {
                          String smallModel, ApiKeyPool smallKeys, String provider,
                          double smallInputUsdPerMillion, double smallOutputUsdPerMillion,
                          Collection<String> smallPurposes) {
+        this(keys, transport, baseUrl, model, inputUsdPerMillion, outputUsdPerMillion, smallModel, smallKeys,
+                provider, smallInputUsdPerMillion, smallOutputUsdPerMillion, smallPurposes, Clock.system());
+    }
+
+    /**
+     * The full shape, plus the clock a shared request deadline is measured against
+     * (§ complete(request, deadline)). Every other constructor defaults it to the real clock,
+     * so nothing outside a test that means to control time has to know this parameter exists.
+     */
+    public GroqLlmClient(ApiKeyPool keys, HttpTransport transport, String baseUrl, String model,
+                         double inputUsdPerMillion, double outputUsdPerMillion,
+                         String smallModel, ApiKeyPool smallKeys, String provider,
+                         double smallInputUsdPerMillion, double smallOutputUsdPerMillion,
+                         Collection<String> smallPurposes, Clock clock) {
         this.provider = provider == null || provider.isBlank() ? "groq" : provider.trim();
         this.keys = keys;
         this.transport = transport;
@@ -112,6 +129,7 @@ public class GroqLlmClient implements LlmClient {
                         .filter(p -> p != null && !p.isBlank())
                         .map(p -> p.trim().toLowerCase(Locale.ROOT))
                         .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        this.clock = clock == null ? Clock.system() : clock;
     }
 
     /**
@@ -126,11 +144,27 @@ public class GroqLlmClient implements LlmClient {
      */
     @Override
     public LlmResponse complete(LlmRequest request) {
+        return complete(request, Instant.MAX);
+    }
+
+    /**
+     * The interface method, plus a wall-clock line it must answer by.
+     *
+     * <p>Left at {@link Instant#MAX} by {@link #complete(LlmRequest)}, this stays exactly the
+     * old, unbounded behaviour — every key in both tiers gets a real network attempt no
+     * matter how long each one takes. {@link RoutingLlmClient} is the caller that hands in a
+     * real deadline, one shared across every tier it tries, so a request that would
+     * otherwise burn a 10s timeout on each of several keys across several providers instead
+     * gives up on the whole chain once its total budget is spent and answers from the stub —
+     * late, but not indefinitely late. See {@link #attempt} for where the deadline is
+     * actually checked: between keys, never inside an HTTP call already in flight.
+     */
+    public LlmResponse complete(LlmRequest request, Instant deadline) {
         boolean smallFirst = hasSmallTier() && routesSmall(request.purpose());
         String firstModel = smallFirst ? smallModel : model;
         ApiKeyPool firstKeys = smallFirst ? smallKeys : keys;
 
-        Attempt first = attempt(request, firstModel, firstKeys);
+        Attempt first = attempt(request, firstModel, firstKeys, deadline);
         if (first.response() != null) {
             return first.response();
         }
@@ -142,7 +176,7 @@ public class GroqLlmClient implements LlmClient {
         ApiKeyPool secondKeys = smallFirst ? keys : smallKeys;
         String secondError = null;
         if (secondModel != null && secondKeys != null) {
-            Attempt second = attempt(request, secondModel, secondKeys);
+            Attempt second = attempt(request, secondModel, secondKeys, deadline);
             if (second.response() != null) {
                 LOG.log(Level.INFO, provider + " answered on {0} — {1} is rate limited", secondModel, firstModel);
                 return second.response();
@@ -254,8 +288,8 @@ public class GroqLlmClient implements LlmClient {
         return organisations.stream().sorted().toList();
     }
 
-    /** One pass over the pool for a single model. */
-    private Attempt attempt(LlmRequest request, String targetModel, ApiKeyPool pool) {
+    /** One pass over the pool for a single model, stopping early once {@code deadline} passes. */
+    private Attempt attempt(LlmRequest request, String targetModel, ApiKeyPool pool, Instant deadline) {
         String body = requestBody(request, targetModel);
         String remembered = lastRefusal.get(targetModel);
         String lastError = remembered == null
@@ -263,6 +297,14 @@ public class GroqLlmClient implements LlmClient {
                 : "no key available, still cooling from: " + remembered;
 
         for (int tries = 0; tries < Math.max(1, pool.total()); tries++) {
+            // Checked before every attempt, not just the first: three keys that each hang for
+            // the full HTTP timeout used to cost three timeouts, one after another, even once
+            // the caller had already given up on waiting. A deadline that only gated entry to
+            // the loop would not have caught that — it has to gate every lap.
+            if (clock.now().isAfter(deadline)) {
+                lastError = "no key available, gave up after " + tries + " (over budget)";
+                break;
+            }
             Optional<String> key = pool.next();
             if (key.isEmpty()) {
                 break;

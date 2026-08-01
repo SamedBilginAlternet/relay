@@ -30,9 +30,15 @@ public class LlmConfig {
 
     private static final Logger LOG = System.getLogger(LlmConfig.class.getName());
 
+    /**
+     * Per-key HTTP timeout. Was a flat 30s, which meant a single hung provider could cost
+     * 30s <em>per key</em> before the pool moved on — the biggest single contributor to the
+     * multi-minute stalls fixed by {@code app.llm.routing-budget-seconds} below. 10s is still
+     * generous for a chat-completions call and cuts that worst case by two thirds on its own.
+     */
     @Bean
-    public HttpTransport llmTransport() {
-        return new JdkHttpTransport(Duration.ofSeconds(30));
+    public HttpTransport llmTransport(@Value("${app.llm.http-timeout-seconds:10}") long timeoutSeconds) {
+        return new JdkHttpTransport(Duration.ofSeconds(timeoutSeconds));
     }
 
     @Bean
@@ -81,6 +87,7 @@ public class LlmConfig {
      */
     @Bean
     public GroqLlmClient groqLlmClient(ApiKeyPool pool, ApiKeyPool groqSmallKeyPool, HttpTransport transport,
+                                       Clock clock,
                                        @Value("${app.groq.base-url:https://api.groq.com/openai/v1}") String baseUrl,
                                        @Value("${app.groq.model:llama-3.3-70b-versatile}") String model,
                                        @Value("${app.groq.small-model:llama-3.1-8b-instant}") String smallModel,
@@ -102,7 +109,7 @@ public class LlmConfig {
           cost columns rest on.
         */
         return new GroqLlmClient(pool, transport, baseUrl, model, input, output, smallModel, groqSmallKeyPool,
-                provider, smallInput, smallOutput, purposes);
+                provider, smallInput, smallOutput, purposes, clock);
     }
 
     /**
@@ -147,7 +154,8 @@ public class LlmConfig {
         ApiKeyPool pool = new ApiKeyPool(keys, Duration.ofSeconds(cooldownSeconds), clock);
         // No small-model tier: the point of this provider is that it has no daily wall to
         // duck under, so there is nothing to fall back to within it.
-        return new GroqLlmClient(pool, transport, baseUrl, model, input, output, null, null, provider);
+        return new GroqLlmClient(pool, transport, baseUrl, model, input, output, null, null, provider,
+                input, output, java.util.Set.of(), clock);
     }
 
     /**
@@ -181,7 +189,8 @@ public class LlmConfig {
                                @Value("${app.llm.third.provider:third}") String thirdProvider,
                                @Value("${app.llm.third.price.input-usd-per-million:0}") double thirdInput,
                                @Value("${app.llm.third.price.output-usd-per-million:0}") double thirdOutput,
-                               @Value("${app.groq.cooldown-seconds:60}") long cooldownSeconds) {
+                               @Value("${app.groq.cooldown-seconds:60}") long cooldownSeconds,
+                               @Value("${app.llm.routing-budget-seconds:20}") long routingBudgetSeconds) {
         // `Arrays.asList`, not `List.of`: an unconfigured tier is null and the router is
         // what drops it. `List.of` throws on a null element, which would turn "no third
         // provider" into a failure to start.
@@ -191,6 +200,6 @@ public class LlmConfig {
                         cooldownSeconds),
                 behindClient(transport, clock, thirdKeys, thirdBaseUrl, thirdModel, thirdProvider,
                         thirdInput, thirdOutput, cooldownSeconds)),
-                stub);
+                stub, clock, Duration.ofSeconds(routingBudgetSeconds));
     }
 }

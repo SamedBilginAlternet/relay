@@ -46,6 +46,14 @@ class ThirdTierTest {
 
         @Override
         public LlmResponse complete(LlmRequest request) {
+            return complete(request, java.time.Instant.MAX);
+        }
+
+        // RoutingLlmClient calls the deadline-aware overload now, so that is the seam this
+        // double has to intercept — overriding only the one above would fall through to the
+        // real GroqLlmClient logic and hit the transport that throws to prove it never should.
+        @Override
+        public LlmResponse complete(LlmRequest request, java.time.Instant deadline) {
             calls++;
             if (broken) {
                 throw new LlmUnavailableException("all " + label + " keys exhausted (test)");

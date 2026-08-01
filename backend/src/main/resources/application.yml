@@ -103,6 +103,19 @@ app:
       input-usd-per-million: ${GROQ_SMALL_PRICE_INPUT:0.05}
       output-usd-per-million: ${GROQ_SMALL_PRICE_OUTPUT:0.08}
   llm:
+    # Timeout for a single HTTP call to any tier. Was a flat 30s in JdkHttpTransport; that
+    # meant one hung provider could cost 30s PER KEY before the pool moved to the next one,
+    # which was the single biggest contributor to the multi-minute stalls this and
+    # routing-budget-seconds exist to bound.
+    http-timeout-seconds: ${LLM_HTTP_TIMEOUT_SECONDS:10}
+    # Wall-clock ceiling for the WHOLE routing chain — every tier, every key in each — before
+    # RoutingLlmClient gives up and answers from the stub. On 2026-08-01 all three configured
+    # tiers failed inside one request (primary cooling from a 429, the paid tier behind it
+    # timing out at its own ceiling, the third rate-limited) and the sum of every provider's
+    # worst case, one after another, took minutes on a screen with no way to say it was still
+    # trying. This does not make a struggling provider answer faster — it makes "everything is
+    # struggling right now" resolve in one bounded wait instead of the sum of all of them.
+    routing-budget-seconds: ${LLM_ROUTING_BUDGET_SECONDS:20}
     # Which jobs the small model is enough for. Comma separated; blank uses the default
     # below. Everything not named here — including a purpose this build has never heard of —
     # goes to the strong model, because unknown must mean expensive, never wrong.
