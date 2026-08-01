@@ -15,6 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { BrandMark, providerOf } from '../components/BrandMark';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LoadError } from '../components/LoadError';
 import { defaultModeFor, getPolicySource } from '../data/PolicySource';
@@ -199,7 +200,13 @@ export function PolicyScreen() {
                 <section className="pol-group" key={provider} aria-labelledby={headId}>
                   <div className="pol-group__head">
                     <span className="pol-group__icon" aria-hidden>
-                      <meta.Icon size={16} />
+                      {/* Google covers two tools here, so it keeps the generic
+                          glyph; the rest wear their own mark. */}
+                      {providerOf(provider) ? (
+                        <BrandMark provider={providerOf(provider)!} size={16} />
+                      ) : (
+                        <meta.Icon size={16} />
+                      )}
                     </span>
                     <h2 className="t-title" id={headId}>
                       {meta.title}

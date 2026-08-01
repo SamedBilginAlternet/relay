@@ -10,6 +10,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { useId, useState } from 'react';
+import { BrandMark, providerOf } from './BrandMark';
 import { actionLabel } from '../lib/actionLabels';
 import { paramLabel } from '../lib/paramLabels';
 import { SOURCE_META, URGENCY_META, kindLabel, reasonEarnsItsLine } from '../lib/insight';
@@ -135,7 +136,9 @@ export function ActionRow({ card, index, primary: isPrimary, why, busyTool, onAc
           <span className="arow__text">
             <span className="arow__head">
               <span className="src-badge">
-                <source.Icon size={12} aria-hidden />
+                {/* The provider's own mark: read in a glance, where the tool id
+                    needed a beat. The word stays — a logo alone is a guess. */}
+                <BrandMark provider={card.source} size={12} />
                 {source.label}
               </span>
               {card.urgency === 'high' && (
@@ -286,7 +289,10 @@ function ActionDraft({ action }: { action: SuggestedAction }) {
     <div className="draft">
       <p className="draft__head">
         <span className="draft__label">Basınca ne olacak</span>
-        <code className="t-mono draft__tool">{action.tool}</code>
+        <span className="draft__tool-wrap">
+          {providerOf(action.tool) && <BrandMark provider={providerOf(action.tool)!} size={13} />}
+          <code className="t-mono draft__tool">{action.tool}</code>
+        </span>
       </p>
 
       {fields.length > 0 && (

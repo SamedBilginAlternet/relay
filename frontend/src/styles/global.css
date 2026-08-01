@@ -1,5 +1,20 @@
 /* Relay — design tokens straight from docs/DESIGN.md (v2, light) */
 
+/* A provider's mark sits inline with the name it belongs to, never alone. */
+.src-badge,
+.tool-chip,
+.agent-badge,
+.pol-group__icon,
+.card__icon,
+.draft__tool-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.draft__tool-wrap {
+  min-width: 0;
+}
+
 /*
   The draft behind a suggestion, inside an opened row (components/ActionFeed).
   Deliberately quiet: it is evidence, not a second call to action, and the eye

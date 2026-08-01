@@ -3,8 +3,6 @@ import {
   CircleX,
   Eye,
   EyeOff,
-  GitPullRequest,
-  Hash,
   KeyRound,
   Mail,
   Plug,
@@ -18,6 +16,7 @@ import { API_BASE_URL, getRunSource } from '../data';
 import { formatRelative } from '../lib/format';
 import type { Connection, ConnectionTestResult, GoogleStatus, Provider } from '../types/api';
 import '../styles/screens.css';
+import { BrandMark, providerOf } from '../components/BrandMark';
 
 type FieldDef = {
   key: string;
@@ -306,9 +305,11 @@ function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: C
     <section className="card" aria-label={`${title} bağlantısı`}>
       <div className="card__head">
         <span className="card__icon" aria-hidden>
-          {provider === 'jira' ? <Plug size={18} />
-            : provider === 'github' ? <GitPullRequest size={18} />
-            : <Hash size={18} />}
+          {providerOf(provider) ? (
+            <BrandMark provider={providerOf(provider)!} size={18} />
+          ) : (
+            <Plug size={18} />
+          )}
         </span>
         <div style={{ flex: '1 1 auto', minWidth: 0 }}>
           <h2 className="t-title">{title}</h2>

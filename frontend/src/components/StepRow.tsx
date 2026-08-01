@@ -5,6 +5,7 @@ import { stepDuration, formatTokens, formatUsd } from '../lib/format';
 import { paramLabel } from '../lib/paramLabels';
 import { DECISION_LABEL, stepStatusMeta } from '../lib/status';
 import type { Step } from '../types/api';
+import { BrandMark, providerOf } from './BrandMark';
 import { ParamBlock } from './ParamBlock';
 
 type Props = {
@@ -149,6 +150,9 @@ export function StepRow({
           <span className="step__title">{step.title}</span>
           <span className="step__meta">
             <span className={`tool-chip ${step.toolName ? '' : 'tool-chip--none'}`}>
+              {providerOf(step.toolName) && (
+                <BrandMark provider={providerOf(step.toolName)!} size={12} />
+              )}
               {step.toolName ?? 'araç yok — akıl yürütme'}
             </span>
             <span className="step__role">{step.role}</span>

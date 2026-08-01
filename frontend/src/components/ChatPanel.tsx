@@ -7,6 +7,7 @@ import type { AgentMessage, Run } from '../types/api';
 import { Composer } from './Composer';
 import { EmptyState } from './EmptyState';
 import { agentLabel } from '../lib/agents';
+import { BrandMark, providerOf } from './BrandMark';
 
 type Props = {
   run: Run | null;
@@ -99,7 +100,12 @@ export function ChatPanel({ run, phase, error, onSubmit, onRetry, readOnly = fal
             >
               <div className="msg-agent__who">
                 <span className="agent-badge agent-badge--accent">
-                  <Bot size={12} aria-hidden />
+                  {/* A specialist wears its provider's mark; the crew keeps the bot. */}
+                  {providerOf(m.fromAgent.replace(/-agent$/, '')) ? (
+                    <BrandMark provider={providerOf(m.fromAgent.replace(/-agent$/, ''))!} size={12} />
+                  ) : (
+                    <Bot size={12} aria-hidden />
+                  )}
                   {agentLabel(m.fromAgent)}
                 </span>
                 <span className="t-caption">{formatTime(m.createdAt)}</span>
