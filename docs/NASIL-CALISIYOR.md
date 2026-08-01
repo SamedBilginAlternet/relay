@@ -134,6 +134,24 @@ listesi ve tek bir tavsiye. Model `degraded` ise **hiç üretilmez** ve `digest`
 yanıttan çıkar. Şablon metin üretmek yerine yokluk tercih edilmiştir; boş bir paragraf
 içgörü gibi görünür ama değildir.
 
+Aynı tercih **bozuk metin** için de geçerli (#48). Kapı yalnız `degraded` durumunu
+kapsamıyordu; canlıda sağlıklı modelden çıkan paragraf "…birlikte beberapaNeeds_reply
+mailleri bekliyor. id=gmail:19fbb199a0786906…" ve "…önemli bir vấn" diye okunuyordu.
+Artık her alan gösterilmeden önce deterministik olarak denetlenir: iç kimlik dizesi
+(`id=`, `gmail:…`), prompt'un kendi alan adları (`aciliyet=`), ham enum (`needs_reply`,
+`bug_report`), Türkçe/İngilizce dışı harf (Vietnamca, Kiril, CJK) ya da adı konmuş
+Endonezce kelime taşıyan alan **düşürülür** — yeniden üretilmez, şablonla doldurulmaz.
+`summary` düşerse `digest` hiç dönmez; ekranın üst satırı (`today`) modelsiz sayıldığı
+için boş kalmaz. Türkçe harfler (`çğıöşü`, `âîû`) beyaz listededir: eleme kuralı onları
+hiçbir koşulda yakalamaz.
+
+**Öneri parametreleri karttan tohumlanır** (#47). Onay ekranında insanın okuduğu alanlar
+modelin tahmini değil, kartın kendi verisidir: `jira.createIssue` önerisinde `projectKey`
+bağlantıdan gelir (`BriefService.projectKeyFrom`), `summary` kartın metninden bir kelime
+paylaşmıyorsa mailin konusuyla değiştirilir, gövdesiz kayıt önerilmez. Canlıda kapıya
+`{"summary":"Yeni iş talebi","projectKey":"RELAY"}` gelmiş, bağlantıda yazan `KAN` ise
+ikinci turda kullanılmıştı — bilgi baştan elde vardı.
+
 Kritik kural: **öneri ≠ eylem.** Bu katman hiçbir şey çalıştırmaz. Karta tıklanınca
 `POST /api/runs/from-suggestion` normal akışı başlatır ve yazma adımı yine onay ister.
 
