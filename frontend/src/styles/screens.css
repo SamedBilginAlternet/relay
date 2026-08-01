@@ -408,6 +408,215 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* Politikalar — a rule table, not a page of cards (issues #124, #127) */
+/*                                                                     */
+/* Every rule below overrides one in global.css, deliberately: the      */
+/* markup and the semantics of the screen are unchanged, only its       */
+/* density is. Three cards became a strip, four provider cards became   */
+/* bands inside one table, and the row got the same shape as a Geçmiş   */
+/* row — fixed gutter, prose, then the control — instead of a tool id   */
+/* and a segmented switch with 550px of nothing between them.           */
+/* ------------------------------------------------------------------ */
+
+/* ---- the sentence, counted: one strip, three cells ----------------- */
+
+.pol-sum {
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+.pol-sum .pol-sum__cell {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+  padding: 7px var(--s-12);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.pol-sum .pol-sum__cell + .pol-sum__cell {
+  border-left: 1px solid var(--line);
+}
+.pol-sum .pol-sum__n {
+  font-size: 17px;
+}
+.pol-sum .pol-sum__hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--fg-faint);
+}
+
+/* ---- one table, a band per provider -------------------------------- */
+
+.pol-table {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  overflow: hidden;
+}
+.pol-table .pol-group {
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.pol-table .pol-group + .pol-group {
+  border-top: 1px solid var(--line);
+}
+/* Surface three: the band head is inset, so the rows read as its contents. */
+.pol-table .pol-group__head {
+  gap: var(--s-8);
+  padding: 5px var(--s-16);
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--line-soft);
+  flex-wrap: nowrap;
+}
+.pol-table .pol-group__head h2 {
+  font-size: 13px;
+  font-weight: 600;
+}
+.pol-table .pol-group__icon {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.pol-group__n {
+  flex: 0 0 auto;
+  font-size: var(--machine-size);
+  color: var(--fg-faint);
+}
+
+/* ---- the row ------------------------------------------------------- */
+
+.pol-list .pol-row {
+  grid-template-columns: 16px minmax(0, 1fr) 52px auto;
+  column-gap: var(--s-12);
+  row-gap: 0;
+  padding: 3px var(--s-16);
+  border-top: 1px solid var(--line-soft);
+}
+.pol-list .pol-row:first-child {
+  border-top: 0;
+  padding-top: 3px;
+}
+/* The scan column, aligned with the provider glyph above it. */
+.pol-row__mark {
+  display: grid;
+  place-items: center;
+}
+.pol-row__mark--read {
+  color: var(--info);
+}
+.pol-row__mark--write {
+  color: var(--warn);
+}
+.pol-row__mark--destructive {
+  color: var(--danger);
+}
+.pol-list .pol-row__name {
+  font-size: var(--machine-size);
+  color: var(--fg-machine);
+  word-break: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The risk badge lost its pill: at one per row the chrome was the noise, and
+   the glyph in the gutter already carries the colour. */
+.pol-row__risk {
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pol-row__risk--read {
+  color: #1d4ed8;
+}
+.pol-row__risk--write {
+  color: #92400e;
+}
+.pol-row__risk--destructive {
+  color: #b91c1c;
+}
+
+.pol-list .pol-seg {
+  grid-column: 4;
+  grid-row: 1;
+  padding: 2px;
+}
+/*
+  44px per option was a phone's touch target charged to a desktop row, where
+  it set the height of every one of the eighteen. Pointers that cannot be
+  precise get it back below; WCAG 2.2's minimum (24px) is met either way.
+*/
+.pol-list .pol-seg__opt {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+}
+@media (pointer: coarse) {
+  .pol-list .pol-seg__opt {
+    min-height: 40px;
+  }
+}
+
+/* The line that only exists when a tool deviates (issue #67). */
+.pol-list .pol-row__src {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  padding-bottom: 3px;
+  font-size: 12px;
+}
+.pol-list .pol-row--off {
+  box-shadow: inset 2px 0 0 0 var(--warn);
+  padding-left: 14px;
+}
+
+/* ---- the tools that are not in the table --------------------------- */
+
+.pol-group--rule {
+  padding: var(--s-12) var(--s-16);
+  gap: var(--s-8);
+  box-shadow: none;
+}
+.pol-group--rule .pol-group__head h2 {
+  font-size: 14px;
+}
+.pol-group--rule .pol-group__icon {
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 860px) {
+  /* global.css stacks the strip here; the divider has to turn with it. */
+  .pol-sum .pol-sum__cell + .pol-sum__cell {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .pol-list .pol-row {
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    padding-block: 6px;
+  }
+  .pol-list .pol-row__risk {
+    grid-column: 3;
+    text-align: right;
+  }
+  .pol-list .pol-seg {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    margin-top: 4px;
+  }
+  .pol-list .pol-row__src {
+    grid-row: 3;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Bağlantılar — a saved value looks saved (issue #66)                 */
 /*                                                                     */
 /* The stored secret is the field's value, not its placeholder, so it   */

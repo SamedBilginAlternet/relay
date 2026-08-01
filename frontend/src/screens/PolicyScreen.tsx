@@ -193,40 +193,48 @@ export function PolicyScreen() {
               </div>
             )}
 
-            {groups.map(({ provider, tools }) => {
-              const meta = PROVIDERS[provider] ?? { title: provider, Icon: Plug };
-              const headId = `pol-${provider}`;
-              return (
-                <section className="pol-group" key={provider} aria-labelledby={headId}>
-                  <div className="pol-group__head">
-                    <span className="pol-group__icon" aria-hidden>
-                      {/* Google covers two tools here, so it keeps the generic
-                          glyph; the rest wear their own mark. */}
-                      {providerOf(provider) ? (
-                        <BrandMark provider={providerOf(provider)!} size={16} />
-                      ) : (
-                        <meta.Icon size={16} />
-                      )}
-                    </span>
-                    <h2 className="t-title" id={headId}>
-                      {meta.title}
-                    </h2>
-                    <span className="t-caption">{tools.length} araç</span>
-                  </div>
-                  <ul className="pol-list">
-                    {tools.map((row) => (
-                      <PolicyRow
-                        key={row.toolName}
-                        row={row}
-                        busy={busyTool === row.toolName}
-                        disabled={busyTool !== null && busyTool !== row.toolName}
-                        onChange={(mode) => void change(row, mode)}
-                      />
-                    ))}
-                  </ul>
-                </section>
-              );
-            })}
+            {/*
+              One table, not four cards. A provider is a band inside it — the
+              step from canvas to panel is drawn once, at the outside edge, and
+              everything under it is separated by a hairline. Four stacked cards
+              spent ~70px on borders and gutters that said nothing.
+            */}
+            <div className="pol-table">
+              {groups.map(({ provider, tools }) => {
+                const meta = PROVIDERS[provider] ?? { title: provider, Icon: Plug };
+                const headId = `pol-${provider}`;
+                return (
+                  <section className="pol-group" key={provider} aria-labelledby={headId}>
+                    <div className="pol-group__head">
+                      <span className="pol-group__icon" aria-hidden>
+                        {/* Google covers two tools here, so it keeps the generic
+                            glyph; the rest wear their own mark. */}
+                        {providerOf(provider) ? (
+                          <BrandMark provider={providerOf(provider)!} size={15} />
+                        ) : (
+                          <meta.Icon size={15} />
+                        )}
+                      </span>
+                      <h2 className="t-title" id={headId}>
+                        {meta.title}
+                      </h2>
+                      <span className="pol-group__n t-mono">{tools.length} araç</span>
+                    </div>
+                    <ul className="pol-list">
+                      {tools.map((row) => (
+                        <PolicyRow
+                          key={row.toolName}
+                          row={row}
+                          busy={busyTool === row.toolName}
+                          disabled={busyTool !== null && busyTool !== row.toolName}
+                          onChange={(mode) => void change(row, mode)}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })}
+            </div>
 
             {/* The rule that has no row of its own, because it is about the tools
                 that are NOT in this table. Issue #14 asks for it explicitly. */}
@@ -287,13 +295,17 @@ function PolicyRow({ row, busy, disabled, onChange }: RowProps) {
 
   return (
     <li className={`pol-row${deviates ? ' pol-row--off' : ''}`}>
-      <div className="pol-row__id">
-        <code className="pol-row__name t-mono">{row.toolName}</code>
-        <span className={`pol-risk pol-risk--${row.risk}`}>
-          <risk.Icon size={12} aria-hidden />
-          {risk.label}
-        </span>
-      </div>
+      {/*
+        The scan column. Risk is what the mode has to be read against — "auto"
+        on a read tool and "auto" on a write tool are not the same sentence —
+        so it holds the fixed gutter, and the word beside it repeats the glyph
+        rather than relying on colour.
+      */}
+      <span className={`pol-row__mark pol-row__mark--${row.risk}`} aria-hidden>
+        <risk.Icon size={13} />
+      </span>
+      <code className="pol-row__name t-mono">{row.toolName}</code>
+      <span className={`pol-row__risk pol-row__risk--${row.risk}`}>{risk.label}</span>
 
       {/* Native radios: one group per tool, so arrow keys move between the three
           modes and the browser does the roving focus for free. */}
