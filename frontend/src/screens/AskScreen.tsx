@@ -15,6 +15,7 @@ import { getAskSource } from '../data';
 import { formatDateTime, formatTokens, formatUsd } from '../lib/format';
 import { enterProps } from '../lib/motion';
 import type { AskAnswer, AskSourceItem } from '../types/ask';
+import '../styles/screens.css';
 
 const EXAMPLES = ['kargolarım gelmiş mi', 'bu hafta fatura geldi mi'];
 
@@ -133,7 +134,7 @@ export function AskScreen() {
 
   return (
     <div className="page">
-      <div className="page__inner">
+      <div className="page__inner page__inner--app">
         <div className="page__head">
           <div className="page__head-text">
             <h1 className="t-title">Postana sor</h1>

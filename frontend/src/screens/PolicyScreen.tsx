@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LoadError } from '../components/LoadError';
 import { defaultModeFor, getPolicySource } from '../data/PolicySource';
 import type { PolicyMode, RiskLevel, ToolPolicy } from '../data/PolicySource';
+import '../styles/screens.css';
 
 const MODES: { key: PolicyMode; label: string; Icon: LucideIcon; hint: string }[] = [
   { key: 'auto', label: 'Otomatik', Icon: Zap, hint: 'onay sorulmadan çalışır' },
@@ -124,7 +125,7 @@ export function PolicyScreen() {
 
   return (
     <div className="page">
-      <div className="page__inner pol">
+      <div className="page__inner page__inner--app pol">
         <div className="page__head">
           <div className="page__head-text">
             <h1 className="t-title">Politikalar</h1>

@@ -7,6 +7,25 @@
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
+/* One content width (issue #69)                                       */
+/*                                                                     */
+/* `.page__inner` is 960px while `.brief` and `.pol` are 1040px, so     */
+/* walking the nav moved the content column ~80px sideways on every    */
+/* navigation — the page did not stay put. 1040 is the wider of the    */
+/* two numbers already in use and the one the busiest screen (Bugün)   */
+/* needs, so the others come up to it rather than it coming down.      */
+/*                                                                     */
+/* Two classes, so this beats the single-class rule in global.css and  */
+/* load order does not get a vote. Where a narrower column is right    */
+/* (long reading text), the INNER block narrows — never the page, or   */
+/* the left edge starts moving again.                                  */
+/* ------------------------------------------------------------------ */
+
+.page__inner.page__inner--app {
+  max-width: 1040px;
+}
+
+/* ------------------------------------------------------------------ */
 /* Load error (issue #63)                                              */
 /*                                                                     */
 /* Every screen that reads from the API fails the same way, so it says  */

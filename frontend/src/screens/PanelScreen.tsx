@@ -9,6 +9,7 @@ import { formatDateTime, formatTokens, formatUsd } from '../lib/format';
 import { enterProps } from '../lib/motion';
 import type { PanelRange, PanelReport } from '../types/panel';
 import '../styles/panel.css';
+import '../styles/screens.css';
 
 /** Turkish labels for the run statuses, in the order the server sends them. */
 const STATUS_LABEL: Record<string, string> = {
@@ -129,7 +130,7 @@ export function PanelScreen() {
 
   return (
     <div className="page">
-      <div className="page__inner">
+      <div className="page__inner page__inner--app">
         <div className="page__head">
           <div className="page__head-text">
             <h1 className="t-title">Akış paneli</h1>

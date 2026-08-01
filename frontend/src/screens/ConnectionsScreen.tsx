@@ -17,6 +17,7 @@ import { LoadError } from '../components/LoadError';
 import { API_BASE_URL, getRunSource } from '../data';
 import { formatRelative } from '../lib/format';
 import type { Connection, ConnectionTestResult, GoogleStatus, Provider } from '../types/api';
+import '../styles/screens.css';
 
 type FieldDef = {
   key: string;
@@ -112,7 +113,7 @@ export function ConnectionsScreen() {
 
   return (
     <div className="page">
-      <div className="page__inner">
+      <div className="page__inner page__inner--app">
         <div className="page__head">
           <div className="page__head-text">
             <h1 className="t-title">Bağlantılar</h1>
