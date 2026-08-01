@@ -76,6 +76,9 @@ public class JpaRunRepository implements RunRepository {
             stepEntity.setFinishedAt(step.finishedAt());
             stepEntity.setTokens(step.tokens());
             stepEntity.setCostUsd(step.costUsd());
+            stepEntity.setModel(step.model());
+            stepEntity.setModelTokens(step.modelTokens());
+            stepEntity.setPremiumCostUsd(step.premiumCostUsd());
             stepEntity.setAttempts(step.attempts());
             stepEntity.setParamsLocked(step.paramsLocked());
             stepEntity.setPausedBy(step.pausedBy() == null ? null : step.pausedBy().wire());
@@ -176,6 +179,11 @@ public class JpaRunRepository implements RunRepository {
             step.finishedAt(s.getFinishedAt());
             step.tokens(s.getTokens());
             step.costUsd(s.getCostUsd());
+            step.model(s.getModel(), s.getModelTokens());
+            // After tokens: a null premium on a step that has spent tokens means "one of
+            // these calls could not be priced", and Step needs the token count to tell that
+            // apart from "nothing has been recorded yet".
+            step.premiumCostUsd(s.getPremiumCostUsd());
             step.attempts(s.getAttempts());
             step.paramsLocked(s.isParamsLocked());
             step.pausedBy(s.getPausedBy() == null

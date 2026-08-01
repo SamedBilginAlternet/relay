@@ -55,6 +55,39 @@ public class Step {
     private Instant finishedAt;
     private long tokens;
     private double costUsd;
+    /**
+     * Which model answered for this step, provider-qualified — {@code groq:llama-3.1-8b-instant}.
+     *
+     * <p>A step is rarely one call: parameters are derived, the provider may refuse them and
+     * they are derived again, then the verifier reads the result — and since the tier is
+     * chosen per job, those calls do not all land on the same model. Listing them all would
+     * put a second history next to the one the trail already keeps, so the step keeps a
+     * single name: <b>the model of the call that did the most tokens</b>. That is the call
+     * that shaped the step and the one whose price dominates its cost, so it is the honest
+     * answer to "what answered here". {@link #modelTokens} is the high-water mark it is
+     * compared against.
+     */
+    private String model;
+    /**
+     * Tokens done by the call that {@link #model} names. Persisted, because a step is written
+     * at the approval gate and read back when the approval arrives, and a comparison that
+     * forgets its incumbent hands the field to whichever call happens to come after the
+     * round trip.
+     */
+    private long modelTokens;
+    /**
+     * What this step's tokens would have cost had every one of its calls used the strong
+     * model's price. Same token counts, the other price list — arithmetic, not an estimate.
+     *
+     * <p>{@code null} when at least one call could not be priced that way: the offline stub
+     * counts characters rather than tokens and no provider ever billed them. A total that is
+     * missing one of its calls is not a total, and a number the product cannot stand behind
+     * is worse than no number, because the whole point of this field is that a judge can
+     * recompute it.
+     */
+    private Double premiumCostUsd;
+    /** Latched by the first unpriceable call; only cleared by resetting the field outright. */
+    private boolean premiumUnknown;
     private int attempts;
 
     public Step(UUID id, UUID runId, int ordinal, String title, String role, String toolName,
@@ -139,9 +172,30 @@ public class Step {
         return attempts >= MAX_RETRIES;
     }
 
+    /** Usage from a call whose model and premium price are not known. */
     public void addCost(long tokens, double costUsd) {
+        addCost(tokens, costUsd, null, null);
+    }
+
+    /**
+     * @param premiumCostUsd the same tokens at the strong model's price, or {@code null} when
+     *                       the call cannot be priced that way — which makes the step's whole
+     *                       premium figure unknown rather than merely smaller
+     * @param model          provider-qualified id of whatever answered, or {@code null}
+     */
+    public void addCost(long tokens, double costUsd, Double premiumCostUsd, String model) {
         this.tokens += tokens;
         this.costUsd += costUsd;
+        if (premiumCostUsd == null) {
+            this.premiumUnknown = true;
+            this.premiumCostUsd = null;
+        } else if (!premiumUnknown) {
+            this.premiumCostUsd = (this.premiumCostUsd == null ? 0d : this.premiumCostUsd) + premiumCostUsd;
+        }
+        if (model != null && (this.model == null || tokens > modelTokens)) {
+            this.model = model;
+            this.modelTokens = tokens;
+        }
     }
 
     // ---- accessors --------------------------------------------------------
@@ -296,6 +350,33 @@ public class Step {
 
     public void costUsd(double costUsd) {
         this.costUsd = costUsd;
+    }
+
+    /** The model that did the most of this step's tokens, or {@code null} if none answered. */
+    public String model() {
+        return model;
+    }
+
+    public long modelTokens() {
+        return modelTokens;
+    }
+
+    /** Reading a step back from the database, and nothing else. */
+    public void model(String model, long modelTokens) {
+        this.model = model;
+        this.modelTokens = modelTokens;
+    }
+
+    /** {@code null} means "cannot be derived honestly", never zero. */
+    public Double premiumCostUsd() {
+        return premiumCostUsd;
+    }
+
+    public void premiumCostUsd(Double premiumCostUsd) {
+        this.premiumCostUsd = premiumCostUsd;
+        // A step read back with no premium but with tokens on it spent something nobody could
+        // price; the next call on it must not turn that gap into a total that looks complete.
+        this.premiumUnknown = premiumCostUsd == null && tokens > 0;
     }
 
     public int attempts() {

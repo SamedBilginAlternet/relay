@@ -69,6 +69,18 @@ public class StepEntity {
     @Column(name = "cost_usd", nullable = false)
     private double costUsd;
 
+    /** Provider-qualified id of the model that did most of this step's tokens — see {@code Step.model}. */
+    @Column(length = 128)
+    private String model;
+
+    /** How many tokens that model did, so the comparison survives the round trip. */
+    @Column(name = "model_tokens", nullable = false)
+    private long modelTokens;
+
+    /** Nullable on purpose: null is "not derivable", not zero — see {@code Step.premiumCostUsd}. */
+    @Column(name = "premium_cost_usd")
+    private Double premiumCostUsd;
+
     @Column(nullable = false)
     private int attempts;
 
@@ -206,6 +218,30 @@ public class StepEntity {
 
     public void setCostUsd(double costUsd) {
         this.costUsd = costUsd;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
+    }
+
+    public long getModelTokens() {
+        return modelTokens;
+    }
+
+    public void setModelTokens(long modelTokens) {
+        this.modelTokens = modelTokens;
+    }
+
+    public Double getPremiumCostUsd() {
+        return premiumCostUsd;
+    }
+
+    public void setPremiumCostUsd(Double premiumCostUsd) {
+        this.premiumCostUsd = premiumCostUsd;
     }
 
     public int getAttempts() {

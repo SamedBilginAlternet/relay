@@ -37,6 +37,12 @@ public final class Views {
         map.put("error", step.error());
         map.put("tokens", step.tokens());
         map.put("costUsd", CostMeter.usd(step.costUsd()));
+        // Which model answered, and what the same tokens would have cost on the strong one.
+        // A cost with no model beside it cannot be read once the tier is chosen per job:
+        // a cheap step and a step that got the cheap answer look identical. Both may be
+        // null — no call has landed yet, or none of them could be priced that way.
+        map.put("model", step.model());
+        map.put("premiumCostUsd", CostMeter.usd(step.premiumCostUsd()));
         map.put("attempts", step.attempts());
         // Which question the gate is asking. Both pauses arrive as awaiting_approval, and a
         // screen that cannot tell them apart calls a spending limit a writing permission.

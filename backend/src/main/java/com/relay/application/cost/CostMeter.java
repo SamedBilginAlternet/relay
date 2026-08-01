@@ -1,5 +1,6 @@
 package com.relay.application.cost;
 
+import com.relay.application.port.LlmResponse;
 import com.relay.domain.Run;
 import com.relay.domain.Step;
 import java.math.BigDecimal;
@@ -40,11 +41,35 @@ public class CostMeter {
         return BigDecimal.valueOf(usd).setScale(SCALE, RoundingMode.HALF_UP);
     }
 
+    /**
+     * The entry point for anything holding the model's own answer.
+     *
+     * <p>Preferred over the token/dollar form: it is the only one that can say which model
+     * answered and what the same tokens would have cost on the strong one, and both of those
+     * are lost the moment the response is reduced to two numbers.
+     */
+    public void record(Run run, Step step, LlmResponse response) {
+        record(run, step, response.totalTokens(), response.costUsd(),
+                response.premiumCostUsd(), response.model());
+    }
+
+    /** Usage from a call whose model and premium price are not known — see {@link Step}. */
     public void record(Run run, Step step, long tokens, double costUsd) {
+        record(run, step, tokens, costUsd, null, null);
+    }
+
+    public void record(Run run, Step step, long tokens, double costUsd,
+                       Double premiumCostUsd, String model) {
         double usd = round(costUsd);
         if (step != null) {
-            step.addCost(tokens, usd);
+            step.addCost(tokens, usd, premiumCostUsd == null ? null : round(premiumCostUsd), model);
             step.costUsd(round(step.costUsd()));
+            // Rounded on the way out for the same reason costUsd is: a sum of doubles is not
+            // a price, and this one is printed next to the real cost where the two are
+            // subtracted from each other on screen.
+            if (step.premiumCostUsd() != null) {
+                step.premiumCostUsd(round(step.premiumCostUsd()));
+            }
         }
         run.addCost(tokens, usd);
         run.costUsd(round(run.costUsd()));
