@@ -1,10 +1,10 @@
 import {
+  ArrowLeft,
   CircleCheck,
   CircleX,
+  ExternalLink,
   Eye,
   EyeOff,
-  KeyRound,
-  Mail,
   Plug,
   RefreshCw,
   ShieldCheck,
@@ -16,7 +16,7 @@ import { API_BASE_URL, getRunSource } from '../data';
 import { formatRelative } from '../lib/format';
 import type { Connection, ConnectionTestResult, GoogleStatus, Provider } from '../types/api';
 import '../styles/screens.css';
-import { BrandMark, providerOf } from '../components/BrandMark';
+import { BrandMark } from '../components/BrandMark';
 
 type FieldDef = {
   key: string;
@@ -26,16 +26,41 @@ type FieldDef = {
   hint?: string;
 };
 
-const PROVIDERS: {
+/** Which of `BrandMark`'s marks a provider is drawn with. Google is two products. */
+type MarkName = 'jira' | 'github' | 'gmail' | 'calendar' | 'slack';
+
+type ProviderDef = {
   provider: Provider;
   title: string;
+  /** Two lines on the tile: what Relay does with it, not how to set it up. */
   blurb: string;
+  marks: MarkName[];
+  /** Where the credential actually lives — the provider's own console. */
+  console: { href: string; label: string };
   fields: FieldDef[];
-}[] = [
+  /** Google has no token to paste; setting it up is a consent screen, not a form. */
+  oauth?: boolean;
+};
+
+export const PROVIDERS: ProviderDef[] = [
+  {
+    provider: 'google',
+    title: 'Google',
+    blurb: 'Gmail ve Takvim, yalnızca okuma izniyle. Günün özeti ve mail sorularının kaynağı.',
+    marks: ['gmail', 'calendar'],
+    console: { href: 'https://myaccount.google.com/permissions', label: 'Google hesap izinleri' },
+    fields: [],
+    oauth: true,
+  },
   {
     provider: 'jira',
     title: 'Jira',
-    blurb: 'API token ile bağlanır (OAuth yok). Issue arama, okuma, durum güncelleme, yorum ekleme.',
+    blurb: 'Kayıt arama ve okuma, durum güncelleme, yorum ekleme. API token ile bağlanır.',
+    marks: ['jira'],
+    console: {
+      href: 'https://id.atlassian.com/manage-profile/security/api-tokens',
+      label: 'Atlassian API token’ları',
+    },
     fields: [
       { key: 'baseUrl', label: 'Site adresi', placeholder: 'https://sirket.atlassian.net' },
       { key: 'email', label: 'E-posta', placeholder: 'ad.soyad@sirket.com' },
@@ -52,7 +77,12 @@ const PROVIDERS: {
   {
     provider: 'github',
     title: 'GitHub',
-    blurb: 'Fine-grained personal access token ile bağlanır (OAuth yok). Review bekleyen PR’lar, sana atanmış issue’lar, yorum ekleme.',
+    blurb: 'Review bekleyen PR’lar, sana atanmış kayıtlar, yorum ekleme. Fine-grained token ile.',
+    marks: ['github'],
+    console: {
+      href: 'https://github.com/settings/personal-access-tokens',
+      label: 'GitHub fine-grained token’ları',
+    },
     fields: [
       {
         key: 'token',
@@ -72,7 +102,9 @@ const PROVIDERS: {
   {
     provider: 'slack',
     title: 'Slack',
-    blurb: 'Bot token ile bağlanır. Kanala mesaj atma ve thread’e cevap verme.',
+    blurb: 'Kanala mesaj atma ve thread’e cevap verme. Bot token ile bağlanır.',
+    marks: ['slack'],
+    console: { href: 'https://api.slack.com/apps', label: 'Slack uygulama ayarları' },
     fields: [
       {
         key: 'botToken',
@@ -86,10 +118,28 @@ const PROVIDERS: {
   },
 ];
 
+/**
+ * The connected services, and one of them being set up.
+ *
+ * <p>WHY THIS IS TWO STATES RATHER THAN ONE PAGE. Every provider used to be a full-width
+ * card with its form permanently open — four of them, Jira's four inputs among them, about
+ * 2100px on a 900px screen. The cost was not the scrolling. It was that "which of these am
+ * I actually connected to" took a scroll to answer, because the four status pills sat five
+ * hundred pixels apart inside four forms nobody was filling in.
+ *
+ * <p>So the default state answers only that question — four tiles, four marks, four states,
+ * one screen — and a form is what you get after choosing a provider. One thing at a time is
+ * also what keeps the longest form in the product from producing a scrollbar.
+ *
+ * <p>WHAT WAS NOT TAKEN from the integration-market pattern this is modelled on: the
+ * on/off switch in the tile footer. `Connection` has no such field — a connection is stored
+ * or it is not — so a switch would draw a third state the server cannot hold.
+ */
 export function ConnectionsScreen() {
   const [connections, setConnections] = useState<Record<string, Connection>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<unknown>(null);
+  const [open, setOpen] = useState<Provider | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,65 +160,154 @@ export function ConnectionsScreen() {
     void load();
   }, [load]);
 
+  const chosen = open ? (PROVIDERS.find((p) => p.provider === open) ?? null) : null;
+
   return (
     <div className="page">
       <div className="page__inner page__inner--app">
         <div className="page__head">
           <div className="page__head-text">
-            <h1 className="t-title">Bağlantılar</h1>
-            <p className="t-caption">
-              Token’lar sunucuda AES-GCM ile şifrelenir, log’a hiç yazılmaz ve burada maskeli
-              görünür. Kaydettikten sonra “Test et” ile doğrula.
-            </p>
+            <h1 className="t-title">{chosen ? chosen.title : 'Bağlantılar'}</h1>
+            {/*
+              No caption over an open form. The one that stood here vouched for the product
+              — the token is encrypted, never logged, masked on screen — and then told the
+              reader what the button below the form does. Neither is a fact the reader can
+              check from this screen: the encryption claim belongs in docs/ARCHITECTURE.md
+              where it can be traced to code, and a button explains itself by being pressed.
+              The heading already names the provider, which is the only thing the form needs
+              said about it.
+            */}
+            {!chosen && (
+              <p className="t-caption">
+                Relay yalnızca burada bağladığın servislere ulaşır. Kurulumu açmak için bir
+                servise bas.
+              </p>
+            )}
           </div>
-          <button type="button" className="btn btn--outline btn--sm" onClick={() => void load()}>
-            <RefreshCw size={14} aria-hidden className={loading ? 'spin' : undefined} />
-            Yenile
-          </button>
+          {chosen ? (
+            <button type="button" className="btn btn--outline btn--sm" onClick={() => setOpen(null)}>
+              <ArrowLeft size={14} aria-hidden />
+              Bağlantılar
+            </button>
+          ) : (
+            <button type="button" className="btn btn--outline btn--sm" onClick={() => void load()}>
+              <RefreshCw size={14} aria-hidden className={loading ? 'spin' : undefined} />
+              Yenile
+            </button>
+          )}
         </div>
 
         {loadError != null && <LoadError error={loadError} onRetry={() => void load()} />}
 
         {loading && (
+          <div className="int-grid">
+            <div className="skeleton" style={{ height: 164 }} />
+            <div className="skeleton" style={{ height: 164, opacity: 0.7 }} />
+            <div className="skeleton" style={{ height: 164, opacity: 0.5 }} />
+            <div className="skeleton" style={{ height: 164, opacity: 0.35 }} />
+          </div>
+        )}
+
+        {!loading && !chosen && (
           <>
-            <div className="skeleton" style={{ height: 220 }} />
-            <div className="skeleton" style={{ height: 180, opacity: 0.6 }} />
+            <div className="int-grid">
+              {PROVIDERS.map((p) => (
+                <ProviderTile
+                  key={p.provider}
+                  def={p}
+                  connection={connections[p.provider]}
+                  onOpen={() => setOpen(p.provider)}
+                />
+              ))}
+            </div>
+
+            <div className="notice">
+              <ShieldCheck size={16} aria-hidden />
+              <span>
+                Politika varsayılanı: okuma araçları otomatik, yazma araçları onay ister, silme
+                araçları yasaktır. Onay kapısı iş akışı panelinde çalışır.
+              </span>
+            </div>
           </>
         )}
 
-        {!loading &&
-          PROVIDERS.map((p) => (
-            <ProviderCard
-              key={p.provider}
-              provider={p.provider}
-              title={p.title}
-              blurb={p.blurb}
-              fields={p.fields}
-              connection={connections[p.provider]}
-              onSaved={(c) => setConnections((cur) => ({ ...cur, [c.provider]: c }))}
-            />
-          ))}
+        {!loading && chosen?.oauth && <GoogleSetup connection={connections.google} />}
 
-        {!loading && <GoogleCard connection={connections.google} />}
-
-        <div className="notice">
-          <ShieldCheck size={16} aria-hidden />
-          <span>
-            Politika varsayılanı: okuma araçları otomatik, yazma araçları onay ister, silme araçları
-            yasaktır. Onay kapısı iş akışı panelinde çalışır.
-          </span>
-        </div>
+        {!loading && chosen && !chosen.oauth && (
+          <ProviderSetup
+            key={chosen.provider}
+            def={chosen}
+            connection={connections[chosen.provider]}
+            onSaved={(c) => setConnections((cur) => ({ ...cur, [c.provider]: c }))}
+          />
+        )}
       </div>
     </div>
   );
 }
 
 /**
- * Google is the odd one out: there is no token to paste, so this card offers the consent
- * flow instead of a form — and, when the server has no client id yet, says exactly which
- * environment variables are missing rather than showing an input that cannot work.
+ * One service, at a glance: whose it is, what Relay does with it, whether it is on.
+ *
+ * <p>The mark carries the recognition and the word carries the claim — a coloured dot alone
+ * would leave "bağlı" to colour vision. The link in the corner goes to the provider's own
+ * console, where the credential this tile is about actually lives; it is deliberately not
+ * the tile's main action, so setting a connection up can never leave the product by
+ * accident.
  */
-function GoogleCard({ connection }: { connection: Connection | undefined }) {
+function ProviderTile({
+  def,
+  connection,
+  onOpen,
+}: {
+  def: ProviderDef;
+  connection: Connection | undefined;
+  onOpen: () => void;
+}) {
+  const connected = Boolean(connection?.configured);
+  return (
+    <article className="int" aria-label={`${def.title} bağlantısı`}>
+      <div className="int__top">
+        <span className="int__marks">
+          {def.marks.map((m) => (
+            <BrandMark key={m} provider={m} size={22} />
+          ))}
+        </span>
+        <a
+          className="int__out"
+          href={def.console.href}
+          target="_blank"
+          rel="noreferrer noopener"
+          title={def.console.label}
+          aria-label={`${def.console.label} — yeni sekmede açılır`}
+        >
+          <ExternalLink size={14} aria-hidden />
+        </a>
+      </div>
+
+      <h2 className="int__name">{def.title}</h2>
+      <p className="int__blurb">{def.blurb}</p>
+
+      <div className="int__foot">
+        <button type="button" className="btn btn--outline btn--sm" onClick={onOpen}>
+          <Plug size={14} aria-hidden />
+          {connected ? 'Yönet' : 'Bağlan'}
+        </button>
+        <span className={`int__state${connected ? ' int__state--on' : ''}`}>
+          <span className="int__dot" aria-hidden />
+          {connected ? 'Bağlı' : 'Bağlı değil'}
+        </span>
+      </div>
+    </article>
+  );
+}
+
+/**
+ * Google is the odd one out: there is no token to paste, so this offers the consent flow
+ * instead of a form — and, when the server has no client id yet, says exactly which
+ * environment variables are missing rather than showing a button that cannot work.
+ */
+function GoogleSetup({ connection }: { connection: Connection | undefined }) {
   const [status, setStatus] = useState<GoogleStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -194,23 +333,11 @@ function GoogleCard({ connection }: { connection: Connection | undefined }) {
   const apiBase = API_BASE_URL.replace(/\/+$/, '');
 
   return (
-    <section className="card" aria-label="Google bağlantısı">
-      <div className="card__head">
-        <span className="card__icon" aria-hidden>
-          <Mail size={18} />
-        </span>
-        <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-          <h2 className="t-title">Google — Gmail + Takvim</h2>
-          <p className="t-caption">
-            Token yapıştırılmaz: Google’ın izin ekranından geçersin, yetki sunucuda şifreli
-            saklanır. İzinler yalnızca okuma (gmail.readonly, calendar.readonly).
-          </p>
-        </div>
-        <span className={`status-pill ${connected ? 'st-done' : 'st-pending'}`}>
-          {connected ? <CircleCheck size={13} aria-hidden /> : <KeyRound size={13} aria-hidden />}
-          {connected ? 'Bağlı' : 'Boş'}
-        </span>
-      </div>
+    <section className="card" aria-label="Google kurulumu">
+      <p className="t-caption">
+        Token yapıştırılmaz: Google’ın izin ekranından geçersin, yetki sunucuda şifreli saklanır.
+        İzinler yalnızca okuma (gmail.readonly, calendar.readonly).
+      </p>
 
       {loading && <div className="skeleton" style={{ height: 56 }} />}
 
@@ -239,24 +366,22 @@ function GoogleCard({ connection }: { connection: Connection | undefined }) {
           <Plug size={14} aria-hidden />
           {connected ? 'Yeniden bağlan' : 'Google ile bağlan'}
         </a>
-        {status?.redirectUri && (
-          <span className="t-caption">Dönüş adresi: {status.redirectUri}</span>
-        )}
+        {status?.redirectUri && <span className="t-caption">Dönüş adresi: {status.redirectUri}</span>}
       </div>
     </section>
   );
 }
 
-type CardProps = {
-  provider: Provider;
-  title: string;
-  blurb: string;
-  fields: FieldDef[];
+function ProviderSetup({
+  def,
+  connection,
+  onSaved,
+}: {
+  def: ProviderDef;
   connection: Connection | undefined;
   onSaved: (c: Connection) => void;
-};
-
-function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: CardProps) {
+}) {
+  const { provider, fields } = def;
   const [values, setValues] = useState<Record<string, string>>({});
   const [replacing, setReplacing] = useState<Record<string, boolean>>({});
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
@@ -302,24 +427,13 @@ function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: C
   };
 
   return (
-    <section className="card" aria-label={`${title} bağlantısı`}>
-      <div className="card__head">
-        <span className="card__icon" aria-hidden>
-          {providerOf(provider) ? (
-            <BrandMark provider={providerOf(provider)!} size={18} />
-          ) : (
-            <Plug size={18} />
-          )}
-        </span>
-        <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-          <h2 className="t-title">{title}</h2>
-          <p className="t-caption">{blurb}</p>
-        </div>
-        <span className={`status-pill ${connection?.configured ? 'st-done' : 'st-pending'}`}>
-          {connection?.configured ? <CircleCheck size={13} aria-hidden /> : <KeyRound size={13} aria-hidden />}
-          {connection?.configured ? 'Kayıtlı' : 'Boş'}
-        </span>
-      </div>
+    <section className="card" aria-label={`${def.title} kurulumu`}>
+      <p className="t-caption">
+        {def.blurb}{' '}
+        <a href={def.console.href} target="_blank" rel="noreferrer noopener">
+          {def.console.label}
+        </a>
+      </p>
 
       <div className="field-grid">
         {fields.map((f) => {
@@ -382,7 +496,9 @@ function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: C
               </div>
               {(holding || f.hint) && (
                 <span className="field__hint">
-                  {holding ? 'Değiştirmek için tıkla — yenisini yapıştırana kadar bu token geçerli.' : f.hint}
+                  {holding
+                    ? 'Değiştirmek için tıkla — yenisini yapıştırana kadar bu token geçerli.'
+                    : f.hint}
                 </span>
               )}
             </label>
@@ -401,15 +517,27 @@ function ProviderCard({ provider, title, blurb, fields, connection, onSaved }: C
         >
           {saving ? 'Kaydediliyor…' : 'Kaydet'}
         </button>
-        <button type="button" className="btn btn--outline btn--sm" onClick={() => void test()} disabled={testing}>
-          {testing ? <RefreshCw size={14} aria-hidden className="spin" /> : <ShieldCheck size={14} aria-hidden />}
+        <button
+          type="button"
+          className="btn btn--outline btn--sm"
+          onClick={() => void test()}
+          disabled={testing}
+        >
+          {testing ? (
+            <RefreshCw size={14} aria-hidden className="spin" />
+          ) : (
+            <ShieldCheck size={14} aria-hidden />
+          )}
           {testing ? 'Test ediliyor…' : 'Test et'}
         </button>
         {connection?.updatedAt && (
           <span className="t-caption">Son güncelleme: {formatRelative(connection.updatedAt)}</span>
         )}
         {result && (
-          <span className={`test-result ${result.ok ? 'test-result--ok' : 'test-result--fail'}`} role="status">
+          <span
+            className={`test-result ${result.ok ? 'test-result--ok' : 'test-result--fail'}`}
+            role="status"
+          >
             {result.ok ? <CircleCheck size={15} aria-hidden /> : <CircleX size={15} aria-hidden />}
             {result.message}
           </span>
