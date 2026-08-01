@@ -9,13 +9,13 @@ import {
   ListChecks,
   Plug,
   RefreshCw,
-  TriangleAlert,
   Undo2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActionRow, GapRow, MeetingRow } from '../components/ActionFeed';
 import { PlaybookShelf, SectionPanel, SectionTile } from '../components/BriefSections';
 import type { SectionMeta } from '../components/BriefSections';
+import { describeLoadError, LoadError } from '../components/LoadError';
 import { getBriefSource, RUN_SOURCE_KIND } from '../data';
 import { ApiError } from '../data/ApiRunSource';
 import { getPlaybookSource } from '../data/PlaybookSource';
@@ -30,20 +30,18 @@ type Props = { onNavigate: (hash: string) => void };
 type Phase = 'loading' | 'refreshing' | 'ready' | 'error';
 
 /**
- * What went wrong, and whether pressing the same button again could help.
+ * Could pressing the same button again help?
  *
- * The two are not the same question. A dropped connection or a 500 is worth
- * retrying — nothing about the request was wrong. A 4xx is the server having
- * read the request and said no; the same request will be refused the same way,
- * and offering "Tekrar dene" for it is a button that cannot work.
+ * Not the same question as "what went wrong" — that one belongs to
+ * {@link describeLoadError}, which every screen shares. This one does not:
+ * whether a retry is worth offering depends on the failure this screen's own
+ * data source raises. A dropped connection or a 500 is worth retrying, nothing
+ * about the request was wrong. A 4xx is the server having read the request and
+ * said no; the same request will be refused the same way, and offering "Tekrar
+ * dene" for it is a button that cannot work.
  */
-type Failure = { message: string; retryable: boolean };
-
-function asFailure(err: unknown, fallback: string): Failure {
-  if (err instanceof ApiError) {
-    return { message: err.message, retryable: err.status < 400 || err.status >= 500 };
-  }
-  return { message: err instanceof Error && err.message ? err.message : fallback, retryable: true };
+function canRetry(err: unknown): boolean {
+  return err instanceof ApiError ? err.status < 400 || err.status >= 500 : true;
 }
 
 const SECTIONS: SectionMeta[] = [
@@ -120,7 +118,9 @@ const SOURCE_NOTE =
 export function TodayScreen({ onNavigate }: Props) {
   const [brief, setBrief] = useState<Brief | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
-  const [error, setError] = useState<Failure | null>(null);
+  /* The raw failure, not a sentence: turning one into the other is
+     `describeLoadError`'s job and every screen uses the same one. */
+  const [error, setError] = useState<unknown>(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [busy, setBusy] = useState<{ cardId: string; tool: string } | null>(null);
   const [openKey, setOpenKey] = useState<BriefSectionKey | null>(null);
@@ -160,7 +160,7 @@ export function TodayScreen({ onNavigate }: Props) {
       setBrief(next);
       setPhase('ready');
     } catch (err) {
-      setError(asFailure(err, 'Brifing yüklenemedi.'));
+      setError(err);
       setPhase('error');
     }
   }, []);
@@ -343,7 +343,7 @@ export function TodayScreen({ onNavigate }: Props) {
       // be found again, loads it and lets it stream.
       onNavigate(`#/sohbet/${runId}`);
     } catch (err) {
-      setError(asFailure(err, 'Akış başlatılamadı.'));
+      setError(err);
     } finally {
       setBusy(null);
     }
@@ -392,7 +392,7 @@ export function TodayScreen({ onNavigate }: Props) {
       : phase === 'refreshing'
         ? 'Brifing yenileniyor.'
         : phase === 'error'
-          ? (error?.message ?? 'Brifing yüklenemedi.')
+          ? describeLoadError(error)
           : brief
             ? `Brifing hazır. ${headline}`
             : '';
@@ -444,46 +444,37 @@ export function TodayScreen({ onNavigate }: Props) {
           {liveMessage}
         </p>
 
+        {/* The same box the other five screens draw. No retry for a refused
+            request: the same call gets the same answer, and a button that
+            cannot work is worse than no button. */}
         {phase === 'error' && (
-          <div className="notice notice--danger" role="alert">
-            <TriangleAlert size={16} aria-hidden />
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
-              <span>{error?.message ?? 'Brifing yüklenemedi.'}</span>
-              {/*
-                A build-time flag, not a runtime check: `import.meta.env.DEV` is
-                false in the production bundle, so this line and the environment
-                variable in it are compiled out. It used to ship, and it told a
-                user of the live product to go and set VITE_RUN_SOURCE — an
-                instruction they cannot follow, about a thing they should never
-                have to know exists.
-              */}
-              {import.meta.env.DEV && (
-                <span className="t-caption">
-                  Backend ayakta değilse <code className="t-mono">VITE_RUN_SOURCE=mock</code> ile
-                  demo verisiyle çalışabilirsin.
-                </span>
-              )}
-              {/* No retry for a refused request: the same call gets the same
-                  answer, and a button that cannot work is worse than no button. */}
-              {error?.retryable !== false && (
-                <button
-                  type="button"
-                  className="btn btn--outline btn--sm"
-                  onClick={() => void load('initial')}
-                >
-                  Tekrar dene
-                </button>
-              )}
-            </div>
-          </div>
+          <>
+            <LoadError
+              error={error}
+              onRetry={canRetry(error) ? () => void load('initial') : undefined}
+            />
+            {/*
+              A build-time flag, not a runtime check: `import.meta.env.DEV` is
+              false in the production bundle, so this line and the environment
+              variable in it are compiled out. It used to ship, and it told a
+              user of the live product to go and set VITE_RUN_SOURCE — an
+              instruction they cannot follow, about a thing they should never
+              have to know exists. It sits outside the box for the same reason:
+              the box is what a user reads, and this is a note to a developer.
+            */}
+            {import.meta.env.DEV && (
+              <p className="t-caption">
+                Backend ayakta değilse <code className="t-mono">VITE_RUN_SOURCE=mock</code> ile
+                demo verisiyle çalışabilirsin.
+              </p>
+            )}
+          </>
         )}
 
-        {phase !== 'error' && error && (
-          <div className="notice notice--danger" role="alert">
-            <TriangleAlert size={16} aria-hidden />
-            <span>{error.message}</span>
-          </div>
-        )}
+        {/* A brief that loaded and an action that would not start are different
+            failures: this one leaves the screen usable, so it says what happened
+            and stops. The button to try again is the row's own. */}
+        {phase !== 'error' && error != null && <LoadError error={error} />}
 
         {/*
           If the brief never arrived there is nothing honest to show: empty
