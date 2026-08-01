@@ -14,12 +14,43 @@
 /*                                                                     */
 /* No colour carries a meaning on its own: every mode chip has its own */
 /* glyph and its own word next to the number.                          */
+/*                                                                     */
+/* v2 (#159): the page was 1425px inside a 900px viewport. What the    */
+/* tab strip took off it was the fixed core — a third of the height    */
+/* and none of the answer to "which specialists do I have". The rest   */
+/* came out of this file: the authority counts moved up onto the name  */
+/* row, the row's padding came down from 14px to 12px, and the list    */
+/* became one grid the rows borrow so the figures line up down the     */
+/* page instead of each row sizing its own columns.                    */
 /* ------------------------------------------------------------------ */
 
 .crew {
   display: flex;
   flex-direction: column;
   gap: var(--s-16);
+}
+
+/*
+  Seven tabs, where Politikalar has four: one per provider the registry returned,
+  plus Tümü and the fixed core. They fit on one line down to about 1000px and
+  then they do not, so the strip scrolls.
+
+  Scrolls rather than wraps, and the scrollbar is left visible. A wrapped tablist
+  puts its second line of tabs above its own bottom border, which leaves the
+  selected underline floating in the middle of the control; and a strip that
+  hides what is off its edge is the thing issue #71 had to go back and fix on the
+  nav. Here the bar is the affordance, and it only appears where it is true.
+
+  Scoped to `.crew` on purpose: `.tabs` is shared with Akışlar and Politikalar,
+  and neither of them has enough tabs to need this.
+*/
+.crew .tabs {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.crew .tab {
+  flex: none;
+  white-space: nowrap;
 }
 
 .crew-block {
@@ -51,23 +82,48 @@
   margin: -4px 0 0;
 }
 
+/*
+  The list owns the columns, every row borrows them.
+
+  It was a flex column of independently gridded rows, and that was fine while the
+  only thing on the right was the tier — one word, the same word on every row, so
+  it lined up by accident. It stops being fine the moment the authority counts
+  join it: a row's own grid sizes its own columns, so `2 araç · 2 otomatik` and
+  `7 araç · 4 otomatik · 3 onay ister` each got a track of their own width and no
+  two figures in the list started at the same x. The header of this file promises
+  a mono column a reader can scan on its own; a per-row track is that promise
+  quietly broken. `subgrid` is what makes it one set of columns again.
+*/
 .crew-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
 }
 
 /* ---- one member ---------------------------------------------------- */
 
+/*
+  Four columns, not three, because the authority used to have a line to itself.
+
+  `7 araç · 4 otomatik · 3 onay ister` is ~310px of content that was costing a
+  26px band under every name — 131px across the five specialists, on a page that
+  was 573px too tall (#159). It is a fact about the member, the same kind of fact
+  as the tier already sitting at the end of the name row, so it belongs on that
+  row; the tools it is counted from stay below it, where the eye goes next.
+*/
 .crew-row {
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: subgrid;
   align-items: center;
   column-gap: var(--s-12);
   row-gap: 6px;
-  padding: 14px 0;
+  /* 14px was set when the row was four bands tall and needed the air to keep
+     them apart. With the authority up on the name line it is three, and 12px is
+     what the hairline needs to read as a separator rather than a gap. */
+  padding: 12px 0;
   border-top: 1px solid var(--line);
 }
 .crew-row:first-child {
@@ -112,17 +168,30 @@
   color: var(--fg-faint);
 }
 
+/* Stretched rather than end-justified so the hairline below has one x to sit at
+   down the whole list, whatever word each member's tier ends up being. */
 .crew-row__tier {
-  grid-column: 3;
+  grid-column: 4;
   grid-row: 1;
-  justify-self: end;
+  justify-self: stretch;
+  text-align: right;
+  padding-left: var(--s-12);
+  border-left: 1px solid var(--line);
   font-size: var(--machine-size);
   color: var(--fg-machine);
   white-space: nowrap;
 }
 
+/* Start-justified, not end: `7 araç`, `2 araç`, `4 araç` have to stack, which is
+   the entire reason the counts are tabular-nums mono in the first place. The
+   counts and the tier are two different readings of the same member and at 12px
+   apart they ran together, so the hairline above says where one stops — a rule
+   in `--line`, the separator this product already uses, rather than a glyph that
+   would have to mean something. */
 .crew-row__auth {
-  grid-column: 2 / -1;
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
   margin: 0;
   display: flex;
   align-items: center;
@@ -249,11 +318,32 @@
   margin: 0;
 }
 
+/* Below the desktop width the counts have no room beside the name, so they go
+   back to a line of their own — flush left with the tools they are counted from,
+   and with nothing left to be separated from. The columns are dropped on the
+   list, not on the row: a subgrid row can only borrow the tracks its parent has. */
+@media (max-width: 900px) {
+  .crew-list {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .crew-row__tier {
+    grid-column: 3;
+    justify-self: end;
+    padding-left: 0;
+    border-left: 0;
+  }
+  .crew-row__auth {
+    grid-column: 2 / -1;
+    grid-row: auto;
+    justify-self: start;
+  }
+}
+
 /* At 390 the tier has no room beside the name. It drops to its own line and
    goes flush left with the counts under it — indenting it past the mark would
    read as a caption belonging to the name rather than a fact about the member. */
 @media (max-width: 640px) {
-  .crew-row {
+  .crew-list {
     grid-template-columns: auto minmax(0, 1fr);
   }
   .crew-row__tier {

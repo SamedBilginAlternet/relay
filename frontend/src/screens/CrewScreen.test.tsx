@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Crew, CrewMember } from '../data/CrewSource';
 import { parseHash } from '../lib/router';
@@ -24,6 +24,12 @@ import { parseHash } from '../lib/router';
  *
  * <p>The third test is the one the design turns on: the authority line is
  * counted from the tools, not stored beside the member (§7.5).
+ *
+ * <p>The tabs (#159) put a fourth way on the list, and it is the same failure
+ * wearing a control: a strip built from a list somebody typed here answers
+ * "which specialists do I have" with the specialists that were shipped, not the
+ * ones the registry holds. So the tests below press on where the tabs come from,
+ * and on what a provider Relay owns no mark for is allowed to look like.
  */
 
 let crew: Crew = { core: [], members: [] };
@@ -59,7 +65,22 @@ async function rowOf(label: string): Promise<HTMLElement> {
   return (await screen.findByText(label)).closest('li') as HTMLElement;
 }
 
+/** The five that exist whether or not a single tool is connected. */
+const CORE: Crew['core'] = [
+  { id: 'planner', purpose: 'plan', tier: 'large' },
+  { id: 'coordinator', purpose: null, tier: null },
+];
+
+/** Press a tab and wait for the panel under it to be redrawn. */
+async function openTab(name: RegExp): Promise<void> {
+  screen.getByRole('tab', { name }).click();
+  await waitFor(() =>
+    expect(screen.getByRole('tab', { name }).getAttribute('aria-selected')).toBe('true'),
+  );
+}
+
 beforeEach(() => {
+  window.location.hash = '#/ekip';
   crew = { core: [], members: [] };
 });
 
@@ -159,7 +180,9 @@ it('an_empty_registry_says_why_there_are_no_members_instead_of_a_blank_frame', a
   render(<CrewScreen />);
 
   expect(await screen.findByText(/Kayıtlı araç yok/)).toBeTruthy();
-  // The core is not derived from tools, so it is still there.
+  // The core is not derived from tools, so it is still there — one tab over,
+  // which is the only thing #159 changed about it.
+  await openTab(/Sabit çekirdek/);
   expect(screen.getByText('Planlayıcı')).toBeTruthy();
 });
 
@@ -173,13 +196,136 @@ it('the_core_member_that_never_calls_a_model_says_so_instead_of_naming_a_tier', 
   };
 
   render(<CrewScreen />);
+  await screen.findByRole('tab', { name: /Sabit çekirdek/ });
+  await openTab(/Sabit çekirdek/);
 
   expect(within(await rowOf('Doğrulayıcı')).getByText('küçük model')).toBeTruthy();
   expect(within(await rowOf('Politika')).getByText('model çağırmaz')).toBeTruthy();
 });
 
+/* ---- the tabs (#159) ------------------------------------------------- */
+
+/**
+ * The one that matters. A strip written out here would show the five providers
+ * that existed the day it was written, and the crew is the tools — so a screen
+ * with a hand-written strip would answer "who is on this team" by leaving out
+ * whoever arrived since.
+ */
+it('a_provider_the_registry_returned_gets_a_tab_nobody_wrote_down', async () => {
+  crew = {
+    core: [],
+    members: [
+      member(),
+      member({
+        id: 'notion-agent',
+        provider: 'notion',
+        connectionProvider: 'notion',
+        connected: false,
+        toolCount: 1,
+        auto: 0,
+        ask: 1,
+        tools: [{ name: 'notion.createPage', risk: 'write', mode: 'ask', overridden: false }],
+      }),
+    ],
+  };
+
+  render(<CrewScreen />);
+
+  const notion = await screen.findByRole('tab', { name: /notion/ });
+  // No Turkish word for it and no mark we own: the id, and nothing drawn beside it.
+  expect(notion.textContent).toContain('notion');
+  expect(notion.querySelector('svg')).toBeNull();
+  expect(screen.getByRole('tab', { name: /Jira/ }).querySelector('svg')).toBeTruthy();
+  // And no tab for a provider that has no registered tool.
+  expect(screen.queryByRole('tab', { name: /Slack/ })).toBeNull();
+});
+
+it('tumu_lists_every_provider_and_a_provider_tab_lists_only_its_own', async () => {
+  crew = {
+    core: CORE,
+    members: [
+      member(),
+      member({
+        id: 'slack-agent',
+        provider: 'slack',
+        connectionProvider: 'slack',
+        toolCount: 1,
+        auto: 0,
+        ask: 1,
+        tools: [{ name: 'slack.postMessage', risk: 'write', mode: 'ask', overridden: false }],
+      }),
+    ],
+  };
+
+  render(<CrewScreen />);
+
+  expect(await screen.findByText('Jira Uzmanı')).toBeTruthy();
+  expect(screen.getByText('Slack Uzmanı')).toBeTruthy();
+
+  await openTab(/Slack/);
+  await waitFor(() => expect(screen.queryByText('Jira Uzmanı')).toBeNull());
+  expect(screen.getByText('Slack Uzmanı')).toBeTruthy();
+  expect(window.location.hash).toBe('#/ekip?saglayici=slack');
+});
+
+/**
+ * The count is the authority the tab stands in front of, so it has to be the
+ * tools. The fixed core holds none, and a `0` printed next to it would be a
+ * claim about a group that is not measured in tools at all.
+ */
+it('a_tab_counts_the_tools_behind_it_and_the_toolless_core_carries_no_number', async () => {
+  crew = { core: CORE, members: [member({ toolCount: 2 })] };
+
+  render(<CrewScreen />);
+
+  await waitFor(() => expect(screen.getByRole('tab', { name: /Tümü/ }).textContent).toBe('Tümü2'));
+  expect(screen.getByRole('tab', { name: /Jira/ }).textContent).toBe('Jira2');
+  expect(screen.getByRole('tab', { name: /Sabit çekirdek/ }).textContent).toBe('Sabit çekirdek');
+});
+
+/**
+ * The rule is what stops a reader thinking a member can be hired, so it rides
+ * every tab that lists derived members — not only the first one. It is off on
+ * the core tab, where it would be false about the rows underneath it.
+ */
+it('the_rule_that_no_member_is_hand_written_stays_on_every_derived_tab', async () => {
+  crew = { core: CORE, members: [member()] };
+
+  render(<CrewScreen />);
+
+  expect(await screen.findByText(/Bu listeye elle üye eklenemez/)).toBeTruthy();
+  await openTab(/Jira/);
+  expect(screen.getByText(/Bu listeye elle üye eklenemez/)).toBeTruthy();
+
+  await openTab(/Sabit çekirdek/);
+  await waitFor(() => expect(screen.queryByText(/Bu listeye elle üye eklenemez/)).toBeNull());
+});
+
 /** `#/ekip` is the address the nav points at; nothing else may swallow it. */
 it('the_ekip_hash_parses_as_the_crew_route', () => {
   expect(parseHash('#/ekip')).toEqual({ name: 'crew' });
+  expect(parseHash('#/ekip?saglayici=jira')).toEqual({ name: 'crew' });
   expect(parseHash('#/politikalar')).toEqual({ name: 'policies' });
+});
+
+it('a_provider_in_the_address_that_the_registry_no_longer_has_falls_back_to_everyone', async () => {
+  window.location.hash = '#/ekip?saglayici=notion';
+  crew = { core: [], members: [member()] };
+
+  render(<CrewScreen />);
+
+  // The Notion tool is gone; the address is stale, and an empty frame under a
+  // tab that is not on screen is not an answer.
+  expect(await screen.findByText('Jira Uzmanı')).toBeTruthy();
+  expect(screen.getByRole('tab', { name: /Tümü/ }).getAttribute('aria-selected')).toBe('true');
+});
+
+it('the_tab_in_the_address_is_the_tab_that_opens', async () => {
+  window.location.hash = '#/ekip?saglayici=cekirdek';
+  crew = { core: CORE, members: [member()] };
+
+  render(<CrewScreen />);
+
+  expect(await screen.findByText('Planlayıcı')).toBeTruthy();
+  expect(screen.queryByText('Jira Uzmanı')).toBeNull();
 });

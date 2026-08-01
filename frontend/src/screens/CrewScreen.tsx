@@ -2,8 +2,11 @@ import { Ban, Bot, Hand, RefreshCw, Unplug, Users, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrandMark, providerOf } from '../components/BrandMark';
+import type { Provider } from '../components/BrandMark';
 import { EmptyState } from '../components/EmptyState';
 import { LoadError } from '../components/LoadError';
+import { TabStrip } from '../components/TabStrip';
+import type { TabDef } from '../components/TabStrip';
 import { getCrewSource } from '../data/CrewSource';
 import type { Crew, CrewMember, HeldTool, ModelTier } from '../data/CrewSource';
 import type { PolicyMode } from '../data/PolicySource';
@@ -32,6 +35,15 @@ import '../styles/screens.css';
  * <p>Rows rather than cards: a crew of five providers as five floating panels is
  * the dashboard look issue #124 took the product away from. One surface, hairline
  * separators, machine facts in mono.
+ *
+ * <p>WHAT THE TABS ARE FOR, AND WHAT THEY ARE NOT FOR (#159). They are not what
+ * removed the scroll — measured at 1440x900 the specialists were 724px of 1425,
+ * and `Tümü` shows every one of them, so filtering by provider takes nothing off
+ * the tallest state. Three other things did: the paragraph under the title that
+ * restated the rule block at the foot verbatim, the authority counts sitting on a
+ * line of their own under every name, and the fixed core — 479px, a third of the
+ * page — standing in front of a reader who came to see the specialists. The tabs
+ * are what let the core step aside without being deleted.
  */
 
 const MODES: { key: PolicyMode; label: string; Icon: LucideIcon }[] = [
@@ -76,10 +88,115 @@ function connectionLabel(provider: string): string {
   return CONNECTION_LABEL[provider] ?? provider;
 }
 
+/**
+ * The mark a member wears, read off the tools it actually holds.
+ *
+ * <p>One function, so the tab and the row it selects can never disagree about
+ * which logo a provider gets. The tool name is asked first because that is the
+ * string the registry produced — `member.provider` is the server's split of the
+ * same string, and it is only the fallback for a member whose tools did not
+ * survive normalisation. An unrecognised provider returns null and draws
+ * nothing: a stand-in glyph for a product Relay has no tool for would be the
+ * costume §7.1 forbids, in the smallest possible size.
+ */
+function markOf(member: CrewMember): Provider | null {
+  return providerOf(member.tools[0]?.name) ?? providerOf(member.provider);
+}
+
+/**
+ * `tumu`, a provider id, or `cekirdek`.
+ *
+ * <p>Not a union of five literals: the providers are whatever the registry
+ * returned this morning, and a hand-written list here would be the one place on
+ * this screen where a new tool did not show up by itself.
+ */
+export type CrewTab = string;
+
+const ALL: CrewTab = 'tumu';
+const CORE: CrewTab = 'cekirdek';
+
+/** The product's own word for each provider, short enough to be a tab. */
+const PROVIDER_LABEL: Record<Provider, string> = {
+  jira: 'Jira',
+  gmail: 'Gmail',
+  calendar: 'Takvim',
+  github: 'GitHub',
+  slack: 'Slack',
+};
+
+/**
+ * Tab order, fixed by hand — the same order, and the same five words, that
+ * Politikalar's provider tabs use.
+ *
+ * <p>WHICH tabs exist is still derived, from the members the registry returned:
+ * a provider with no registered tool never gets one, and a provider added to the
+ * registry gets one without anybody editing a list. The ORDER is the part that
+ * cannot be derived here. The members arrive with the connected ones first, so a
+ * strip built in their order would rearrange itself the morning a credential
+ * expired, and a tab that moves is a tab you have to find again.
+ *
+ * <p>Two screens hold this list now, because Politikalar grew provider tabs the
+ * same day this screen did. Whoever edits either next should lift both constants
+ * somewhere shared rather than write them a third time.
+ */
+const PROVIDER_ORDER: Provider[] = ['jira', 'gmail', 'calendar', 'github', 'slack'];
+
+function providerRank(provider: string): number {
+  const index = PROVIDER_ORDER.indexOf(provider as Provider);
+  return index < 0 ? PROVIDER_ORDER.length : index;
+}
+
+/** The word on the tab: the product's name for it, or the id as it arrived. */
+function providerLabel(provider: string, mark: Provider | null): string {
+  return mark ? PROVIDER_LABEL[mark] : provider;
+}
+
+/**
+ * A query, not a path segment — the same shape Akışlar and Politikalar use, and
+ * for the same reason: `#/ekip/<x>` has no meaning in `parseHash`, and giving
+ * the segment one would make the router a second place that decides what this
+ * screen is. The key is `saglayici`, which is the key Politikalar reads too.
+ */
+export function tabFromHash(hash: string): CrewTab {
+  const query = hash.split('?')[1];
+  if (!query) return ALL;
+  const value = new URLSearchParams(query).get('saglayici');
+  return value ? value : ALL;
+}
+
+export function hashForTab(tab: CrewTab): string {
+  return tab === ALL ? '#/ekip' : `#/ekip?saglayici=${encodeURIComponent(tab)}`;
+}
+
+/** The tab the address asks for, kept in step with the back button. */
+function useTabInHash(): [CrewTab, (tab: CrewTab) => void] {
+  const [tab, setTab] = useState<CrewTab>(() =>
+    typeof window === 'undefined' ? ALL : tabFromHash(window.location.hash),
+  );
+
+  useEffect(() => {
+    const onChange = () => setTab(tabFromHash(window.location.hash));
+    window.addEventListener('hashchange', onChange);
+    return () => window.removeEventListener('hashchange', onChange);
+  }, []);
+
+  const choose = useCallback((next: CrewTab) => {
+    const hash = hashForTab(next);
+    if (window.location.hash === hash) {
+      setTab(next);
+      return;
+    }
+    window.location.hash = hash;
+  }, []);
+
+  return [tab, choose];
+}
+
 export function CrewScreen() {
   const [crew, setCrew] = useState<Crew | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  const [wanted, choose] = useTabInHash();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,25 +214,95 @@ export function CrewScreen() {
     void load();
   }, [load]);
 
-  const members = crew?.members ?? [];
+  /*
+    Ordered here rather than taken as it arrived. The source hands the members
+    over with the connected ones first, which sorts the list by something that
+    changes on its own — and the strip above it must not. One order for both, so
+    the third tab and the third row are the same member.
+  */
+  const members = useMemo(
+    () =>
+      [...(crew?.members ?? [])].sort(
+        (a, b) =>
+          providerRank(a.provider) - providerRank(b.provider) ||
+          a.provider.localeCompare(b.provider, 'tr'),
+      ),
+    [crew],
+  );
+  const core = useMemo(() => crew?.core ?? [], [crew]);
+
+  /*
+    One tab per provider the registry actually returned. Nothing here knows the
+    word "jira": the day a Notion tool is written a Notion tab appears with it,
+    wearing no mark and carrying its own id as its label, because BrandMark has
+    nothing real to draw for a product Relay has no tool for.
+
+    The count is the tools behind the tab, not the members: a provider is always
+    exactly one member, so counting members would print `1` six times and say
+    nothing. It also means `Sabit çekirdek` carries no number at all — the fixed
+    five hold no tools, and TabStrip does not draw a zero. That is the same fact
+    the section's own head states ("araçsız"), reached by the same arithmetic.
+  */
+  const tabs = useMemo<TabDef<CrewTab>[]>(() => {
+    const out: TabDef<CrewTab>[] = [
+      {
+        id: ALL,
+        label: 'Tümü',
+        count: members.reduce((sum, member) => sum + member.toolCount, 0),
+        hint: 'kayıtlı araçtan türeyen bütün uzmanlar',
+      },
+    ];
+    for (const member of members) {
+      const mark = markOf(member);
+      const label = providerLabel(member.provider, mark);
+      out.push({
+        id: member.provider,
+        label,
+        count: member.toolCount,
+        icon: mark ? <BrandMark provider={mark} size={14} /> : undefined,
+        hint: `${label} araçları`,
+      });
+    }
+    if (core.length > 0) {
+      out.push({
+        id: CORE,
+        label: 'Sabit çekirdek',
+        hint: 'araç taşımayan, entegrasyonla çoğalmayan üyeler',
+      });
+    }
+    return out;
+  }, [members, core]);
+
+  /*
+    A tab the data does not have is not a tab. An address kept from a session
+    where a Notion tool existed must not leave the screen showing an empty frame
+    and a selected tab nobody can see — it falls back to everyone.
+  */
+  const tab = tabs.some((t) => t.id === wanted) ? wanted : ALL;
+
+  const shown = useMemo(
+    () => (tab === ALL ? members : members.filter((member) => member.provider === tab)),
+    [members, tab],
+  );
   const totals = useMemo(() => {
-    const tools = members.reduce((sum, member) => sum + member.toolCount, 0);
-    const idle = members.filter((member) => !member.connected).length;
+    const tools = shown.reduce((sum, member) => sum + member.toolCount, 0);
+    const idle = shown.filter((member) => !member.connected).length;
     return { tools, idle };
-  }, [members]);
+  }, [shown]);
 
   return (
     <div className="page">
       <div className="page__inner page__inner--app crew">
         <div className="page__head">
           <div className="page__head-text">
+            {/*
+              No paragraph under the title. It said "bu liste elle yazılmadı: her uzman
+              bağlı bir araçtan türedi" three lines above a block at the foot of the page
+              that says the same thing at greater length and with the receipts —
+              `Tool.provider()`, `risk()`, the policy table. One of the two had to go, and
+              the one to keep is the one that can be pointed at (#159).
+            */}
             <h1 className="t-title">Ekip</h1>
-            <p className="t-caption">
-              Bu liste elle yazılmadı: her uzman <b>bağlı bir araçtan türedi</b>. Bir üye bir
-              isim değil — elindeki araçlar, o araçlarda ne yapmaya yetkili olduğu ve hangi
-              model kademesinde düşündüğü. Yetki burada gösterilir, <a href="#/politikalar">
-              Politikalar</a> ekranında değiştirilir.
-            </p>
           </div>
           <button
             type="button"
@@ -143,73 +330,99 @@ export function CrewScreen() {
 
         {!loading && crew && (
           <>
-            <section className="crew-block" aria-labelledby="crew-specialists">
-              <div className="crew-block__head">
-                <h2 className="t-title" id="crew-specialists">
-                  Uzmanlar
-                </h2>
-                <span className="crew-block__n t-mono">
-                  {members.length} üye · {totals.tools} araç
-                  {totals.idle > 0 ? ` · ${totals.idle} boşta` : ''}
-                </span>
-              </div>
+            <TabStrip label="Ekip listeleri" current={tab} onChoose={choose} tabs={tabs} />
 
-              {members.length === 0 ? (
-                <EmptyState
-                  Icon={Users}
-                  title="Kayıtlı araç yok, dolayısıyla uzman da yok"
-                  description="Bir uzman ancak kayıtlı bir araçtan doğar. Araç kayıt defteri boşken ekip de boştur — burada gösterilecek uydurma bir üye yok."
-                />
+            <div role="tabpanel" id={`tabpanel-${tab}`} aria-labelledby={`tab-${tab}`}>
+              {tab === CORE ? (
+                /*
+                  The fixed five, behind a tab of their own. They were 479px of a 1425px
+                  page — a third of the screen, standing in front of the specialists, and
+                  never changing: five classes that exist whether or not a single tool is
+                  connected. What changes when you connect something is above; what never
+                  does is one click away. Nothing was deleted to make the page fit.
+                */
+                <section className="crew-block" aria-labelledby="crew-core">
+                  <div className="crew-block__head">
+                    <h2 className="t-title" id="crew-core">
+                      Sabit çekirdek
+                    </h2>
+                    <span className="crew-block__n t-mono">{core.length} üye · araçsız</span>
+                  </div>
+                  <p className="t-caption crew-block__note">
+                    Bu üyeler araç taşımaz, iş taşır — ve entegrasyon eklendikçe çoğalmazlar.
+                  </p>
+                  <ul className="crew-list">
+                    {core.map((member) => (
+                      <li className="crew-row crew-row--core" key={member.id}>
+                        <span className="crew-row__mark" aria-hidden>
+                          <Bot size={16} />
+                        </span>
+                        <MemberName id={member.id} />
+                        <span className="crew-row__tier t-mono">{tierLabel(member.tier)}</span>
+                        {CORE_DUTY[member.id] && (
+                          <p className="crew-row__duty">{CORE_DUTY[member.id]}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               ) : (
-                <ul className="crew-list">
-                  {members.map((member) => (
-                    <MemberRow key={member.id} member={member} />
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section className="crew-block" aria-labelledby="crew-core">
-              <div className="crew-block__head">
-                <h2 className="t-title" id="crew-core">
-                  Sabit çekirdek
-                </h2>
-                <span className="crew-block__n t-mono">{crew.core.length} üye · araçsız</span>
-              </div>
-              <p className="t-caption crew-block__note">
-                Bu üyeler araç taşımaz, iş taşır — ve entegrasyon eklendikçe çoğalmazlar.
-              </p>
-              <ul className="crew-list">
-                {crew.core.map((member) => (
-                  <li className="crew-row crew-row--core" key={member.id}>
-                    <span className="crew-row__mark" aria-hidden>
-                      <Bot size={16} />
-                    </span>
-                    <MemberName id={member.id} />
-                    <span className="crew-row__tier t-mono">{tierLabel(member.tier)}</span>
-                    {CORE_DUTY[member.id] && (
-                      <p className="crew-row__duty">{CORE_DUTY[member.id]}</p>
+                <section className="crew-block" aria-labelledby="crew-specialists">
+                  <div className="crew-block__head">
+                    <h2 className="t-title" id="crew-specialists">
+                      Uzmanlar
+                    </h2>
+                    {shown.length > 0 && (
+                      <span className="crew-block__n t-mono">
+                        {shown.length} üye · {totals.tools} araç
+                        {totals.idle > 0 ? ` · ${totals.idle} boşta` : ''}
+                      </span>
                     )}
-                  </li>
-                ))}
-              </ul>
-            </section>
+                  </div>
 
-            {/* The rule that keeps every row above honest. Dashed, like the
-                matching block on Politikalar: it is a rule, not a member. */}
-            <section className="crew-rule" aria-labelledby="crew-rule-head">
-              <h2 className="t-title" id="crew-rule-head">
-                Bu listeye elle üye eklenemez
-              </h2>
-              <p className="t-caption">
-                Bir üyenin var olabilmesi için en az bir <b>kayıtlı aracı</b> olması gerekir;
-                kaynak yalnızca araç kayıt defteridir. Yeni bir sağlayıcının aracı yazıldığı gün
-                uzmanı kendiliğinden burada belirir — adı{' '}
-                <code className="t-mono">Tool.provider()</code>'dan, yetkisi{' '}
-                <code className="t-mono">risk()</code> ve politika tablosundan gelir. Bu yüzden
-                arkasında sistem olmayan bir unvan bu ekranda hiç görünmez.
-              </p>
-            </section>
+                  {shown.length === 0 ? (
+                    <EmptyState
+                      Icon={Users}
+                      title="Kayıtlı araç yok, dolayısıyla uzman da yok"
+                      description="Bir uzman ancak kayıtlı bir araçtan doğar. Araç kayıt defteri boşken ekip de boştur — burada gösterilecek uydurma bir üye yok."
+                    />
+                  ) : (
+                    <ul className="crew-list">
+                      {shown.map((member) => (
+                        <MemberRow key={member.id} member={member} />
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )}
+            </div>
+
+            {/*
+              The rule that keeps every row above honest. Dashed, like the matching block
+              on Politikalar: it is a rule, not a member.
+
+              It stays on every tab that lists derived members — a reader parked on the
+              Jira tab is exactly the reader who needs to be told that the list cannot be
+              hand-edited. It is off on `Çekirdek`, where it would be false: the fixed five
+              are not derived from any tool, and the block underneath them says so itself.
+            */}
+            {tab !== CORE && (
+              <section className="crew-rule" aria-labelledby="crew-rule-head">
+                <h2 className="t-title" id="crew-rule-head">
+                  Bu listeye elle üye eklenemez
+                </h2>
+                <p className="t-caption">
+                  Bir üyenin var olabilmesi için en az bir <b>kayıtlı aracı</b> olması gerekir;
+                  kaynak yalnızca araç kayıt defteridir. Yeni bir sağlayıcının aracı yazıldığı
+                  gün uzmanı kendiliğinden burada belirir — adı{' '}
+                  <code className="t-mono">Tool.provider()</code>'dan, yetkisi{' '}
+                  <code className="t-mono">risk()</code> ve politika tablosundan gelir. Bu yüzden
+                  arkasında sistem olmayan bir unvan bu ekranda hiç görünmez. Yetki burada
+                  yalnızca gösterilir; değiştirildiği yer <a href="#/politikalar">Politikalar</a>{' '}
+                  ekranıdır.
+                </p>
+              </section>
+            )}
           </>
         )}
       </div>
@@ -230,7 +443,7 @@ function MemberName({ id }: { id: string }) {
 }
 
 function MemberRow({ member }: { member: CrewMember }) {
-  const mark = providerOf(member.provider);
+  const mark = markOf(member);
   return (
     <li className={`crew-row${member.connected ? '' : ' crew-row--idle'}`}>
       <span className="crew-row__mark" aria-hidden>
