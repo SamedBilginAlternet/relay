@@ -11,11 +11,16 @@ import type { Run, RunSummary } from '../types/api';
  * decision while the screen could show one of them, and the default history page — the
  * obvious thing to build a rail out of — held only 3 of those 28 (#125, part of #124).
  *
- * <p>So three claims are worth a test forever. The rail asks the server per status instead
+ * <p>So four claims are worth a test forever. The rail asks the server per status instead
  * of filtering a page it happens to have. A run waiting on a person sorts above one that is
- * merely running, because a decision the user owes is the expensive thing to miss. And with
+ * merely running, because a decision the user owes is the expensive thing to miss. With
  * nothing alive there is no rail in the document at all — an empty rail is furniture, and it
  * would cost the composer a column of width to say nothing.
+ *
+ * <p>And every row prints the server's own `doneStepCount` (#129), including a real zero —
+ * with the total on its own as the answer when the field is missing. Reading absence as
+ * `0/4` would report no progress on a flow that is nearly finished, which is a wrong answer
+ * wearing the clothes of a measured one.
  */
 
 const listRuns = vi.fn<(o?: { status?: string; size?: number }) => Promise<RunSummary[]>>();
@@ -123,9 +128,11 @@ it('a_run_answered_by_two_status_queries_takes_one_row_not_two', () => {
 });
 
 it('progress_states_the_total_alone_when_no_one_counted_the_finished_steps', () => {
-  // The list endpoint sends `stepCount` and nothing about how many of them are done.
-  expect(progressLabel(5, null)).toBe('5 adım');
   expect(progressLabel(5, 3)).toBe('3/5 adım');
+  // A counted zero is a fact — this flow is planned and has not started a step yet.
+  expect(progressLabel(5, 0)).toBe('0/5 adım');
+  // A row from a server that does not send the count says only what it knows.
+  expect(progressLabel(5, null)).toBe('5 adım');
   // A plan that does not exist yet has no progress to report — not "0/0".
   expect(progressLabel(0, 0)).toBeNull();
 });
@@ -220,4 +227,51 @@ it('a_failed_refresh_leaves_the_rail_standing_rather_than_emptying_it', async ()
 
   await waitFor(() => expect(listRuns.mock.calls.length).toBeGreaterThan(3));
   expect(result.current.map((r) => r.id)).toEqual(['r-1']);
+});
+
+it('every_row_prints_the_progress_the_server_counted_not_only_the_open_one', async () => {
+  // #129 put `doneStepCount` on the list row. Before it, only the run the store held in
+  // full could say how far along it was, and 27 rows said "4 adım" — a number that cannot
+  // tell a flow that is nearly finished from one that has not started.
+  listRuns.mockImplementation(async (options) =>
+    options?.status === 'awaiting_approval'
+      ? [
+          summary({ id: 'r-1', status: 'awaiting_approval', stepCount: 4, doneStepCount: 1 }),
+          summary({
+            id: 'r-2',
+            status: 'awaiting_approval',
+            stepCount: 2,
+            doneStepCount: 0,
+            createdAt: '2026-08-01T07:00:00Z',
+          }),
+        ]
+      : [],
+  );
+
+  const { result } = renderHook(() => useLiveRuns(null));
+
+  await waitFor(() => expect(result.current).toHaveLength(2));
+  expect(result.current.map((r) => progressLabel(r.stepCount, r.done))).toEqual([
+    '1/4 adım',
+    // A counted zero survives: this one is planned and has not started a step.
+    '0/2 adım',
+  ]);
+});
+
+it('a_row_that_arrives_without_the_count_says_the_total_rather_than_zero', async () => {
+  // An older server, or a cached response served while a new one deploys. `0/4` would be
+  // a claim nobody measured, and it would be wrong in the reassuring direction.
+  listRuns.mockImplementation(async (options) =>
+    options?.status === 'awaiting_approval'
+      ? [summary({ id: 'r-1', status: 'awaiting_approval', stepCount: 4 })]
+      : [],
+  );
+
+  const { result } = renderHook(() => useLiveRuns(null));
+
+  await waitFor(() => expect(result.current).toHaveLength(1));
+  expect(result.current[0]?.done).toBeNull();
+  render(<TaskRail runs={result.current} currentRunId={null} onOpen={() => {}} />);
+  expect(screen.getByText('4 adım')).not.toBeNull();
+  expect(screen.queryByText('0/4 adım')).toBeNull();
 });

@@ -120,6 +120,10 @@ export class ApiRunSource implements RunSource {
       createdAt: r.createdAt ?? new Date().toISOString(),
       finishedAt: r.finishedAt ?? null,
       stepCount: r.stepCount ?? (Array.isArray(r.steps) ? r.steps.length : 0),
+      // A number or nothing. `?? 0` here would turn "this server does not send progress"
+      // into "nothing has run yet", and the row would report no progress on a flow that
+      // is nearly finished — a wrong answer that looks like a measured one.
+      doneStepCount: typeof r.doneStepCount === 'number' ? r.doneStepCount : null,
     }));
   }
 

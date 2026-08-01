@@ -104,6 +104,20 @@ export type RunSummary = {
   createdAt: string;
   finishedAt: string | null;
   stepCount: number;
+  /**
+   * How many of `stepCount` have finished, counted on the server from steps whose status
+   * is `done`.
+   *
+   * <p>Optional twice over, and neither case is zero. It is absent from a server that
+   * predates the field, and absent from a cached response served while one is deploying.
+   * Zero would be the claim that nothing has run — a screen that reads a missing field as
+   * `0/4` reports no progress on a flow that is nearly finished. Absent means unknown, and
+   * unknown is drawn as the total on its own.
+   *
+   * <p>Never derived on the client. Guessing progress from the statuses a browser happens
+   * to hold is a second definition of "done", which is why this is counted server-side.
+   */
+  doneStepCount?: number | null;
 };
 
 /* ------------------------------------------------------------------ */

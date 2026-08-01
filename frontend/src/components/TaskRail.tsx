@@ -29,7 +29,7 @@ const PAGE = 200;
 /** Slow, and only while the tab is on screen. The stream is the mechanism; this is a net. */
 const IDLE_REFRESH_MS = 60_000;
 
-/** What one row needs. `done` is null when nobody has counted the finished steps. */
+/** What one row needs. `done` is null only when the row arrived without the server's count. */
 export type RailRun = {
   id: string;
   goal: string;
@@ -65,12 +65,17 @@ export function orderLiveRuns(rows: RailRun[]): RailRun[] {
 }
 
 /**
- * How far along, in the mono layer — or the total on its own.
+ * How far along, in the mono layer — or the total on its own when nobody counted.
  *
- * <p>`GET /api/runs` carries `stepCount` and no count of the steps that finished, so the
- * rail can only write `3/5 adım` for the run the store is holding in full. Every other row
- * gets the total by itself. A progress figure the server never sent would be a guess, and a
- * guess about how far along someone's work is reads exactly like a fact.
+ * <p>`n/m adım` is the figure the rail exists for: it is what separates a flow that is
+ * nearly finished from one that has not started, and a bare total says neither. The server
+ * counts it (`doneStepCount`), so the answer is the same one the run's own screen gives.
+ *
+ * <p>The fallback is for a row that arrives without the field — an older server, or a
+ * cached response served while one is deploying. It writes the total alone rather than
+ * `undefined/4` or a `0/4` that claims nothing has run. It is never filled in by counting
+ * something else on the client: a browser that decides for itself what "done" means is a
+ * second definition of it.
  */
 export function progressLabel(stepCount: number, done: number | null): string | null {
   if (stepCount <= 0) return null;
@@ -83,12 +88,20 @@ function summaryToRail(row: RunSummary): RailRun {
     goal: row.goal,
     status: row.status,
     stepCount: row.stepCount,
-    done: null,
+    // A number or nothing — see `progressLabel`. `?? null` keeps a real zero, which is a
+    // measured "none of them yet" and not the same thing as a missing field.
+    done: typeof row.doneStepCount === 'number' ? row.doneStepCount : null,
     createdAt: row.createdAt,
   };
 }
 
-/** The open run, as a rail row — the one row whose finished-step count is actually known. */
+/**
+ * The open run, as a rail row.
+ *
+ * <p>Its progress comes from the steps the store is holding rather than from the list, so
+ * the row moves with the stream instead of waiting for the next refresh — the same count,
+ * one source earlier.
+ */
 function runToRail(run: Run): RailRun {
   return {
     id: run.id,
