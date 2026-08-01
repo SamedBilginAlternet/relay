@@ -1,0 +1,185 @@
+// @vitest-environment jsdom
+import { cleanup, render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type { Crew, CrewMember } from '../data/CrewSource';
+import { parseHash } from '../lib/router';
+
+/**
+ * Why this file exists.
+ *
+ * <p>Ekip is the screen the "ajan ekibi" claim is made on, and the claim only
+ * holds because nothing on it was written by hand (docs/EKIP.md §5.5). Two of
+ * the ways it could quietly stop holding are invisible in review:
+ *
+ * <ul>
+ *   <li>A member with no connection behind it gets dropped from the list, so
+ *       the screen answers "which specialists do I have" with a shorter list
+ *       every time a credential expires. Idle has to be <em>said</em>.
+ *   <li>An id the interface has no Turkish word for gets one invented. The
+ *       whole edge of this product is that it does not put a costume on
+ *       something with nothing behind it, and a screen that renders
+ *       `notion-agent` as "Notion Uzmanı" before a Notion tool exists is doing
+ *       exactly that.
+ * </ul>
+ *
+ * <p>The third test is the one the design turns on: the authority line is
+ * counted from the tools, not stored beside the member (§7.5).
+ */
+
+let crew: Crew = { core: [], members: [] };
+
+vi.mock('../data/CrewSource', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/CrewSource')>();
+  return { ...actual, getCrewSource: () => ({ crew: async () => crew }) };
+});
+
+const { CrewScreen } = await import('./CrewScreen');
+
+function member(overrides: Partial<CrewMember> = {}): CrewMember {
+  return {
+    id: 'jira-agent',
+    provider: 'jira',
+    connectionProvider: 'jira',
+    connected: true,
+    toolCount: 2,
+    auto: 1,
+    ask: 1,
+    forbidden: 0,
+    tier: 'large',
+    tools: [
+      { name: 'jira.searchIssues', risk: 'read', mode: 'auto', overridden: false },
+      { name: 'jira.createIssue', risk: 'write', mode: 'ask', overridden: false },
+    ],
+    ...overrides,
+  };
+}
+
+/** The row a member is drawn in, found by the name printed in it. */
+async function rowOf(label: string): Promise<HTMLElement> {
+  return (await screen.findByText(label)).closest('li') as HTMLElement;
+}
+
+beforeEach(() => {
+  crew = { core: [], members: [] };
+});
+
+afterEach(cleanup);
+
+it('a_member_with_no_connection_is_listed_and_says_it_is_idle', async () => {
+  crew = {
+    core: [],
+    members: [
+      member(),
+      member({
+        id: 'gmail-agent',
+        provider: 'gmail',
+        connectionProvider: 'google',
+        connected: false,
+        toolCount: 1,
+        auto: 1,
+        ask: 0,
+        tools: [{ name: 'gmail.listToday', risk: 'read', mode: 'auto', overridden: false }],
+      }),
+    ],
+  };
+
+  render(<CrewScreen />);
+  const idle = await rowOf('Gmail Uzmanı');
+
+  expect(within(idle).getByText(/Google bağlantısı yok/)).toBeTruthy();
+  expect(within(idle).getByText(/boşta/)).toBeTruthy();
+  // Idle is not hidden and not empty: the tools it holds are still on screen.
+  expect(within(idle).getByText('gmail.listToday')).toBeTruthy();
+  expect(within(await rowOf('Jira Uzmanı')).queryByText(/bağlantısı yok/)).toBeNull();
+});
+
+it('a_member_id_with_no_turkish_name_is_printed_exactly_as_it_arrived', async () => {
+  crew = {
+    core: [],
+    members: [
+      member({
+        id: 'notion-agent',
+        provider: 'notion',
+        connectionProvider: 'notion',
+        connected: false,
+        toolCount: 1,
+        auto: 0,
+        ask: 1,
+        tools: [{ name: 'notion.createPage', risk: 'write', mode: 'ask', overridden: false }],
+      }),
+    ],
+  };
+
+  render(<CrewScreen />);
+
+  expect(await screen.findByText('notion-agent')).toBeTruthy();
+  expect(screen.queryByText(/Notion Uzmanı/)).toBeNull();
+});
+
+it('the_authority_line_is_counted_from_the_tools_the_member_holds', async () => {
+  crew = { core: [], members: [member({ toolCount: 3, auto: 2, ask: 1, forbidden: 0 })] };
+
+  render(<CrewScreen />);
+  const row = await rowOf('Jira Uzmanı');
+
+  expect(within(row).getByText('3 araç')).toBeTruthy();
+  expect(within(row).getByText(/2 otomatik/)).toBeTruthy();
+  expect(within(row).getByText(/1 onay ister/)).toBeTruthy();
+  // Nothing forbidden, so no forbidden count is claimed.
+  expect(within(row).queryByText(/yasak/)).toBeNull();
+});
+
+it('a_forbidden_tool_is_shown_as_forbidden_rather_than_dropped', async () => {
+  crew = {
+    core: [],
+    members: [
+      member({
+        toolCount: 2,
+        auto: 1,
+        ask: 0,
+        forbidden: 1,
+        tools: [
+          { name: 'jira.searchIssues', risk: 'read', mode: 'auto', overridden: false },
+          { name: 'jira.createIssue', risk: 'write', mode: 'forbidden', overridden: true },
+        ],
+      }),
+    ],
+  };
+
+  render(<CrewScreen />);
+  const row = await rowOf('Jira Uzmanı');
+
+  expect(within(row).getByText(/1 yasak/)).toBeTruthy();
+  expect(within(row).getByText('jira.createIssue')).toBeTruthy();
+});
+
+it('an_empty_registry_says_why_there_are_no_members_instead_of_a_blank_frame', async () => {
+  crew = { core: [{ id: 'planner', purpose: 'plan', tier: 'large' }], members: [] };
+
+  render(<CrewScreen />);
+
+  expect(await screen.findByText(/Kayıtlı araç yok/)).toBeTruthy();
+  // The core is not derived from tools, so it is still there.
+  expect(screen.getByText('Planlayıcı')).toBeTruthy();
+});
+
+it('the_core_member_that_never_calls_a_model_says_so_instead_of_naming_a_tier', async () => {
+  crew = {
+    core: [
+      { id: 'verifier', purpose: 'verify', tier: 'small' },
+      { id: 'policy', purpose: null, tier: null },
+    ],
+    members: [],
+  };
+
+  render(<CrewScreen />);
+
+  expect(within(await rowOf('Doğrulayıcı')).getByText('küçük model')).toBeTruthy();
+  expect(within(await rowOf('Politika')).getByText('model çağırmaz')).toBeTruthy();
+});
+
+/** `#/ekip` is the address the nav points at; nothing else may swallow it. */
+it('the_ekip_hash_parses_as_the_crew_route', () => {
+  expect(parseHash('#/ekip')).toEqual({ name: 'crew' });
+  expect(parseHash('#/politikalar')).toEqual({ name: 'policies' });
+});

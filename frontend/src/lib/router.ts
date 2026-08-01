@@ -9,6 +9,7 @@ export type Route =
   | { name: 'history-detail'; runId: string }
   | { name: 'connections' }
   | { name: 'policies' }
+  | { name: 'crew' }
   | { name: 'panel' }
   | { name: 'login' }
   | { name: 'register' }
@@ -23,6 +24,9 @@ export function parseHash(hash: string): Route {
   if (parts[0] === 'connections') return { name: 'connections' };
   // `#/politikalar` is the per-tool rule table: auto / ask / forbidden.
   if (parts[0] === 'politikalar') return { name: 'policies' };
+  // `#/ekip` lists the crew the registry produced. Read only, like `#/panel`:
+  // authority is shown here and changed on `#/politikalar`.
+  if (parts[0] === 'ekip') return { name: 'crew' };
   // `#/panel` counts what already happened; it never starts anything.
   if (parts[0] === 'panel') return { name: 'panel' };
   // `#/sor` reads the mailbox and answers; it never runs a tool, so it is not `#/sohbet`.

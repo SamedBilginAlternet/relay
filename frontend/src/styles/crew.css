@@ -1,0 +1,269 @@
+/* ------------------------------------------------------------------ */
+/* Ekip — the crew, derived (issue #113)                               */
+/*                                                                     */
+/* Rows, not cards. Five providers drawn as five floating panels is    */
+/* the dashboard look #124 moved the product away from; here the step  */
+/* from canvas to surface is drawn once, at the outside edge, and      */
+/* every member below it is separated by a hairline.                   */
+/*                                                                     */
+/* The type layer is the one global.css already sets: the sentence     */
+/* about a member is prose, and everything a machine produced — the    */
+/* agent id, the tool names, the counts, the model tier — is mono.     */
+/* A reader can scan only the mono column and still get the answer to  */
+/* "what is this one allowed to do".                                   */
+/*                                                                     */
+/* No colour carries a meaning on its own: every mode chip has its own */
+/* glyph and its own word next to the number.                          */
+/* ------------------------------------------------------------------ */
+
+.crew {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-16);
+}
+
+.crew-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+  padding: var(--s-16);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.crew-block__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-12);
+  flex-wrap: wrap;
+}
+.crew-block__head h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.crew-block__n {
+  font-size: var(--machine-size);
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+}
+.crew-block__note {
+  margin: -4px 0 0;
+}
+
+.crew-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- one member ---------------------------------------------------- */
+
+.crew-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-12);
+  row-gap: 6px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.crew-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.crew-row:last-child {
+  padding-bottom: 0;
+}
+
+/* The provider's own mark, so the row is recognised before it is read. */
+.crew-row__mark {
+  grid-column: 1;
+  grid-row: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-inset);
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--fg-muted);
+}
+
+.crew-row__id {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.crew-row__name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+/* The id the backend actually sent, kept next to the name it was given. */
+.crew-row__code {
+  font-size: 12px;
+  color: var(--fg-faint);
+}
+
+.crew-row__tier {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  font-size: var(--machine-size);
+  color: var(--fg-machine);
+  white-space: nowrap;
+}
+
+.crew-row__auth {
+  grid-column: 2 / -1;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  flex-wrap: wrap;
+}
+.crew-row__duty {
+  grid-column: 2 / -1;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+
+/* ---- the counted authority ----------------------------------------- */
+
+.crew-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--machine-size);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-muted);
+}
+.crew-count + .crew-count::before {
+  content: '·';
+  color: var(--fg-faint);
+  margin-right: 3px;
+}
+.crew-count--auto > svg {
+  color: var(--success);
+}
+.crew-count--ask > svg {
+  color: var(--warn);
+}
+.crew-count--forbidden > svg {
+  color: var(--danger);
+}
+.crew-count--forbidden {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* ---- the tools it holds -------------------------------------------- */
+
+.crew-tools {
+  grid-column: 2 / -1;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.crew-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle);
+}
+.crew-tool code {
+  font-size: 12px;
+  color: var(--fg-machine);
+}
+.crew-tool--auto > svg {
+  color: var(--success);
+}
+.crew-tool--ask > svg {
+  color: var(--warn);
+}
+.crew-tool--forbidden {
+  border-color: var(--danger);
+}
+.crew-tool--forbidden > svg {
+  color: var(--danger);
+}
+.crew-tool--forbidden code {
+  text-decoration: line-through;
+  text-decoration-color: var(--danger);
+}
+
+/* ---- idle: a member with nothing behind it -------------------------- */
+
+/*
+  Idle is stated, never implied by fading the row out: the tools and the
+  authority are still true, and they stay legible. Only the mark loses its
+  colour, because that is the part that would otherwise read as "connected".
+*/
+.crew-row--idle .crew-row__mark {
+  border-style: dashed;
+  opacity: 0.65;
+}
+.crew-row__idle {
+  grid-column: 2 / -1;
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+.crew-row__idle > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--fg-faint);
+}
+
+/* ---- the rule under the list ---------------------------------------- */
+
+.crew-rule {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding: var(--s-16);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-subtle);
+}
+.crew-rule .t-caption {
+  margin: 0;
+}
+
+/* At 390 the tier has no room beside the name; it drops under it and the
+   row keeps its two columns rather than squeezing to four characters. */
+@media (max-width: 640px) {
+  .crew-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .crew-row__tier {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+  }
+  .crew-row__auth,
+  .crew-row__duty,
+  .crew-tools,
+  .crew-row__idle {
+    grid-column: 1 / -1;
+  }
+}
