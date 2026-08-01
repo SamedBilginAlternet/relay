@@ -2,10 +2,30 @@ export function formatTokens(tokens: number): string {
   return tokens.toLocaleString('tr-TR');
 }
 
+/**
+ * Money, to the digit the server actually keeps.
+ *
+ * <p>`CostMeter` fixes every price at six decimals before it leaves the API — deliberately,
+ * so that two endpoints can never disagree about the same money. The screen rounded to four
+ * and disagreed with all of them: a step the API reports as `0.000113` read `$0.0001`.
+ *
+ * <p>The small numbers are the ones this product is about. A step routed to the cheap model
+ * costs a fraction of a thousandth of a dollar, and at four decimals that evidence goes
+ * missing exactly where the claim is made. Neither branch below can produce scientific
+ * notation, which is how `3.82E-4` once reached a screen — `toFixed` gives up and writes an
+ * exponent above 1e21, so the whole-dollar side goes through a grouping formatter instead.
+ *
+ * <p>A number that is not a number is not $0.00 — the dash says "unknown" out loud.
+ */
 export function formatUsd(usd: number): string {
-  if (usd === 0) return '$0.0000';
-  if (usd < 1) return `$${usd.toFixed(4)}`;
-  return `$${usd.toFixed(2)}`;
+  if (!Number.isFinite(usd)) return '—';
+  const sign = usd < 0 ? '-' : '';
+  const abs = Math.abs(usd);
+  const digits =
+    abs >= 1
+      ? abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : abs.toFixed(6);
+  return `${sign}$${digits}`;
 }
 
 export function formatDurationMs(ms: number): string {
