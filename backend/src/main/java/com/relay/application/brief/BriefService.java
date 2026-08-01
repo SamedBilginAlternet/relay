@@ -174,6 +174,16 @@ public class BriefService {
         llmInfo.put("tokens", insight.tokens() + digest.map(DigestService.Digest::tokens).orElse(0L));
         llmInfo.put("costUsd", insight.costUsd() + digest.map(DigestService.Digest::costUsd).orElse(0.0));
 
+        // Counted, not written: the one line that answers "bugün ne var" must not vanish
+        // with the token budget. See DayTally.
+        int urgent = 0;
+        for (InsightService.Insight card : insight.insights()) {
+            if ("high".equals(card.urgency())) {
+                urgent++;
+            }
+        }
+        DayTally tally = DayTally.of(inboxItems, workItems, codeItems, calendarItems, urgent);
+
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("date", now.toString());
         body.put("localDate", java.time.LocalDate.ofInstant(now, zone).toString());
@@ -183,6 +193,7 @@ public class BriefService {
         body.put("cachedAt", null);
         body.put("ttlSeconds", cacheTtl.toSeconds());
         body.put("llm", llmInfo);
+        body.put("today", tally.view());
         // Additive: the key is simply absent when there is no digest, so a client that does
         // not know about it renders exactly what it rendered before.
         digest.ifPresent(value -> body.put("digest", value.view()));
