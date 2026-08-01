@@ -406,6 +406,58 @@ public class ToolAgent {
         return new ParamRefresh(outcome.valid(), outcome.tokens(), outcome.costUsd());
     }
 
+    /**
+     * Whether these parameters can be put in front of a person at all.
+     *
+     * <p>Both gates below already ran at call time, which is one gate too late: live, a user
+     * was asked to approve the Slack message <em>"KAN projesinde
+     * {@code {{steps[0].result.issues.length}}} adet açık kayıt vardır."</em> The message
+     * never reached Slack — the gate did its job — but the person had already spent their
+     * attention deciding about a sentence that was never going to be sent, and approving it
+     * bought another model round for nothing. The address check was moved in front of the
+     * approval for exactly this reason ("onaylanan parametre ile gönderilen parametre aynı
+     * olmalı"); these two belong there with it.
+     *
+     * <p>The checks at call time stay. A second look costs nothing and closes the gap for
+     * steps that never pass a gate at all.
+     *
+     * @return the message explaining what is not presentable, or {@code null} when it is
+     */
+    public String unpresentable(Step step) {
+        Tool tool = tools.find(step.toolName()).orElse(null);
+        if (tool == null) {
+            return null;
+        }
+        JsonNode params = Json.toNode(step.params());
+        if (!params.isObject()) {
+            return null;
+        }
+        String placeholder = unresolvedPlaceholder(tool, params);
+        return placeholder != null ? placeholder : emptyContent(tool, params);
+    }
+
+    /**
+     * The values a human typed at the gate that cannot be sent, one sentence per field.
+     *
+     * <p>Only the placeholder markers, not the filler phrases: a person who writes "TODO:"
+     * into a message means it, and refusing their own words would be Relay marking its user's
+     * homework. {@code {{steps[0].summary}}} is different — it is not a sentence, it is a
+     * substitution nobody is going to perform, and it was accepted with a 200 and answered a
+     * model round later.
+     *
+     * @return field name to explanation; empty when everything can be sent
+     */
+    public static Map<String, String> unsendableValues(Map<String, Object> params) {
+        Map<String, String> problems = new LinkedHashMap<>();
+        params.forEach((key, value) -> {
+            if (value instanceof String text && com.relay.application.text.Placeholder.unresolved(text)) {
+                problems.put(key, "Bu değer bir yer tutucu içeriyor ({{…}}, ${…}, steps[…]) —"
+                        + " Relay'de şablon çözümlemesi yok, değeri olduğu gibi yaz.");
+            }
+        });
+        return problems;
+    }
+
     private record ParamOutcome(boolean valid, JsonNode params, String error, long tokens, double costUsd) {
     }
 

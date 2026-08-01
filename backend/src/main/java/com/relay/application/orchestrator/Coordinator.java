@@ -227,6 +227,20 @@ public class Coordinator {
                 // Approving what you cannot read is not approval.
                 ToolAgent.ParamRefresh refresh = toolAgent.refreshParams(run, step);
                 costMeter.record(run, step, refresh.tokens(), refresh.costUsd());
+
+                // And do not ask about something that cannot be sent. A raw
+                // {{steps[0].result.issues.length}} used to reach the screen and be approved:
+                // the call-time gate then refused it, so the human had spent their attention
+                // on a sentence that was never going out. The one thing Relay asks of a
+                // person is to read what will be sent — that has to be readable.
+                String unreadable = toolAgent.unpresentable(step);
+                if (unreadable != null) {
+                    if (rewriteBeforeAsking(run, step, unreadable)) {
+                        continue;
+                    }
+                    return;
+                }
+
                 park(run, step, "onay gerekiyor — " + policy.reason(), PauseReason.POLICY);
                 return;
             }
@@ -336,6 +350,42 @@ public class Coordinator {
                                  : " Parametreler hataya göre yeniden üretiliyor."));
         runs.save(run);
         publishCost(run);
+    }
+
+    /**
+     * Sends a step back to its specialist because what it produced is not fit to be read.
+     *
+     * <p>The alternative was to show it anyway and let the call-time gate catch it, which is
+     * what happened before: the person is asked about a template string, and whichever button
+     * they press the answer is the same, because the message was never going to be sent. The
+     * other alternative — failing the run at once — throws away a step the specialist very
+     * often gets right on the second try, and the machinery for that try already exists.
+     *
+     * <p>Bounded by the same {@link Step#MAX_RETRIES} as every other retry, and the complaint
+     * goes into {@code lastProviderError} so the next model turn is told what was wrong rather
+     * than being asked the same question again.
+     *
+     * @return {@code true} when the step was sent back and the loop should carry on,
+     *         {@code false} when the tries are used up and the run has been failed
+     */
+    private boolean rewriteBeforeAsking(Run run, Step step, String reason) {
+        if (step.retriesExhausted()) {
+            step.markFailed(reason, clock.now());
+            journal.say(run, step.id(), AgentRole.COORDINATOR, AgentRole.USER,
+                    "Adım " + step.ordinal() + " onayına sunulamadı: " + reason
+                            + " Parametreler iki denemede de okunabilir hâle gelmedi.");
+            publishStepFinished(run, step);
+            finish(run, RunStatus.FAILED);
+            return false;
+        }
+        step.lastProviderError(reason);
+        step.sendBack();
+        journal.say(run, step.id(), AgentRole.COORDINATOR, step.role(),
+                "Parametreler onaya sunulabilir değil (" + step.attempts() + "/" + Step.MAX_RETRIES
+                        + "): " + reason + " Onay istenmeden önce yeniden üretiliyor.");
+        runs.save(run);
+        publishCost(run);
+        return true;
     }
 
     /**

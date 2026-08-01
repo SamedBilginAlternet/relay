@@ -240,18 +240,29 @@ class ApproveWithEditTest {
      * Relay has no template engine, so {@code {{steps[3].channel}}} is not an address —
      * whoever typed it, model or human. Slack answered {@code channel_not_found} for one
      * of these once, which reads as "your channel is gone" for a channel that is fine.
+     *
+     * <p>It used to be caught in front of the provider, a model round after the 200: the
+     * approval was accepted, written into the trail, and undone. Now the edit is refused
+     * where the schema errors are, so the answer arrives under the box that caused it.
      */
     @Test
     void a_placeholder_typed_by_a_human_still_never_reaches_the_provider() {
         Rig rig = rig();
         Run run = parked(rig);
 
-        rig.service().approve(run.id(), run.steps().get(0).id(),
-                Map.of("channel", "{{steps[3].channel}}"), "qa@relay.dev");
+        assertThatThrownBy(() -> rig.service().approve(run.id(), run.steps().get(0).id(),
+                Map.of("channel", "{{steps[3].channel}}"), "qa@relay.dev"))
+                .isInstanceOf(RunService.InvalidParams.class)
+                .satisfies(e -> assertThat(((RunService.InvalidParams) e).fields())
+                        .containsKey("channel"));
 
         assertThat(rig.tool().calls).as("the guard fired before the call").isZero();
-        assertThat(run.messages()).anySatisfy(message ->
-                assertThat(message.content()).contains("çözülmemiş yer tutucu"));
+        assertThat(run.steps().get(0).status())
+                .as("a refused edit changes nothing")
+                .isEqualTo(com.relay.domain.StepStatus.AWAITING_APPROVAL);
+        assertThat(run.messages())
+                .as("and an approval that was refused is not written down as one")
+                .noneSatisfy(message -> assertThat(message.content()).startsWith("Onaylandı"));
     }
 
     /**

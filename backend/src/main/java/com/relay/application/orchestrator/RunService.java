@@ -357,6 +357,15 @@ public class RunService {
         if (edit.changes().isEmpty()) {
             return;
         }
+        // The schema was never the thing that stopped a placeholder: "{{steps[0].summary}}" is
+        // a perfectly good string. Typed into the box it used to be accepted with a 200,
+        // written into the trail as approved, and then refused a model round later by the gate
+        // in front of the provider. The answer belongs under the box that caused it, now.
+        Map<String, String> unsendable = ToolAgent.unsendableValues(edit.params());
+        if (!unsendable.isEmpty()) {
+            throw new InvalidParams("Düzenlenen parametreler gönderilemez — çözülmemiş yer tutucu"
+                    + " var; adım onayda kaldı.", unsendable);
+        }
         step.paramsEditedByUser(edit.params());
         String agent = step.role() == null ? AgentRole.COORDINATOR : step.role();
         edit.changes().forEach((field, change) -> journal.say(run, step.id(), AgentRole.USER, agent,
