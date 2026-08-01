@@ -3,18 +3,15 @@ package com.relay.application.orchestrator;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.relay.application.cost.CostMeter;
-import com.relay.application.policy.PolicyEngine;
-import com.relay.application.port.LlmClient;
 import com.relay.application.port.ToolRegistry;
 import com.relay.domain.Run;
 import com.relay.domain.Step;
 import com.relay.domain.StepStatus;
-import com.relay.infrastructure.llm.StubLlmClient;
 import com.relay.infrastructure.tools.FixtureStore;
 import com.relay.infrastructure.tools.JiraTool;
 import com.relay.infrastructure.tools.SlackTool;
 import com.relay.infrastructure.tools.ToolRegistryImpl;
+import com.relay.support.OrchestratorHarness;
 import com.relay.support.TestDoubles;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -47,17 +44,9 @@ class DoubleDecisionTest {
                 new JiraTool.UpdateIssue("replay", fixtures),
                 new SlackTool.ListChannels("replay", fixtures),
                 new SlackTool.PostMessage("replay", fixtures)));
-        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
-        LlmClient llm = new StubLlmClient(tools);
-        runs = new TestDoubles.InMemoryRunRepository();
-        TestDoubles.RecordingEventPublisher events = new TestDoubles.RecordingEventPublisher();
-        CostMeter costMeter = new CostMeter();
-        AgentJournal journal = new AgentJournal(events, clock);
-        Coordinator coordinator = new Coordinator(runs, new Planner(llm, tools, costMeter, journal),
-                new ToolAgent(tools, llm, new TestDoubles.InMemoryConnectionRepository(), journal, clock),
-                new Verifier(llm), new PolicyEngine(new TestDoubles.InMemoryPolicyRepository(), tools),
-                costMeter, events, journal, clock);
-        service = new RunService(runs, coordinator, journal, clock, Runnable::run, 1.0);
+        OrchestratorHarness harness = OrchestratorHarness.of(tools);
+        runs = harness.runs;
+        service = harness.service;
     }
 
     private static final String GOAL =

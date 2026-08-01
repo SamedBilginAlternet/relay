@@ -2,8 +2,6 @@ package com.relay.application.orchestrator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.relay.application.cost.CostMeter;
-import com.relay.application.policy.PolicyEngine;
 import com.relay.application.port.LlmClient;
 import com.relay.application.port.LlmPurpose;
 import com.relay.application.port.LlmRequest;
@@ -18,6 +16,7 @@ import com.relay.infrastructure.llm.StubLlmClient;
 import com.relay.infrastructure.tools.FixtureStore;
 import com.relay.infrastructure.tools.JiraTool;
 import com.relay.infrastructure.tools.ToolRegistryImpl;
+import com.relay.support.OrchestratorHarness;
 import com.relay.support.TestDoubles;
 import java.time.Instant;
 import java.util.List;
@@ -44,20 +43,11 @@ import org.junit.jupiter.api.Test;
  */
 class MissingContainerComesFromTheConnectionTest {
 
-    private final TestDoubles.InMemoryRunRepository runs = new TestDoubles.InMemoryRunRepository();
-    private final TestDoubles.RecordingEventPublisher events = new TestDoubles.RecordingEventPublisher();
     private final TestDoubles.InMemoryConnectionRepository connections =
             new TestDoubles.InMemoryConnectionRepository();
 
     private RunService service(LlmClient llm, ToolRegistry tools) {
-        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
-        CostMeter costMeter = new CostMeter();
-        AgentJournal journal = new AgentJournal(events, clock);
-        Coordinator coordinator = new Coordinator(runs, new Planner(llm, tools, costMeter, journal),
-                new ToolAgent(tools, llm, connections, journal, clock),
-                new Verifier(llm), new PolicyEngine(new TestDoubles.InMemoryPolicyRepository(), tools),
-                costMeter, events, journal, clock);
-        return new RunService(runs, coordinator, journal, clock, Runnable::run, 1.0, tools);
+        return OrchestratorHarness.with(tools).llm(llm).connections(connections).build().service;
     }
 
     private static ToolRegistry jiraTools() {

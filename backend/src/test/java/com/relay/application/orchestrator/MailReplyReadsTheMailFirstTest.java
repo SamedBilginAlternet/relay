@@ -2,20 +2,16 @@ package com.relay.application.orchestrator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.relay.application.cost.CostMeter;
-import com.relay.application.policy.PolicyEngine;
-import com.relay.application.port.LlmClient;
 import com.relay.application.port.ToolRegistry;
 import com.relay.domain.Run;
 import com.relay.domain.RunStatus;
 import com.relay.domain.Step;
 import com.relay.domain.StepStatus;
-import com.relay.infrastructure.llm.StubLlmClient;
 import com.relay.infrastructure.tools.FixtureStore;
 import com.relay.infrastructure.tools.GmailTool;
 import com.relay.infrastructure.tools.JiraTool;
 import com.relay.infrastructure.tools.ToolRegistryImpl;
-import com.relay.support.TestDoubles;
+import com.relay.support.OrchestratorHarness;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,18 +44,7 @@ class MailReplyReadsTheMailFirstTest {
                 new GmailTool.CreateDraft("replay", fixtures, null),
                 new JiraTool.AddComment("replay", fixtures)));
 
-        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
-        LlmClient llm = new StubLlmClient(tools);
-        TestDoubles.InMemoryRunRepository runs = new TestDoubles.InMemoryRunRepository();
-        TestDoubles.RecordingEventPublisher events = new TestDoubles.RecordingEventPublisher();
-
-        CostMeter costMeter = new CostMeter();
-        AgentJournal journal = new AgentJournal(events, clock);
-        PolicyEngine policyEngine = new PolicyEngine(new TestDoubles.InMemoryPolicyRepository(), tools);
-        Coordinator coordinator = new Coordinator(runs, new Planner(llm, tools, costMeter, journal),
-                new ToolAgent(tools, llm, new TestDoubles.InMemoryConnectionRepository(), journal, clock),
-                new Verifier(llm), policyEngine, costMeter, events, journal, clock);
-        runService = new RunService(runs, coordinator, journal, clock, Runnable::run, 1.0, tools);
+        runService = OrchestratorHarness.of(tools).service;
     }
 
     @Test

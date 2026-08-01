@@ -2,8 +2,6 @@ package com.relay.application.orchestrator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.relay.application.cost.CostMeter;
-import com.relay.application.policy.PolicyEngine;
 import com.relay.application.port.LlmClient;
 import com.relay.application.port.LlmRequest;
 import com.relay.application.port.LlmResponse;
@@ -19,6 +17,7 @@ import com.relay.infrastructure.tools.FixtureStore;
 import com.relay.infrastructure.tools.JiraTool;
 import com.relay.infrastructure.tools.SlackTool;
 import com.relay.infrastructure.tools.ToolRegistryImpl;
+import com.relay.support.OrchestratorHarness;
 import com.relay.support.TestDoubles;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -63,14 +62,8 @@ class ApprovalScopeTest {
     }
 
     private RunService service(ToolRegistry tools, LlmClient llm) {
-        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
-        CostMeter costMeter = new CostMeter();
-        AgentJournal journal = new AgentJournal(events, clock);
-        PolicyEngine policyEngine = new PolicyEngine(new TestDoubles.InMemoryPolicyRepository(), tools);
-        Coordinator coordinator = new Coordinator(runs, new Planner(llm, tools, costMeter, journal),
-                new ToolAgent(tools, llm, new TestDoubles.InMemoryConnectionRepository(), journal, clock),
-                new Verifier(llm), policyEngine, costMeter, events, journal, clock);
-        return new RunService(runs, coordinator, journal, clock, Runnable::run, null);
+        return OrchestratorHarness.with(tools).llm(llm).runs(runs).events(events)
+                .budgetUsd(null).build().service;
     }
 
     /** The stub model, but it charges — so the ceiling can be crossed deterministically. */

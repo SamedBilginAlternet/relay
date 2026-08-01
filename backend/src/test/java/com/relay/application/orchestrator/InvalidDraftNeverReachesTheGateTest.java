@@ -2,8 +2,6 @@ package com.relay.application.orchestrator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.relay.application.cost.CostMeter;
-import com.relay.application.policy.PolicyEngine;
 import com.relay.application.port.LlmClient;
 import com.relay.application.port.LlmPurpose;
 import com.relay.application.port.LlmRequest;
@@ -16,6 +14,7 @@ import com.relay.domain.Step;
 import com.relay.domain.StepStatus;
 import com.relay.infrastructure.llm.StubLlmClient;
 import com.relay.infrastructure.tools.ToolRegistryImpl;
+import com.relay.support.OrchestratorHarness;
 import com.relay.support.TestDoubles;
 import java.util.List;
 import java.util.Map;
@@ -47,18 +46,11 @@ import org.junit.jupiter.api.Test;
  */
 class InvalidDraftNeverReachesTheGateTest {
 
-    private final TestDoubles.InMemoryRunRepository runs = new TestDoubles.InMemoryRunRepository();
-    private final TestDoubles.RecordingEventPublisher events = new TestDoubles.RecordingEventPublisher();
+    private OrchestratorHarness harness;
 
     private RunService service(LlmClient llm, ToolRegistry tools) {
-        TestDoubles.FixedClock clock = new TestDoubles.FixedClock();
-        CostMeter costMeter = new CostMeter();
-        AgentJournal journal = new AgentJournal(events, clock);
-        Coordinator coordinator = new Coordinator(runs, new Planner(llm, tools, costMeter, journal),
-                new ToolAgent(tools, llm, new TestDoubles.InMemoryConnectionRepository(), journal, clock),
-                new Verifier(llm), new PolicyEngine(new TestDoubles.InMemoryPolicyRepository(), tools),
-                costMeter, events, journal, clock);
-        return new RunService(runs, coordinator, journal, clock, Runnable::run, 1.0, tools);
+        harness = OrchestratorHarness.of(tools, llm);
+        return harness.service;
     }
 
     /** The write from the transcript: two required fields, neither of them content Relay may invent. */
@@ -104,7 +96,7 @@ class InvalidDraftNeverReachesTheGateTest {
                 List.of(new RunService.SeedStep("Jira kaydını aç", "jira.createIssue", Map.of())),
                 1.0);
 
-        assertThat(events.ofType(RunEvent.STEP_AWAITING))
+        assertThat(harness.events.ofType(RunEvent.STEP_AWAITING))
                 .as("a draft the tool would refuse is never put in front of a person")
                 .isEmpty();
         assertThat(run.steps())
