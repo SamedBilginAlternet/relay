@@ -65,10 +65,23 @@ html[data-sidebar='tight'] {
   z-index: 20;
 }
 
+/*
+  `flex: 0 0 auto` on everything above the live list, and it is not decoration.
+
+  The live list asks for the height of its content — 27 rows is over a thousand
+  pixels — so a column 900px tall is always overflowing, and in an overflowing
+  flex column EVERY item with the default `flex-shrink: 1` gives up height in
+  proportion. Collapsed, this head holds the brand over the collapse control and
+  needs 76px; it was handed its `min-height` of 44 instead, and the control
+  spilled out under the filled `+ Yeni iş` button, which painted over it. The
+  one way back to a full-width rail was invisible and, at its own centre,
+  unclickable — `elementFromPoint` answered with the wrong button.
+*/
 .sb__head {
   display: flex;
   align-items: center;
   gap: var(--s-8);
+  flex: 0 0 auto;
   min-height: 44px;
 }
 
@@ -124,6 +137,7 @@ html[data-sidebar='tight'] {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   gap: var(--s-8);
   min-height: 44px;
   margin: var(--s-12) 0 var(--s-8);
@@ -378,7 +392,9 @@ html[data-sidebar='tight'] {
 .sb__live {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
+  /* Basis 0, not auto: it takes the height that is left over instead of asking
+     for the height of 27 rows and making the whole column overflow. */
+  flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;

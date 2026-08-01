@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { parseHash } from '../lib/router';
@@ -353,4 +355,27 @@ it('a_collapsed_row_still_says_which_flow_it_is_and_how_far_along', async () => 
   const row = await screen.findByTitle('Kararını bekleyen iş — Onay bekliyor · 1/4 adım');
   // And the text is clipped rather than removed, so the row keeps its accessible name.
   expect(row.textContent).toContain('Kararını bekleyen iş');
+});
+
+it('the_controls_above_the_live_list_never_give_up_their_height', () => {
+  /*
+    The bug this exists to stop, in full, because jsdom cannot see it: the live list asks
+    for the height of its content, 27 rows is over a thousand pixels, so the column is
+    always overflowing — and in an overflowing flex column every item with the default
+    `flex-shrink: 1` gives up height in proportion. The collapsed head needs 76px for the
+    brand over the collapse control and was handed its `min-height` of 44, so the control
+    spilled under the filled `+ Yeni iş` button and was painted over by it. The only way
+    back to a full-width rail was invisible, and at its own centre it answered
+    `elementFromPoint` with the wrong button.
+
+    There is no layout engine here to measure that, so the invariant is asserted where it
+    lives: in the stylesheet, on the three boxes stacked above the list.
+  */
+  const css = readFileSync(join(process.cwd(), 'src/styles/sidebar.css'), 'utf8');
+  const rule = (selector: string) => css.slice(css.indexOf(`${selector} {`)).split('}')[0];
+
+  expect(rule('.sb__head')).toContain('flex: 0 0 auto');
+  expect(rule('.sb__new')).toContain('flex: 0 0 auto');
+  // …and the list itself takes what is left rather than asking for what it holds.
+  expect(rule('.sb__live')).toContain('flex: 1 1 0');
 });
