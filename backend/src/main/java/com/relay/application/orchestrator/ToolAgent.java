@@ -66,7 +66,7 @@ public class ToolAgent {
             journal.say(run, step.id(), agent, AgentRole.COORDINATOR,
                     "Parametreler şemaya uymadı: " + params.error());
             return StepOutcome.failed("parameter validation failed: " + params.error(),
-                    params.tokens(), params.costUsd());
+                    params.tokens(), params.costUsd(), params.premiumCostUsd(), params.model());
         }
         step.params(Json.toMap(params.params()));
 
@@ -75,19 +75,22 @@ public class ToolAgent {
         String invented = ungroundedIdentifier(run, step, tool, params.params(), connection);
         if (invented != null) {
             journal.say(run, step.id(), agent, AgentRole.COORDINATOR, invented);
-            return StepOutcome.failed(invented, params.tokens(), params.costUsd());
+            return StepOutcome.failed(invented, params.tokens(), params.costUsd(),
+                    params.premiumCostUsd(), params.model());
         }
 
         String empty = emptyContent(tool, params.params());
         if (empty != null) {
             journal.say(run, step.id(), agent, AgentRole.COORDINATOR, empty);
-            return StepOutcome.failed(empty, params.tokens(), params.costUsd());
+            return StepOutcome.failed(empty, params.tokens(), params.costUsd(),
+                    params.premiumCostUsd(), params.model());
         }
 
         String placeholder = unresolvedPlaceholder(tool, params.params());
         if (placeholder != null) {
             journal.say(run, step.id(), agent, AgentRole.COORDINATOR, placeholder);
-            return StepOutcome.failed(placeholder, params.tokens(), params.costUsd());
+            return StepOutcome.failed(placeholder, params.tokens(), params.costUsd(),
+                    params.premiumCostUsd(), params.model());
         }
 
         journal.say(run, step.id(), agent, AgentRole.COORDINATOR,
@@ -98,13 +101,14 @@ public class ToolAgent {
             result = tool.execute(params.params(), connection);
         } catch (RuntimeException e) {
             return StepOutcome.failed(tool.name() + " threw: " + e.getMessage(),
-                    params.tokens(), params.costUsd());
+                    params.tokens(), params.costUsd(), params.premiumCostUsd(), params.model());
         }
 
         if (!result.ok()) {
             journal.say(run, step.id(), agent, AgentRole.COORDINATOR,
                     tool.name() + " hata verdi: " + result.error());
-            return StepOutcome.failed(result.error(), params.tokens(), params.costUsd());
+            return StepOutcome.failed(result.error(), params.tokens(), params.costUsd(),
+                    params.premiumCostUsd(), params.model());
         }
 
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -115,7 +119,8 @@ public class ToolAgent {
 
         journal.say(run, step.id(), agent, AgentRole.VERIFIER,
                 tool.name() + " tamam (" + result.durationMs() + " ms), sonuç doğrulamaya gidiyor.");
-        return StepOutcome.ok(payload, params.tokens(), params.costUsd());
+        return StepOutcome.ok(payload, params.tokens(), params.costUsd(),
+                params.premiumCostUsd(), params.model());
     }
 
     // ---- reasoning step ---------------------------------------------------
@@ -134,7 +139,7 @@ public class ToolAgent {
         payload.put("mode", "llm");
         payload.put("text", response.content());
         journal.say(run, step.id(), agent, AgentRole.VERIFIER, "Metin üretildi, doğrulamaya gidiyor.");
-        return StepOutcome.ok(payload, response.totalTokens(), response.costUsd());
+        return StepOutcome.ok(payload, response);
     }
 
     // ---- grounding --------------------------------------------------------
@@ -427,7 +432,12 @@ public class ToolAgent {
     // ---- parameters -------------------------------------------------------
 
     /** What one out-of-band parameter refresh cost. */
-    public record ParamRefresh(boolean ok, long tokens, double costUsd) {
+    public record ParamRefresh(boolean ok, long tokens, double costUsd,
+                               Double premiumCostUsd, String model) {
+
+        public ParamRefresh(boolean ok, long tokens, double costUsd) {
+            this(ok, tokens, costUsd, null, null);
+        }
     }
 
     /**
@@ -451,7 +461,8 @@ public class ToolAgent {
         if (outcome.valid()) {
             step.params(Json.toMap(outcome.params()));
         }
-        return new ParamRefresh(outcome.valid(), outcome.tokens(), outcome.costUsd());
+        return new ParamRefresh(outcome.valid(), outcome.tokens(), outcome.costUsd(),
+                outcome.premiumCostUsd(), outcome.model());
     }
 
     /**
@@ -506,8 +517,14 @@ public class ToolAgent {
         return problems;
     }
 
-    private record ParamOutcome(boolean valid, JsonNode params, String error, long tokens, double costUsd) {
+    private record ParamOutcome(boolean valid, JsonNode params, String error, long tokens, double costUsd,
+                                Double premiumCostUsd, String model) {
+
+        ParamOutcome(boolean valid, JsonNode params, String error, long tokens, double costUsd) {
+            this(valid, params, error, tokens, costUsd, null, null);
+        }
     }
+
 
     private ParamOutcome finaliseParams(Run run, Step step, Tool tool) {
         JsonNode draft = Json.toNode(step.params());
@@ -533,6 +550,10 @@ public class ToolAgent {
 
         long tokens = 0;
         double cost = 0;
+        // Null, not zero: a draft that needed no model call has no premium to compare with,
+        // and zero there would read as "the strong model would have been free".
+        Double premium = null;
+        String model = null;
         JsonNode candidate = draft;
 
         SchemaValidator.Result draftCheck = SchemaValidator.validate(tool.schema(), draft);
@@ -574,6 +595,8 @@ public class ToolAgent {
             LlmResponse response = llm.complete(request);
             tokens = response.totalTokens();
             cost = response.costUsd();
+            premium = response.premiumCostUsd();
+            model = response.model();
             JsonNode fromModel = Json.extract(response.content());
             if (fromModel != null && fromModel.isObject()) {
                 candidate = merge(draft, fromModel);
@@ -582,7 +605,7 @@ public class ToolAgent {
 
         SchemaValidator.Result check = SchemaValidator.validate(tool.schema(), candidate);
         if (!check.valid()) {
-            return new ParamOutcome(false, candidate, check.message(), tokens, cost);
+            return new ParamOutcome(false, candidate, check.message(), tokens, cost, premium, model);
         }
         // Applied again in case the model overwrote a resolved value with a placeholder.
         // Defaults land here rather than at call time so the parameters a human approves are
@@ -596,7 +619,7 @@ public class ToolAgent {
                     grounded.note());
             finalised = grounded.params();
         }
-        return new ParamOutcome(true, finalised, null, tokens, cost);
+        return new ParamOutcome(true, finalised, null, tokens, cost, premium, model);
     }
 
     /** Config keys that describe *where* to work. Never a credential — see {@link #settings}. */

@@ -235,7 +235,8 @@ public class Coordinator {
                 // step waited on a human with no channel and no message text on screen.
                 // Approving what you cannot read is not approval.
                 ToolAgent.ParamRefresh refresh = toolAgent.refreshParams(run, step);
-                costMeter.record(run, step, refresh.tokens(), refresh.costUsd());
+                costMeter.record(run, step, refresh.tokens(), refresh.costUsd(),
+                        refresh.premiumCostUsd(), refresh.model());
 
                 // And do not ask about something that cannot be sent. A raw
                 // {{steps[0].result.issues.length}} used to reach the screen and be approved:
@@ -296,7 +297,11 @@ public class Coordinator {
                 "role", String.valueOf(step.role()))));
 
         StepOutcome outcome = toolAgent.execute(run, step);
-        costMeter.record(run, step, outcome.tokens(), outcome.costUsd());
+        // The four-value form, not the two-value one: which model answered and what the
+        // strong one would have cost are carried all the way from the call that made them,
+        // and dropping them here is what left both columns null on every row.
+        costMeter.record(run, step, outcome.tokens(), outcome.costUsd(),
+                outcome.premiumCostUsd(), outcome.model());
 
         if (!outcome.ok()) {
             if (ToolAgent.ungrounded(outcome.error()) && !step.retriesExhausted()
@@ -315,7 +320,8 @@ public class Coordinator {
         }
 
         Verifier.Verdict verdict = verifier.verify(run, step, outcome.result());
-        costMeter.record(run, step, verdict.tokens(), verdict.costUsd());
+        costMeter.record(run, step, verdict.tokens(), verdict.costUsd(),
+                verdict.premiumCostUsd(), verdict.model());
 
         if (!verdict.pass()) {
             if (!step.retriesExhausted()) {
@@ -359,7 +365,8 @@ public class Coordinator {
             // Derive the corrected parameters now, so the approval screen shows what will
             // actually be sent rather than the values that just bounced.
             ToolAgent.ParamRefresh refresh = toolAgent.refreshParams(run, step);
-            costMeter.record(run, step, refresh.tokens(), refresh.costUsd());
+            costMeter.record(run, step, refresh.tokens(), refresh.costUsd(),
+                    refresh.premiumCostUsd(), refresh.model());
         }
         journal.say(run, step.id(), AgentRole.COORDINATOR, step.role(),
                 "Araç hatayı gerekçesiyle döndürdü: " + error

@@ -23,7 +23,24 @@ public class Verifier {
         this.llm = llm;
     }
 
-    public record Verdict(boolean pass, String reason, long tokens, double costUsd) {
+    /**
+     * The auditor's judgement, and what asking for it cost.
+     *
+     * <p>Verification is one of the jobs routed to the small model, so this is exactly where
+     * the saving shows up — and it only shows up if the model that answered survives the trip
+     * back to the coordinator, which is the thing that writes cost down.
+     */
+    public record Verdict(boolean pass, String reason, long tokens, double costUsd,
+                          Double premiumCostUsd, String model) {
+
+        public Verdict(boolean pass, String reason, long tokens, double costUsd) {
+            this(pass, reason, tokens, costUsd, null, null);
+        }
+
+        static Verdict of(boolean pass, String reason, LlmResponse response) {
+            return new Verdict(pass, reason, response.totalTokens(), response.costUsd(),
+                    response.premiumCostUsd(), response.model());
+        }
     }
 
     public Verdict verify(Run run, Step step, Object result) {
@@ -51,8 +68,7 @@ public class Verifier {
         // to speak must not lock a run that has already done its work — see
         // docs/NASIL-CALISIYOR.md §10, "Doğrulayıcı LLM'dir".
         if (node == null) {
-            return new Verdict(true, "verifier could not parse a verdict, accepting",
-                    response.totalTokens(), response.costUsd());
+            return Verdict.of(true, "verifier could not parse a verdict, accepting", response);
         }
         // JSON, but no verdict in it. That is not the same thing at all: the schema above
         // declares "pass" required, so a model that answers {"reason": "mesaj hiçbir bulgu
@@ -60,15 +76,14 @@ public class Verifier {
         // Reading that as a pass told the user "doğrulandı" over the auditor's own objection.
         if (!node.has("pass")) {
             String said = node.path("reason").asText("").trim();
-            return new Verdict(false, said.isEmpty()
+            return Verdict.of(false, said.isEmpty()
                     ? "doğrulayıcı bir yargı vermedi"
-                    : "doğrulayıcı bir yargı vermedi: " + said,
-                    response.totalTokens(), response.costUsd());
+                    : "doğrulayıcı bir yargı vermedi: " + said, response);
         }
         boolean pass = node.path("pass").asBoolean(true);
         String reason = node.path("reason")
                 .asText(pass ? "sonuç hedefe uygun" : "sonuç hedefi karşılamıyor");
-        return new Verdict(pass, reason, response.totalTokens(), response.costUsd());
+        return Verdict.of(pass, reason, response);
     }
 
     public static JsonNode schema() {

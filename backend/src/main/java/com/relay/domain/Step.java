@@ -186,6 +186,13 @@ public class Step {
     public void addCost(long tokens, double costUsd, Double premiumCostUsd, String model) {
         this.tokens += tokens;
         this.costUsd += costUsd;
+        if (tokens == 0 && costUsd == 0) {
+            // Nothing was spent, so there is nothing that could not be priced. Treating a
+            // no-op as unpriceable was enough to make every step's premium unknown: a step
+            // whose parameters were already valid records one of these before the verifier
+            // has said a word, and it poisoned the figure the whole comparison rests on.
+            return;
+        }
         if (premiumCostUsd == null) {
             this.premiumUnknown = true;
             this.premiumCostUsd = null;
