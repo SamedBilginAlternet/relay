@@ -202,7 +202,13 @@ Demodan **30 dakika önce** başla; her maddeyi sırayla işaretle.
 1. ☐ Backend ayakta: `GET /api/health` → `{status: ok}` dönüyor; sağlayıcı için oturumlu `GET /api/health/details` → `llm.provider: groq`.
 2. ☐ **Bağlantılar** ekranında Jira ve Slack token'ları girili; her ikisinde **Bağlantıyı Test Et** yeşil.
 3. ☐ Politikalar doğru: `jira.search/get` → otomatik; `jira.updateIssue`, `jira.addComment`, `slack.postMessage` → **onay iste**. (ALTIN KURAL — §4.)
-4. ☐ Jira KAN projesinde blocker etiketli ticket'lar **In Progress**'e sıfırlandı (önceki provaların Done'ları geri alındı); en az 3 blocker listede.
+4. ☐ **Demo verisi kurulu ve doğrulandı: [`DEMO-VERI.md`](DEMO-VERI.md).** Tek maddede özeti:
+   `KAN-1..4` **sana atanmış** ve durumları sıfırlanmış (§2.1, §2.5), `KAN-2`'de iki yorum var
+   (§2.2), Jira bağlantısında `projectKey = KAN` (§2.4), mailler en az **iki ayrı
+   göndericiden** (§1), takvim etkinliği **demo saatinden sonra** (§4).
+   Doğrulama tek komut — `DEMO-VERI.md` §5'teki `curl`. Şu üçü tutmadan devam etme:
+   `work: ok 4` · `lines` içinde "bir kişiden geldi" **yok** · ilk toplantı saati demodan sonra.
+   Bu madde atlanırsa `Bugün` ekranında **Üstümdeki işler boş açılır** — canlıda bir kez oldu (#55).
 5. ☐ Slack: "relay" botu `#genel` kanalına **davetli** (`/invite @relay`); kanala test mesajı atıp silindi.
 6. ☐ Groq: `GROQ_API_KEYS` en az 3 anahtar içeriyor; her biri bugün tek istekle doğrulandı.
 7. ☐ Akış bütçesi ayarlı (ör. $0.50) — maliyet şeridi ve bütçe davranışı anlatılabilir durumda.

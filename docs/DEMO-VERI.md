@@ -22,8 +22,16 @@ gerçek GitHub issue'larına dönüşüyor; yalnızca içeriğini biz seçiyoruz
 
 ## 1. Mailler
 
-Hepsini kendi adresinden kendine gönder. **Üçü de Primary sekmesine düşmeli**; gönderen
-sen olduğun için düşer.
+**En az ikisi farklı göndericiden gelmeli.** Hepsini kendi adresinden kendine göndermek
+kolay ve Primary sekmesine düşmeyi garantiler — ama bedeli ekranın kendi alt satırında
+görünüyor: canlıda `today.lines` şunu yazdı → *"4 mail bir kişiden geldi (11 bülten ayrıldı)"*.
+Jüri o satırı okur ve "bu bir test hesabı" der. **1.1'i ikinci bir gerçek adresten gönder**
+(eş, iş arkadaşı, ikinci Google hesabı — `+destek` alt adresi yetmez, `From` yine sensin).
+Kalanlar kendinden kendine gidebilir. Hedef satır: *"4 mail üç kişiden geldi"*.
+
+**Hepsi Primary sekmesine düşmeli.** Tanıdık göndericiden gelen düz metin mail düşer;
+şablonlu/HTML bir mail `Promosyonlar`a kayabilir — gönderdikten sonra gelen kutusunda
+gözünle doğrula.
 
 ### 1.1 Müşteri talebi (demonun ana kartı)
 
@@ -59,21 +67,68 @@ kendi kararını kullanıyoruz, konu satırındaki kelimeyi değil."*
 
 ---
 
-## 2. Jira (KAN projesi)
+## 2. Jira (KAN projesi) — **ekranın en kırılgan yeri**
 
-Üç kayıt, **üçü de sana atanmış**, üç farklı durumda — öneriler duruma göre değiştiği için
-üçü de farklı buton gösterir:
+**Neden bu bölüm diğerlerinden önemli:** `KONUMLANDIRMA.md` §2 birincil kullanıcıyı "bir
+yazılım/ürün ekibini yürüten kişi" diye tanımlıyor. O kişinin ana aracı Jira. 01 Ağu 02:29'da
+canlı `GET /api/brief` şunu döndürdü:
 
-| Özet | Durum | Beklenen öneri |
-|---|---|---|
-| `Ödeme servisi staging'de 500 dönüyor` | Yapılacaklar | *Başla: In Progress yap* + *Ekibe başladığını bildir* |
-| `Profil sayfası yeniden tasarımı` | Devam Ediyor | *İlerlemeyi kayda yaz* |
-| `Kargo entegrasyonu — sağlayıcı yanıt vermiyor` | Engellendi/Blocked | *Engeli ekibe taşı* · aciliyet **yüksek** |
+```json
+"work":{"status":"ok","reason":null,"count":0,"items":[],"provider":"jira","mode":"live"}
+"today":{"counts":{"inbox":15,"work":0,"code":3,"calendar":1}}
+```
 
-İkinci kayda (`Profil sayfası`) **iki yorum** ekle — "yorumları getir" eylemi boş dönmesin.
+Bağlantı çalışıyordu, hata yoktu — **kayıt yoktu.** `Üstümdeki işler` bölümü boş açıldı, yani
+iddia edilen kullanıcının günü ekranda görünmedi. Bu bölüm bunu engellemek için var (#55).
 
-> Durum adları panonun dilinde: `Yapılacaklar / Devam Ediyor / Tamam`. Sistem
-> İngilizce↔Türkçe eşleştirmesini kendi yapıyor, sen panonun kendi adlarını kullan.
+`Bugün` ekranı bu bölümü `jira.listMyIssues` ile dolduruyor. O araç **`assignee = currentUser()`**
+sorguluyor: panoda var olan bir kayıt yetmez, **sana atanmış** olması gerekir.
+
+### 2.1 Kayıtlar — dördü de `assignee = demo hesabı`
+
+| Anahtar | Özet | Durum | Etiket | Ne kanıtlıyor |
+|---|---|---|---|---|
+| `KAN-1` | `Ödeme servisi staging'de 500 dönüyor` | `Yapılacaklar` | `blocker` | Yeni iş → *Başla: In Progress yap* + *Ekibe başladığını bildir* |
+| `KAN-2` | `Profil sayfası yeniden tasarımı` | `Devam Ediyor` | — | Süren iş → *İlerlemeyi kayda yaz* · **yorumları olan kayıt bu** |
+| `KAN-3` | `Kargo entegrasyonu — sağlayıcı yanıt vermiyor` | `Engellendi` | `blocker` | Takılan iş → *Engeli ekibe taşı* · aciliyet **yüksek** |
+| `KAN-4` | `Fatura PDF'i Türkçe karakterleri bozuyor` | `Yapılacaklar` | `blocker` | **Takılan işler** akışının JQL'i (`labels = blocker AND statusCategory != Done`) en az üç satır dönsün diye |
+
+Anahtarlar sabit tutulur — `DEMO.md` §1'in red gerekçesi (`"KAN-3 bilerek açık kalacak"`) bu
+numaraya bağlı. Kayıtları silip yeniden açarsan numaralar kayar; **durumları geri al, kaydı
+silme.**
+
+### 2.2 Yorumlar — `KAN-2`'ye tam iki tane
+
+`Yorumları getir` eylemi (`jira.getComments`) Bugün ekranında **Jira kartlarına otomatik
+ekleniyor**; boş dönerse sahnede "hiç yorum yok" yazar. `KAN-2` altına, bu sırayla:
+
+1. `Tasarım onayı geldi, geliştirmeye başlıyorum.`
+2. `Mobil görünümde başlık taşıyor — ayrı kayıt açmak yerine burada çözeceğim.`
+
+İkinci yorum bilerek bir **karar** cümlesi: demoda "yorumları getir" tıklandığında ekranda
+okunacak bir şey olsun, tarih damgası değil.
+
+### 2.3 Durum adları
+
+Durum adları panonun dilinde yazılır: `Yapılacaklar / Devam Ediyor / Engellendi / Tamam`.
+Sistem İngilizce↔Türkçe eşleştirmesini kendi yapıyor; sen panonun kendi adlarını kullan.
+
+### 2.4 Proje anahtarı — sessiz tuzak
+
+`Bağlantılar` ekranındaki Jira bağlantısında **`projectKey = KAN` dolu olmalı.** Boşsa
+`BRIEF_DEFAULT_PROJECT_KEY` devreye girer ve varsayılanı **`RELAY`** — canlıda tam olarak bu
+oldu: `jira.createIssue` adımı *"'RELAY' anahtarlı bir proje yok"* hatasıyla düştü ve akış
+hiçbir araçta iş bitirmeden kapandı. Kontrolü §5'teki `curl` çıktısında yap: öneri
+parametrelerinde `"projectKey":"KAN"` görünmeli.
+
+### 2.5 Sıfırlama (her provadan sonra)
+
+Prova akışları `KAN-1`'i `Devam Ediyor`'a, `KAN-3`'ü `Tamam`'a taşır ve bir sonraki demoda
+liste bozulur. Demodan önce:
+
+- `KAN-1` → `Yapılacaklar`
+- `KAN-3` → `Engellendi`
+- Provada açılmış `KAN-6`, `KAN-7`… kayıtlarını **kapat** (silme — anahtarlar kaysın istemezsin)
 
 ---
 
@@ -118,6 +173,8 @@ d=json.load(sys.stdin)
 t=d.get('today') or {}
 print(t.get('headline'))
 for line in t.get('lines', []): print(' ·', line)
+print('counts:', t.get('counts'))
+print('work:', (d.get('work') or {}).get('status'), (d.get('work') or {}).get('count'))
 for c in d.get('priority', []):
     print(' •', c.get('source'), c.get('urgency'), '|', (c.get('summary') or '')[:60])
     print('    →', [a.get('label') for a in c.get('suggestedActions', [])])
@@ -125,14 +182,26 @@ print('llm:', (d.get('llm') or {}).get('provider'), '| degraded:', (d.get('llm')
 "
 ```
 
-Şunları gör:
+Şunları gör — **beşi de tutmadan sahneye çıkma:**
 
+- **`work: ok 4`** ve `counts` içinde `"work": 4`. `work` sıfırsa Jira kayıtları sana atanmamış
+  demektir (§2.1) — bu, ekranın en sık boş kalan bölümü ve iddia edilen kullanıcının
+  görünmediği yer.
+- **`lines` içinde "bir kişiden geldi" ifadesi geçmiyor.** Geçiyorsa §1'deki ikinci gönderici
+  atlanmış demektir.
+- **İlk toplantı saati demo saatinden sonra.** `lines` içindeki *"1 toplantı — ilki HH:MM"*
+  satırını oku; geçmişte kalmış bir toplantı hazırlık akışını anlamsızlaştırır (§4).
 - `degraded: false` — model ayakta. `true` ise öneriler sezgisel yola düşer, cümleler
   kabalaşır. Anahtar kotası bitmişse yeni anahtar ekle.
 - Öncelik kartlarının önerileri **birbirinden farklı**. Hepsi aynıysa kayıtların durumları
   da aynı demektir; birini `Devam Ediyor`, birini `Engellendi` yap.
 - Odak kartı müşteri maili olmalı — GitHub kaydı değil. Değilse mail çok eski kalmıştır,
   yeniden gönder.
+
+Bir de **gözle** bakılacak tek şey: kartların *"Neden şimdi"* satırı başlığı tekrar ediyorsa
+(başlık *"Kurulum notunu README'ye ekle"* → neden *"Kurulum notunun README'ye eklenmesi
+gerekiyor"*) o kartı demoda açma. Model bazen boş bilgi üretiyor; düzeltmesi kod işi (#55),
+sahnede yapılacak şey o kartı seçmemek.
 
 ---
 
