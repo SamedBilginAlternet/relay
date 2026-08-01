@@ -247,6 +247,19 @@ public class Coordinator {
                 costMeter.record(run, step, refresh.tokens(), refresh.costUsd(),
                         refresh.premiumCostUsd(), refresh.model());
 
+                // The specialist affirmed the step's precondition is empty — there is no
+                // record to open, no mail to answer. That is the third answer, and it comes
+                // BEFORE the ok() check on purpose: a skip is not a draft that failed, it is
+                // the honest end of the step. Live on 2026-08-01 the only two answers were
+                // an invented jira.createIssue summary (rightly refused by the schema guard)
+                // and, after the retries, a FAILED run — for a day whose mails simply held
+                // no work request. "Koşulu sağlayan mail yoktu" is DONE-shaped, not
+                // FAILED-shaped.
+                if (refresh.skipped()) {
+                    skipStep(run, step, refresh.skipReason());
+                    continue;
+                }
+
                 // The refresh already knows whether what it produced satisfies the tool's own
                 // schema, and that verdict used to be read for its token counts and dropped.
                 // Live, a jira.createIssue draft with neither projectKey nor summary was parked
@@ -305,6 +318,12 @@ public class Coordinator {
         // which rule or which person stopped it.
         boolean nothingRan = run.steps().stream().noneMatch(s -> s.status() == StepStatus.DONE);
         boolean anyRejected = run.steps().stream().anyMatch(s -> s.status() == StepStatus.REJECTED);
+        // SKIPPED is deliberately on neither side of that rule. It does not count as "ran"
+        // — a run of one rejected write and one skipped announcement still did no work over
+        // a person's no, and still closes failed. And it never *causes* a failure: a run
+        // whose read came back empty and whose writes were all skipped is the flow working
+        // ("koşulu sağlayan mail yoktu, kayıt açılmadı") and closes DONE, with the closing
+        // summary saying why nothing was written.
         finish(run, anyFailed || (nothingRan && anyRejected) ? RunStatus.FAILED : RunStatus.DONE);
     }
 
@@ -324,6 +343,14 @@ public class Coordinator {
         // and dropping them here is what left both columns null on every row.
         costMeter.record(run, step, outcome.tokens(), outcome.costUsd(),
                 outcome.premiumCostUsd(), outcome.model());
+
+        // Before ok(): a skip is neither a result to verify nor an error to retry. This is
+        // the auto-policy twin of the gate-path check in walk() — a read or an auto write
+        // whose precondition came back empty ends here, honestly.
+        if (outcome.skipped()) {
+            skipStep(run, step, outcome.skipReason());
+            return;
+        }
 
         if (!outcome.ok()) {
             if (ToolAgent.ungrounded(outcome.error()) && !step.retriesExhausted()
@@ -417,6 +444,14 @@ public class Coordinator {
             ToolAgent.ParamRefresh refresh = toolAgent.refreshParams(run, step);
             costMeter.record(run, step, refresh.tokens(), refresh.costUsd(),
                     refresh.premiumCostUsd(), refresh.model());
+            // Reconsidering the rejected attempt is also the moment the specialist may see
+            // that the thing it was writing about is not there at all. Same rule as at the
+            // gate: a skip ends the step instead of sending it back for another lap.
+            if (refresh.skipped()) {
+                skipStep(run, step, refresh.skipReason());
+                publishCost(run);
+                return;
+            }
         }
         journal.say(run, step.id(), AgentRole.COORDINATOR, step.role(),
                 "Araç hatayı gerekçesiyle döndürdü: " + error
@@ -576,6 +611,28 @@ public class Coordinator {
                 .filter(other -> other.status() == StepStatus.REJECTED)
                 .findFirst()
                 .orElse(null);
+    }
+
+    /**
+     * Closes a step whose precondition came back empty, and says so out loud.
+     *
+     * <p>The journal line is deliberately the loud part. A skip is the one outcome that is
+     * correct when the model is right and silent-data-loss when it is wrong, and no shape
+     * check here can tell those apart — the check on the <em>reason</em> lives in
+     * {@code ToolAgent}. What the coordinator can do is make a wrong skip impossible to
+     * miss: the sentence names what was looked for, it goes to the user, and the step's own
+     * record carries it too.
+     *
+     * <p>Steps that depended on this one are not touched. They resolve the same way on their
+     * own turn: the skip record sits in their PREVIOUS RESULTS, so the specialist for "kaydı
+     * açtığımı bildir" sees that no record was opened and skips with its own reason. One
+     * mechanism, no cascade rule to keep consistent with it.
+     */
+    private void skipStep(Run run, Step step, String reason) {
+        step.markSkipped(reason, clock.now());
+        journal.say(run, step.id(), AgentRole.COORDINATOR, AgentRole.USER,
+                "Adım " + step.ordinal() + " atlandı: " + reason + " Bu adımda işlem yapılmadı.");
+        publishStepFinished(run, step);
     }
 
     private void rejectStep(Run run, Step step, String reason) {

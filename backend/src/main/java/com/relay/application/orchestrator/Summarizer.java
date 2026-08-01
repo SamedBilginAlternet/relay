@@ -60,6 +60,13 @@ public class Summarizer {
                             + " çalışmış bir adımın yaptığı işi anlat. Hedefte olup adımı"
                             + " olmayan bir iş için 'yapıldı', 'incelendi', 'tamamlandı' deme —"
                             + " o işe hiç girilmediğini söyle."
+                            // A skipped step is the run's own finding that there was nothing
+                            // to do. That finding is the summary's best sentence — "koşulu
+                            // sağlayan mail yoktu, kayıt açılmadı" — and without this line
+                            // the model either ignores the step or narrates it as work.
+                            + " 'skipped' bir adım bilinçli atlandı demektir: gerekçesindeki"
+                            + " nedeni söyle ('… bulunmadığı için … yapılmadı'), o işi"
+                            + " yapılmış gibi anlatma."
                             + (failed ? " Akış tamamlanamadı: hangi adımda neden durduğunu tek cümleyle söyle."
                                       : " Adım adım anlatma, sonucu söyle.")
                             + " Sadece düz metin yaz, JSON yazma.",
@@ -98,6 +105,10 @@ public class Summarizer {
                     .append(" · ").append(step.status().wire()).append("]");
             if (step.status() == StepStatus.FAILED && step.error() != null) {
                 line.append(" hata: ").append(step.error());
+            } else if (step.status() == StepStatus.SKIPPED && step.skipReason() != null) {
+                // Spelled out rather than left as the raw skip record: the reason is the
+                // evidence the closing line quotes for why nothing was written.
+                line.append(" atlandı: ").append(step.skipReason());
             } else if (step.result() != null) {
                 line.append(" sonuç: ").append(Json.preview(step.result(), MAX_RESULT_CHARS));
             }

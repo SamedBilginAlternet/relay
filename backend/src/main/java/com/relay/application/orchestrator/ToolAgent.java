@@ -62,6 +62,13 @@ public class ToolAgent {
         }
 
         ParamOutcome params = finaliseParams(run, step, tool);
+        if (params.skipped()) {
+            journal.say(run, step.id(), agent, AgentRole.COORDINATOR,
+                    "Bu adımın koşulunu sağlayan bir şey bulunamadı: " + params.skipReason()
+                            + " Araç çağrılmadı.");
+            return StepOutcome.skipped(params.skipReason(), params.tokens(), params.costUsd(),
+                    params.premiumCostUsd(), params.model());
+        }
         if (!params.valid()) {
             journal.say(run, step.id(), agent, AgentRole.COORDINATOR,
                     "Parametreler şemaya uymadı: " + params.error());
@@ -498,9 +505,23 @@ public class ToolAgent {
      * <p>{@code error} carries the sentence to show when it did not. It used to be a bare
      * {@code ok} that every caller ignored: the coordinator has to be able to say <em>which</em>
      * fields are missing, and a boolean cannot.
+     *
+     * <p>{@code skipReason} is the third answer: not "here are the parameters" and not "I could
+     * not write them", but "there is nothing to write them <em>about</em>". Carried separately
+     * from {@code error} because the coordinator does the opposite thing with each — an error
+     * is retried and eventually fails the run, a skip closes the step honestly.
      */
     public record ParamRefresh(boolean ok, String error, long tokens, double costUsd,
-                               Double premiumCostUsd, String model) {
+                               Double premiumCostUsd, String model, String skipReason) {
+
+        public ParamRefresh(boolean ok, String error, long tokens, double costUsd,
+                            Double premiumCostUsd, String model) {
+            this(ok, error, tokens, costUsd, premiumCostUsd, model, null);
+        }
+
+        public boolean skipped() {
+            return skipReason != null;
+        }
     }
 
     /**
@@ -521,6 +542,10 @@ public class ToolAgent {
         // keeping it would park the step forever on a value already known to be rejected.
         step.paramsLocked(false);
         ParamOutcome outcome = finaliseParams(run, step, tool);
+        if (outcome.skipped()) {
+            return new ParamRefresh(false, null, outcome.tokens(), outcome.costUsd(),
+                    outcome.premiumCostUsd(), outcome.model(), outcome.skipReason());
+        }
         if (outcome.valid()) {
             step.params(Json.toMap(outcome.params()));
         }
@@ -593,11 +618,107 @@ public class ToolAgent {
     }
 
     private record ParamOutcome(boolean valid, JsonNode params, String error, long tokens, double costUsd,
-                                Double premiumCostUsd, String model) {
+                                Double premiumCostUsd, String model, String skipReason) {
 
         ParamOutcome(boolean valid, JsonNode params, String error, long tokens, double costUsd) {
-            this(valid, params, error, tokens, costUsd, null, null);
+            this(valid, params, error, tokens, costUsd, null, null, null);
         }
+
+        ParamOutcome(boolean valid, JsonNode params, String error, long tokens, double costUsd,
+                     Double premiumCostUsd, String model) {
+            this(valid, params, error, tokens, costUsd, premiumCostUsd, model, null);
+        }
+
+        boolean skipped() {
+            return skipReason != null;
+        }
+    }
+
+    // ---- the skip answer ---------------------------------------------------
+
+    /**
+     * The escape hatch, spelled out to the specialist. Only offered when the step's
+     * parameters derive from earlier results — see {@link #finaliseParams}.
+     */
+    private static final String SKIP_INSTRUCTION = """
+
+
+            IF AND ONLY IF the PREVIOUS RESULTS contain nothing that satisfies the goal's \
+            condition for THIS step — the record, mail or finding this step was meant to act \
+            on does not exist — do NOT invent parameters and do NOT leave fields blank. \
+            Answer exactly: {"skip": true, "reason": "<one Turkish sentence naming what was \
+            looked for and not found>"}. Skipping is only for an empty precondition; if the \
+            thing exists but writing the parameters is hard, write the parameters.""";
+
+    /**
+     * Accepts a skip only when the reason actually names what was looked for.
+     *
+     * <p>Deliberately a shape check, not a content check: nobody here can judge whether the
+     * mails really contained no work requests — that is exactly the judgement delegated to
+     * the model. What can be checked is that the model said <em>something</em>: "yok" alone
+     * licenses nothing, and an empty reason is a lazy exit wearing the skip's clothes. A
+     * reason has to be a sentence — several words, no template markers — or the skip is
+     * refused and the turn is treated like any other unusable draft.
+     */
+    static boolean presentableSkipReason(String reason) {
+        if (reason == null || reason.isBlank() || reason.trim().length() < 20) {
+            return false;
+        }
+        if (reason.trim().split("\\s+").length < 4) {
+            return false;
+        }
+        return !com.relay.application.text.Filler.looksLikeFiller(reason)
+                && !com.relay.application.text.Placeholder.unresolved(reason);
+    }
+
+    /**
+     * The response schema when the skip answer is on the table: the tool's own parameters
+     * <em>or</em> the skip object. Providers get it as JSON-mode guidance; the stub unwraps
+     * {@code anyOf} and keeps planning against the first branch.
+     */
+    private static JsonNode skipAware(JsonNode toolSchema) {
+        ObjectNode skip = Json.object();
+        skip.put("type", "object");
+        var req = skip.putArray("required");
+        req.add("skip");
+        req.add("reason");
+        ObjectNode props = skip.putObject("properties");
+        props.putObject("skip").put("type", "boolean");
+        props.putObject("reason").put("type", "string");
+        ObjectNode either = Json.object();
+        var any = either.putArray("anyOf");
+        any.add(toolSchema);
+        any.add(skip);
+        return either;
+    }
+
+    /**
+     * Reads a skip out of the model's answer, or refuses it with the reason why.
+     *
+     * <p>Refusals return an <em>invalid</em> outcome, which sends the turn down the same
+     * path as any other unusable draft (#155): the specialist is told what was wrong and
+     * gets its bounded retries, and at the bound the step fails. A skip never lowers that
+     * bar — it has to be earned by naming what is missing.
+     */
+    private ParamOutcome readSkip(JsonNode fromModel, boolean maySkip, long tokens, double cost,
+                                  Double premium, String model) {
+        if (!maySkip) {
+            // No earlier results, so there is no emptiness to observe: this step's parameters
+            // come from the goal, and the goal is never "empty". The model is dodging work.
+            return new ParamOutcome(false, Json.object(),
+                    "skip yalnızca önceki adımların sonucuna dayanan adımlarda geçerli; bu adımın"
+                            + " parametreleri hedeften türetilir — parametreleri yaz",
+                    tokens, cost, premium, model);
+        }
+        String reason = fromModel.path("reason").asText("").trim();
+        if (!presentableSkipReason(reason)) {
+            return new ParamOutcome(false, Json.object(),
+                    "skip gerekçesi neyin arandığını ve bulunamadığını söylemeli — tek kelime ya da"
+                            + " boş gerekçe kabul edilmez; ya tam bir Türkçe cümle yaz ya da"
+                            + " parametreleri üret",
+                    tokens, cost, premium, model);
+        }
+        return new ParamOutcome(false, Json.object(), null, tokens, cost, premium, model, reason);
     }
 
 
@@ -635,6 +756,12 @@ public class ToolAgent {
         // A previous attempt that the provider rejected has to be reconsidered even when the
         // draft is schema-valid: the schema was never the problem, the values were.
         if (!draftCheck.valid() || step.lastProviderError() != null) {
+            // The skip answer exists only where an emptiness can be observed: a step whose
+            // parameters derive from what earlier steps found. A first step's parameters come
+            // from the goal, and a goal is a request, never evidence of absence — offering
+            // the exit there would be offering a way out of the work itself.
+            List<Map<String, Object>> previous = previousResults(run, step);
+            boolean maySkip = !previous.isEmpty();
             // Only spend a model call when the draft is not already good enough.
             LlmRequest request = LlmRequest.of(
                     LlmPurpose.TOOL_PARAMS,
@@ -649,30 +776,39 @@ public class ToolAgent {
                             + "counts, say what state they are in. Write it in the language of "
                             + "the goal. Never write placeholders like \"özet\", \"detaylar "
                             + "aşağıda\", \"ayrıntılar zaman çizelgesinde\", \"TODO\" or "
-                            + "\"<...>\" — if the facts are in PREVIOUS RESULTS, put them in the text.",
+                            + "\"<...>\" — if the facts are in PREVIOUS RESULTS, put them in the text."
+                            // The live incident this answers: "olanlar için Jira kaydı aç" met a
+                            // day with zero qualifying mails, and the only answers on the table
+                            // were an invented summary (refused, rightly) or a failed run. The
+                            // third answer has to be offered explicitly, or the model picks
+                            // between the two wrong ones.
+                            + (maySkip ? SKIP_INSTRUCTION : ""),
                     "GOAL:\n" + run.goal()
                             + "\n\nSTEP: " + step.title()
                             + "\n\nTOOL: " + tool.name() + " — " + tool.description()
                             + "\n\nPARAM SCHEMA:\n" + tool.schema().toString()
                             + settings(connections.findByProvider(tool.provider()).orElse(null))
                             + "\n\nDRAFT PARAMS:\n" + draft
-                            + "\n\nPREVIOUS RESULTS:\n" + Json.preview(previousResults(run, step), 2000)
+                            + "\n\nPREVIOUS RESULTS:\n" + Json.preview(previous, 2000)
                             + (step.lastProviderError() == null ? ""
                                     : "\n\nThe last attempt was rejected by the provider: " + step.lastProviderError()
                                             + "\nFix the parameters accordingly — the provider's message"
                                             + " usually names the allowed values.")
                             + "\n\nProblems with the draft: " + draftCheck.message(),
-                    tool.schema(),
+                    maySkip ? skipAware(tool.schema()) : tool.schema(),
                     Map.of("tool", tool.name(),
                             "draft", Json.toPlain(draft),
                             "goal", run.goal(),
-                            "previous", previousResults(run, step)));
+                            "previous", previous));
             LlmResponse response = llm.complete(request);
             tokens = response.totalTokens();
             cost = response.costUsd();
             premium = response.premiumCostUsd();
             model = response.model();
             JsonNode fromModel = Json.extract(response.content());
+            if (fromModel != null && fromModel.isObject() && fromModel.path("skip").asBoolean(false)) {
+                return readSkip(fromModel, maySkip, tokens, cost, premium, model);
+            }
             if (fromModel != null && fromModel.isObject()) {
                 candidate = merge(draft, fromModel);
             }

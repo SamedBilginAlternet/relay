@@ -22,6 +22,9 @@ const PROGRESS: Record<StepStatus, number> = {
   done: 3,
   failed: 3,
   rejected: 3,
+  // Terminal like the three above it: a replayed `running` frame must not reopen a step
+  // the coordinator already skipped.
+  skipped: 3,
 };
 
 /** Everything about a step that is history rather than description. */
@@ -31,6 +34,7 @@ function progress(step: Step) {
     decision: step.decision,
     pausedBy: step.pausedBy,
     rejectReason: step.rejectReason,
+    skipReason: step.skipReason,
     result: step.result,
     error: step.error,
     tokens: step.tokens,
@@ -125,6 +129,10 @@ export function applyEvent(run: Run, event: RunEvent, now: string = new Date().t
           decision: event.decision ?? s.decision,
           pausedBy: null,
           rejectReason: event.rejectReason ?? s.rejectReason,
+          // Why a skipped step did nothing — from the server's own copy of the step, the
+          // same place the timestamps come from. Without it the reason drew once and then
+          // vanished on the first replayed frame.
+          skipReason: event.step?.skipReason ?? s.skipReason ?? null,
           tokens: event.tokens ?? s.tokens,
           costUsd: event.costUsd ?? s.costUsd,
           // The frame carries the server's own copy of the step. Preferring it over the

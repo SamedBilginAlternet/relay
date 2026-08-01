@@ -128,3 +128,39 @@ it('a_parked_step_says_it_is_waiting_rather_than_working', () => {
 
   expect(screen.getByText(/bekliyor/)).toBeTruthy();
 });
+
+/**
+ * The live incident behind `skipped` (2026-08-01 17:36): zero qualifying mails, and the
+ * Jira write failed the whole run trying to draft a record for a mail that did not exist.
+ * A skip is correct when the model is right and silent data loss when it is wrong, so the
+ * reason must be readable on the row — a wrong skip hidden behind a click is not visible,
+ * it is lost. Muted and glyph-carried, never colour alone (DESIGN.md §1).
+ */
+it('a_skipped_step_shows_its_reason_without_being_opened', () => {
+  show(
+    step({
+      status: 'skipped',
+      toolName: 'jira.createIssue',
+      result: { skipped: true, reason: 'Bugünkü maillerde iş talebi bulunamadı.' },
+      skipReason: 'Bugünkü maillerde iş talebi bulunamadı.',
+    }),
+  );
+
+  expect(screen.getByText(/Atlandı: Bugünkü maillerde iş talebi bulunamadı\./)).toBeTruthy();
+});
+
+it('an_opened_skipped_step_explains_itself_instead_of_dumping_the_skip_record', () => {
+  show(
+    step({
+      status: 'skipped',
+      toolName: 'jira.createIssue',
+      result: { skipped: true, reason: 'Bugünkü maillerde iş talebi bulunamadı.' },
+      skipReason: 'Bugünkü maillerde iş talebi bulunamadı.',
+    }),
+    true,
+  );
+
+  // The sentence, twice if need be — never the raw {"skipped":true,…} JSON as "Sonuç".
+  expect(screen.queryByText('Sonuç')).toBeNull();
+  expect(screen.getByText(/Araç hiç çağrılmadı\./)).toBeTruthy();
+});

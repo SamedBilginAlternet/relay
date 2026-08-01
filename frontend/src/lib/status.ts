@@ -7,6 +7,7 @@ import {
   Loader,
   Play,
   ShieldQuestion,
+  SkipForward,
   Slash,
   Sparkles,
   X,
@@ -31,6 +32,9 @@ export const STEP_STATUS: Record<StepStatus, StatusMeta> = {
   done: { label: 'Tamamlandı', className: 'st-done', Icon: Check },
   failed: { label: 'Hata', className: 'st-failed', Icon: X },
   rejected: { label: 'Reddedildi', className: 'st-rejected', Icon: Slash },
+  // Quiet on purpose — muted like rejected, never green: nothing ran. The glyph and the
+  // word carry it (colour is never the only signal), and the row prints the reason.
+  skipped: { label: 'Atlandı', className: 'st-skipped', Icon: SkipForward },
 };
 
 export function stepStatusMeta(status: StepStatus): StatusMeta {

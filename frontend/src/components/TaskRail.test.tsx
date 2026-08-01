@@ -55,6 +55,7 @@ function rail(over: Partial<RailRun> & { id: string }): RailRun {
     status: 'running',
     stepCount: 3,
     done: null,
+    skipped: null,
     createdAt: '2026-08-01T09:00:00Z',
     ...over,
   };
@@ -139,6 +140,23 @@ it('progress_states_the_total_alone_when_no_one_counted_the_finished_steps', () 
   expect(progressLabel(0, 0)).toBeNull();
 });
 
+/**
+ * The live incident behind SKIPPED (2026-08-01 17:36): "iş talebi olanlar için Jira kaydı
+ * aç" met a day with zero qualifying mails. The read ran, both writes were skipped, and the
+ * run closed DONE — so its fraction must finish. `1/3` that never becomes `3/3` reads as
+ * stuck; `3/3` claims two writes that never happened. The skips leave the denominator and
+ * are said in words instead.
+ */
+it('a_skipped_step_shrinks_the_denominator_and_is_said_in_words', () => {
+  expect(progressLabel(3, 1, 2)).toBe('1/1 adım · 2 atlandı');
+  // No skips — the label is exactly what it always was, no "· 0 atlandı" noise.
+  expect(progressLabel(5, 3, 0)).toBe('3/5 adım');
+  // A server that predates the count changes nothing.
+  expect(progressLabel(5, 3, null)).toBe('3/5 adım');
+  // Everything skipped: there is no fraction left to print, only the fact.
+  expect(progressLabel(2, 0, 2)).toBe('2 atlandı');
+});
+
 it('no_live_runs_means_no_rail_element_at_all', () => {
   const { container } = render(<TaskRail runs={[]} currentRunId={null} onOpen={() => {}} />);
 
@@ -193,6 +211,10 @@ it('the_figure_drops_the_unit_the_spoken_name_keeps', () => {
   // Nobody counted. An en dash says so; a zero would claim nothing has run.
   expect(progressFigure(5, null)).toBe('–/5');
   expect(progressFigure(0, 0)).toBeNull();
+  // The figure shrinks with the label — the row and its spoken name must agree.
+  expect(progressFigure(3, 1, 2)).toBe('1/1');
+  // All skipped: no fraction; the label carries the words where there is room for them.
+  expect(progressFigure(2, 0, 2)).toBeNull();
 });
 
 it('clicking_a_row_asks_for_that_run_by_id', () => {

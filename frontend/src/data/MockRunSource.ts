@@ -116,6 +116,7 @@ export class MockRunSource implements RunSource {
         // The offline twin counts it the same way the server does, so the demo shows the
         // same `n/m adım` the live box does rather than a rail that looks half-built.
         doneStepCount: r.steps.filter((s) => s.status === 'done').length,
+        skippedStepCount: r.steps.filter((s) => s.status === 'skipped').length,
       }))
       // The API filters server-side; the mock has every run in hand, so it filters here.
       // Same contract either way: asking for a status answers with all of it.

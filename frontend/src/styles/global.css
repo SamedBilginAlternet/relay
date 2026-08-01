@@ -1334,6 +1334,11 @@ a.btn {
 .st-rejected {
   color: var(--fg-muted);
 }
+/* Skipped is muted like rejected — nothing ran, nothing to celebrate or alarm.
+   The glyph (SkipForward) and the word "Atlandı" tell it apart; colour never alone. */
+.st-skipped {
+  color: var(--fg-muted);
+}
 
 .spin {
   animation: spin 1.1s linear infinite;
@@ -1360,6 +1365,22 @@ a.btn {
 }
 
 /* Approval gate inside the step row */
+/* Why a skipped step did nothing, readable without opening the row. Muted, not warn:
+   the skip is the flow working — but it must be loud enough that a WRONG skip is seen,
+   which is why the sentence sits on the row and not only in the expanded body. */
+.step__skipnote {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  padding: 0 var(--s-12) var(--s-12) 56px;
+}
+.step__skipnote svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
 .gate {
   display: flex;
   flex-wrap: wrap;

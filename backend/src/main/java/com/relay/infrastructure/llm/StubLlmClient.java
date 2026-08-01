@@ -156,6 +156,12 @@ public class StubLlmClient implements LlmClient {
 
     private String params(LlmRequest request) {
         JsonNode schema = request.schema();
+        // A skip-capable request arrives as anyOf [tool schema, skip answer]. The stub has
+        // no judgement to skip with — deciding that a day's mails carry no work request is
+        // exactly the call it cannot make — so it always plans against the tool's own branch.
+        if (schema != null && schema.has("anyOf") && schema.get("anyOf").size() > 0) {
+            schema = schema.get("anyOf").get(0);
+        }
         ObjectNode out = Json.object();
         JsonNode draft = Json.toNode(context(request, "draft"));
         if (draft != null && draft.isObject()) {

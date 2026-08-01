@@ -160,6 +160,32 @@ public class Step {
         this.finishedAt = now;
     }
 
+    /**
+     * The specialist affirmed there is nothing for this step to act on.
+     *
+     * <p>The reason lives in {@link #result} rather than in a column of its own, on purpose.
+     * The result is what the closing summary reads as evidence and what the persistence layer
+     * already round-trips as JSON — a skip whose reason sat anywhere else would need a schema
+     * migration to store and a second channel to reach the summarizer, and would still not be
+     * on the record the step itself shows. "Why nothing happened" <em>is</em> this step's
+     * outcome.
+     */
+    public void markSkipped(String reason, Instant now) {
+        this.status = StepStatus.SKIPPED;
+        this.result = Map.of("skipped", true, "reason", reason);
+        this.finishedAt = now;
+        this.lastProviderError = null;
+    }
+
+    /** Why the step was skipped — {@code null} on every step that was not. */
+    public String skipReason() {
+        if (status != StepStatus.SKIPPED || !(result instanceof Map<?, ?> record)) {
+            return null;
+        }
+        Object reason = record.get("reason");
+        return reason == null ? null : String.valueOf(reason);
+    }
+
     /** Verifier sent the step back: reset it so the coordinator retries. */
     public void sendBack() {
         this.attempts++;

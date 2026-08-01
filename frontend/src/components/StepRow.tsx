@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ChevronDown, ShieldQuestion, TriangleAlert, Wallet } from 'lucide-react';
+import { ChevronDown, ShieldQuestion, SkipForward, TriangleAlert, Wallet } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { stepDuration, formatTokens, formatUsd, modelLabel } from '../lib/format';
 import { paramLabel } from '../lib/paramLabels';
@@ -197,6 +197,17 @@ export function StepRow({
         </span>
       </button>
 
+      {/* The reason a skipped step did nothing, on the row itself. A skip is correct when
+          the model is right and silent data loss when it is wrong — a reason only visible
+          after a click is a wrong skip nobody notices. Muted and wordy, never colour alone:
+          the glyph repeats the status icon and the sentence names what was not found. */}
+      {step.status === 'skipped' && step.skipReason && (
+        <div className="step__skipnote">
+          <SkipForward size={14} aria-hidden />
+          <span>Atlandı: {step.skipReason}</span>
+        </div>
+      )}
+
       {showGate && (
         <div className="gate">
           <span className="gate__note">
@@ -359,7 +370,17 @@ export function StepRow({
                 </div>
               )}
 
-              {step.result != null ? (
+              {step.status === 'skipped' ? (
+                /* The skip record itself ({"skipped":true,…}) is plumbing; the sentence is
+                   the outcome. It repeats the row note on purpose — this panel is what gets
+                   read when someone asks "what did this step produce", and the answer is
+                   "nothing, and here is why". */
+                <p className="t-caption">
+                  {step.skipReason
+                    ? `Adım atlandı: ${step.skipReason} Araç hiç çağrılmadı.`
+                    : 'Adım atlandı — koşulu sağlayan bir şey bulunamadı, araç hiç çağrılmadı.'}
+                </p>
+              ) : step.result != null ? (
                 <ParamBlock title="Sonuç" value={step.result} />
               ) : (
                 <p className="t-caption">

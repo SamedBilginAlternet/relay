@@ -10,7 +10,13 @@ export type StepStatus =
   | 'running'
   | 'done'
   | 'failed'
-  | 'rejected';
+  | 'rejected'
+  /**
+   * The step's precondition came back empty — there was nothing to act on, so nothing ran.
+   * Not `failed` (the flow worked) and not `rejected` (nobody said no): "koşulu sağlayan
+   * mail yoktu, kayıt açılmadı" is its own outcome, and it comes with `skipReason`.
+   */
+  | 'skipped';
 
 export type StepDecision = 'auto' | 'approved' | 'rejected' | null;
 
@@ -32,6 +38,13 @@ export type Step = {
   decision: StepDecision;
   pausedBy: PauseReason;
   rejectReason: string | null;
+  /**
+   * Why a `skipped` step was skipped — the specialist's own sentence naming what was looked
+   * for and not found. `null` on every other status, and absent from a server that predates
+   * the field. Always shown when present: a skip is correct when the model is right and
+   * silent data loss when it is wrong, so the reason must be readable, not buried.
+   */
+  skipReason?: string | null;
   result: unknown | null;
   error: string | null;
   tokens: number;
@@ -118,6 +131,14 @@ export type RunSummary = {
    * to hold is a second definition of "done", which is why this is counted server-side.
    */
   doneStepCount?: number | null;
+  /**
+   * How many of `stepCount` were skipped because their precondition came back empty.
+   * Counted apart from `doneStepCount` so the label can shrink the denominator —
+   * `1/1 adım · 2 atlandı` — instead of showing a `1/3` that never finishes (reads as
+   * stuck) or a `3/3` that claims work happened. Same optionality contract as
+   * `doneStepCount`: absent means unknown, and unknown changes nothing in the label.
+   */
+  skippedStepCount?: number | null;
 };
 
 /* ------------------------------------------------------------------ */

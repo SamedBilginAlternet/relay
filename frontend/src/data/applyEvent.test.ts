@@ -172,3 +172,34 @@ it('a_resync_keeps_the_messages_the_socket_delivered_meanwhile', () => {
 
   expect(merged.messages.map((m) => m.id)).toEqual(['m-1', 'm-2']);
 });
+
+/**
+ * The skipped status (the empty-precondition outcome, live 2026-08-01 17:36) travels the
+ * same wire as every other terminal state. Its reason is on the server's copy of the step;
+ * losing it in the reducer would draw "Atlandı" with nothing after the colon — and a skip
+ * without its reason is unreviewable, which is the one thing a skip must never be.
+ */
+it('a_skipped_step_keeps_its_reason_through_the_finished_frame_and_a_replay', () => {
+  const reason = 'Bugünkü maillerde iş talebi ya da hata bildirimi bulunamadı.';
+  const finished: RunEvent = {
+    type: 'step.finished',
+    stepId: 'step-1',
+    status: 'skipped',
+    result: { skipped: true, reason },
+    tokens: 12,
+    costUsd: 0.0001,
+    step: step({
+      status: 'skipped',
+      skipReason: reason,
+      startedAt: STARTED,
+      finishedAt: FINISHED,
+    }),
+  };
+
+  const once = applyEvent(run(), finished, LATER);
+  const twice = applyEvent(once, finished, LATER);
+
+  expect(once.steps[0]?.status).toBe('skipped');
+  expect(once.steps[0]?.skipReason).toBe(reason);
+  expect(twice.steps[0]?.skipReason).toBe(reason);
+});

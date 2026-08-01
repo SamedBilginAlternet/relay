@@ -34,6 +34,10 @@ public final class Views {
         map.put("status", step.status().wire());
         map.put("decision", step.decision() == null ? null : step.decision().wire());
         map.put("rejectReason", step.rejectReason());
+        // Why nothing happened, on the one status where that is the whole story. Null
+        // everywhere else — the reason also sits in `result`, but the screen should not
+        // have to know the skip record's shape to print one sentence.
+        map.put("skipReason", step.skipReason());
         map.put("result", step.result());
         map.put("error", step.error());
         map.put("tokens", step.tokens());
@@ -93,6 +97,12 @@ public final class Views {
         // it can see is a second definition of "done".
         map.put("doneStepCount",
                 run.steps().stream().filter(step -> step.status() == StepStatus.DONE).count());
+        // Skipped steps leave doneStepCount alone and are counted apart, so the client can
+        // shrink the denominator instead of printing a `2/3` that never becomes `3/3` (reads
+        // as stuck) or a `3/3` that claims work happened on a step that was skipped. The
+        // label the client builds from these is `1/1 adım · 2 atlandı`.
+        map.put("skippedStepCount",
+                run.steps().stream().filter(step -> step.status() == StepStatus.SKIPPED).count());
         map.put("createdAt", iso(run.createdAt()));
         map.put("finishedAt", iso(run.finishedAt()));
         return map;

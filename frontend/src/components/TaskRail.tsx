@@ -35,6 +35,8 @@ export type RailRun = {
   status: string;
   stepCount: number;
   done: number | null;
+  /** Steps skipped because their precondition came back empty. Null when nobody counted. */
+  skipped: number | null;
   createdAt: string;
 };
 
@@ -76,9 +78,23 @@ export function orderLiveRuns(rows: RailRun[]): RailRun[] {
  * something else on the client: a browser that decides for itself what "done" means is a
  * second definition of it.
  */
-export function progressLabel(stepCount: number, done: number | null): string | null {
+export function progressLabel(
+  stepCount: number,
+  done: number | null,
+  skipped: number | null = null,
+): string | null {
   if (stepCount <= 0) return null;
-  return done == null ? `${stepCount} adım` : `${done}/${stepCount} adım`;
+  if (done == null) return `${stepCount} adım`;
+  /*
+    Skipped steps leave the denominator. A skipped step will never become done, so keeping
+    it in `m` makes `2/3` the run's final word — which reads as stuck, on a run that
+    finished. And folding it into `n` would print `3/3` over work that never happened.
+    So the fraction is honest (`1/1`) and the skips are said in words: `1/1 adım · 2 atlandı`.
+  */
+  const skips = skipped ?? 0;
+  const counted = stepCount - skips;
+  if (counted <= 0) return `${skips} atlandı`;
+  return `${done}/${counted} adım${skips > 0 ? ` · ${skips} atlandı` : ''}`;
 }
 
 /**
@@ -92,9 +108,17 @@ export function progressLabel(stepCount: number, done: number | null): string | 
  * <p>An en dash, not a zero, when the server sent no count: `–/12` says nobody counted,
  * `0/12` claims nothing has run.
  */
-export function progressFigure(stepCount: number, done: number | null): string | null {
+export function progressFigure(
+  stepCount: number,
+  done: number | null,
+  skipped: number | null = null,
+): string | null {
   if (stepCount <= 0) return null;
-  return `${done == null ? '–' : done}/${stepCount}`;
+  // The same shrunken denominator as `progressLabel`, without the words — the row is one
+  // line in a 260px rail. When the count of skips is unknown, the total stands as-is.
+  const counted = stepCount - (skipped ?? 0);
+  if (counted <= 0) return null;
+  return `${done == null ? '–' : done}/${counted}`;
 }
 
 function summaryToRail(row: RunSummary): RailRun {
@@ -106,6 +130,7 @@ function summaryToRail(row: RunSummary): RailRun {
     // A number or nothing — see `progressLabel`. `?? null` keeps a real zero, which is a
     // measured "none of them yet" and not the same thing as a missing field.
     done: typeof row.doneStepCount === 'number' ? row.doneStepCount : null,
+    skipped: typeof row.skippedStepCount === 'number' ? row.skippedStepCount : null,
     createdAt: row.createdAt,
   };
 }
@@ -124,6 +149,7 @@ function runToRail(run: Run): RailRun {
     status: run.status,
     stepCount: run.steps.length,
     done: run.steps.filter((s) => s.status === 'done').length,
+    skipped: run.steps.filter((s) => s.status === 'skipped').length,
     createdAt: run.createdAt,
   };
 }
@@ -295,8 +321,8 @@ function Row({
   onOpen: (runId: string) => void;
 }) {
   const status = runStatusMeta(row.status);
-  const progress = progressLabel(row.stepCount, row.done);
-  const figure = progressFigure(row.stepCount, row.done);
+  const progress = progressLabel(row.stepCount, row.done, row.skipped);
+  const figure = progressFigure(row.stepCount, row.done, row.skipped);
   /*
     Collapsed, the row is a status icon and nothing else, so the whole sentence moves into
     the tooltip. The browser's own `title` rather than the CSS one the nav items use: this

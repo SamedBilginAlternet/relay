@@ -15,10 +15,10 @@ import com.relay.application.port.LlmResponse;
  * the difference between an unknown saving and a claim of no saving.
  */
 public record StepOutcome(boolean ok, Object result, String error, long tokens, double costUsd,
-                          Double premiumCostUsd, String model) {
+                          Double premiumCostUsd, String model, String skipReason) {
 
     public StepOutcome(boolean ok, Object result, String error, long tokens, double costUsd) {
-        this(ok, result, error, tokens, costUsd, null, null);
+        this(ok, result, error, tokens, costUsd, null, null, null);
     }
 
     public static StepOutcome ok(Object result, long tokens, double costUsd) {
@@ -27,13 +27,13 @@ public record StepOutcome(boolean ok, Object result, String error, long tokens, 
 
     public static StepOutcome ok(Object result, long tokens, double costUsd,
                                  Double premiumCostUsd, String model) {
-        return new StepOutcome(true, result, null, tokens, costUsd, premiumCostUsd, model);
+        return new StepOutcome(true, result, null, tokens, costUsd, premiumCostUsd, model, null);
     }
 
     /** Straight off the model's own answer — the only form that keeps everything. */
     public static StepOutcome ok(Object result, LlmResponse response) {
         return new StepOutcome(true, result, null, response.totalTokens(), response.costUsd(),
-                response.premiumCostUsd(), response.model());
+                response.premiumCostUsd(), response.model(), null);
     }
 
     public static StepOutcome failed(String error, long tokens, double costUsd) {
@@ -42,6 +42,20 @@ public record StepOutcome(boolean ok, Object result, String error, long tokens, 
 
     public static StepOutcome failed(String error, long tokens, double costUsd,
                                      Double premiumCostUsd, String model) {
-        return new StepOutcome(false, null, error, tokens, costUsd, premiumCostUsd, model);
+        return new StepOutcome(false, null, error, tokens, costUsd, premiumCostUsd, model, null);
+    }
+
+    /**
+     * The specialist affirmed there is nothing for the step to act on — neither success nor
+     * failure. {@code ok} is false so no path treats a skip as a result to verify, and the
+     * coordinator checks {@link #skipped()} before it checks {@code ok}.
+     */
+    public static StepOutcome skipped(String reason, long tokens, double costUsd,
+                                      Double premiumCostUsd, String model) {
+        return new StepOutcome(false, null, null, tokens, costUsd, premiumCostUsd, model, reason);
+    }
+
+    public boolean skipped() {
+        return skipReason != null;
     }
 }

@@ -131,6 +131,7 @@ export class ApiRunSource implements RunSource {
       // into "nothing has run yet", and the row would report no progress on a flow that
       // is nearly finished — a wrong answer that looks like a measured one.
       doneStepCount: typeof r.doneStepCount === 'number' ? r.doneStepCount : null,
+      skippedStepCount: typeof r.skippedStepCount === 'number' ? r.skippedStepCount : null,
     }));
   }
 
