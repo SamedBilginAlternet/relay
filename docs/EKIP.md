@@ -417,9 +417,9 @@ Sıra rastgele değil: **önce görünürlük** (risksiz, demoyu doğrudan besle
 | 1 | [#113](https://github.com/SamedBilginAlternet/relay/issues/113) | `GET /api/crew` + **Ekip** ekranı — üyeler kayıt defterinden türer | S/M (4–5 sa) | **Düşük.** Salt okunur, orkestratöre dokunmuyor. En kötü ihtimalle ekran açılmaz, akış etkilenmez |
 | 2 | [#114](https://github.com/SamedBilginAlternet/relay/issues/114) | Onay değişmezliği: parametresi değişen `APPROVED` adım kapıya döner + tek test | S (2 sa) | **Düşük.** Var olan iki yolu tek kurala bağlar; #93'ün nöbetçisi |
 | — | ~~[#115](https://github.com/SamedBilginAlternet/relay/issues/115)~~ | Rol başına model kademesi — **paralel bir ajan aynı gün yaptı**, issue kapatıldı (§3.2) | — | — |
-| 4 | [#116](https://github.com/SamedBilginAlternet/relay/issues/116) | **İkinci görüş**: yazma kapısından önce tek turluk itiraz | M (5–6 sa) | **Orta-yüksek.** Demonun kalbindeki ana dokunuyor; bayrakla kapatılabilir olmalı |
-| 5 | [#117](https://github.com/SamedBilginAlternet/relay/issues/117) | Rol başına harcama kırılımı (akış + panel) | S (2–3 sa) | **Düşük.** Tek SQL + görünüm |
-| 6 | [#118](https://github.com/SamedBilginAlternet/relay/issues/118) | Kapanmayan akış için **takip kaydı önerisi** (ajan issue açar) | M (4–5 sa) | **Orta.** Yazma; iki kapıdan geçiyor, gövde deterministik |
+| 3 | [#116](https://github.com/SamedBilginAlternet/relay/issues/116) | **İkinci görüş**: yazma kapısından önce tek turluk itiraz | M (5–6 sa) | **Orta-yüksek.** Demonun kalbindeki ana dokunuyor; bayrakla kapatılabilir olmalı |
+| 4 | [#117](https://github.com/SamedBilginAlternet/relay/issues/117) | Rol başına harcama kırılımı (akış + panel) | S (2–3 sa) | **Düşük.** Tek SQL + görünüm |
+| 5 | [#118](https://github.com/SamedBilginAlternet/relay/issues/118) | Kapanmayan akış için **takip kaydı önerisi** (ajan issue açar) | M (4–5 sa) | **Orta.** Yazma; iki kapıdan geçiyor, gövde deterministik |
 
 **Demoya kadar yalnız bir tanesi yapılacaksa: #113.** Gerekçe §9'da.
 
