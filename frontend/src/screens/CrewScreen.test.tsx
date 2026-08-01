@@ -107,13 +107,18 @@ it('a_member_with_no_connection_is_listed_and_says_it_is_idle', async () => {
   };
 
   render(<CrewScreen />);
+
+  // The default tab is the first provider with a member — connected Jira, whose
+  // row makes no idle claim.
+  expect(within(await rowOf('Jira Uzmanı')).queryByText(/bağlantısı yok/)).toBeNull();
+
+  await openTab(/Gmail/);
   const idle = await rowOf('Gmail Uzmanı');
 
   expect(within(idle).getByText(/Google bağlantısı yok/)).toBeTruthy();
   expect(within(idle).getByText(/boşta/)).toBeTruthy();
   // Idle is not hidden and not empty: the tools it holds are still on screen.
   expect(within(idle).getByText('gmail.listToday')).toBeTruthy();
-  expect(within(await rowOf('Jira Uzmanı')).queryByText(/bağlantısı yok/)).toBeNull();
 });
 
 it('a_member_id_with_no_turkish_name_is_printed_exactly_as_it_arrived', async () => {
@@ -276,7 +281,14 @@ it('a_sheets_member_wears_its_own_mark_and_the_products_turkish_word', async () 
   expect(tab.querySelector('svg')).toBeTruthy();
 });
 
-it('tumu_lists_every_provider_and_a_provider_tab_lists_only_its_own', async () => {
+/**
+ * `Tümü` is gone (#171): it stacked every specialist into one panel — the page
+ * the tabs exist to retire — and it was the tab the screen opened on. The
+ * default is now the first provider that has a member, so `#/ekip` opens one
+ * provider deep and never the whole column. This test holds the removal the way
+ * the governance test below holds its paragraph's.
+ */
+it('the_default_tab_is_the_first_provider_with_members_and_tumu_stays_gone', async () => {
   crew = {
     core: CORE,
     members: [
@@ -295,8 +307,11 @@ it('tumu_lists_every_provider_and_a_provider_tab_lists_only_its_own', async () =
 
   render(<CrewScreen />);
 
+  // Jira is first in the fixed provider order, so it is the tab that opens —
+  // and it lists only its own member.
   expect(await screen.findByText('Jira Uzmanı')).toBeTruthy();
-  expect(screen.getByText('Slack Uzmanı')).toBeTruthy();
+  expect(screen.queryByText('Slack Uzmanı')).toBeNull();
+  expect(screen.queryByRole('tab', { name: /Tümü/ })).toBeNull();
 
   await openTab(/Slack/);
   await waitFor(() => expect(screen.queryByText('Jira Uzmanı')).toBeNull());
@@ -314,8 +329,7 @@ it('a_tab_counts_the_tools_behind_it_and_the_toolless_core_carries_no_number', a
 
   render(<CrewScreen />);
 
-  await waitFor(() => expect(screen.getByRole('tab', { name: /Tümü/ }).textContent).toBe('Tümü2'));
-  expect(screen.getByRole('tab', { name: /Jira/ }).textContent).toBe('Jira2');
+  await waitFor(() => expect(screen.getByRole('tab', { name: /Jira/ }).textContent).toBe('Jira2'));
   expect(screen.getByRole('tab', { name: /Sabit çekirdek/ }).textContent).toBe('Sabit çekirdek');
 });
 
@@ -332,7 +346,7 @@ it('the_governance_paragraph_stays_gone', async () => {
 
   render(<CrewScreen />);
 
-  await screen.findByRole('tab', { name: /Tümü/ });
+  await screen.findByRole('tab', { name: /Jira/ });
   expect(screen.queryByText(/Bu listeye elle üye eklenemez/)).toBeNull();
 });
 
@@ -343,16 +357,17 @@ it('the_ekip_hash_parses_as_the_crew_route', () => {
   expect(parseHash('#/politikalar')).toEqual({ name: 'policies' });
 });
 
-it('a_provider_in_the_address_that_the_registry_no_longer_has_falls_back_to_everyone', async () => {
+it('a_provider_in_the_address_that_the_registry_no_longer_has_falls_back_to_the_default', async () => {
   window.location.hash = '#/ekip?saglayici=linear';
   crew = { core: [], members: [member()] };
 
   render(<CrewScreen />);
 
   // The Linear tool is gone; the address is stale, and an empty frame under a
-  // tab that is not on screen is not an answer.
+  // tab that is not on screen is not an answer — it falls back to the first
+  // provider that has a member.
   expect(await screen.findByText('Jira Uzmanı')).toBeTruthy();
-  expect(screen.getByRole('tab', { name: /Tümü/ }).getAttribute('aria-selected')).toBe('true');
+  expect(screen.getByRole('tab', { name: /Jira/ }).getAttribute('aria-selected')).toBe('true');
 });
 
 it('the_tab_in_the_address_is_the_tab_that_opens', async () => {

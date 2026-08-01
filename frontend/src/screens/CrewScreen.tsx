@@ -36,14 +36,14 @@ import '../styles/screens.css';
  * the dashboard look issue #124 took the product away from. One surface, hairline
  * separators, machine facts in mono.
  *
- * <p>WHAT THE TABS ARE FOR, AND WHAT THEY ARE NOT FOR (#159). They are not what
- * removed the scroll — measured at 1440x900 the specialists were 724px of 1425,
- * and `Tümü` shows every one of them, so filtering by provider takes nothing off
- * the tallest state. Three other things did: the paragraph under the title that
- * restated the rule block at the foot verbatim, the authority counts sitting on a
- * line of their own under every name, and the fixed core — 479px, a third of the
- * page — standing in front of a reader who came to see the specialists. The tabs
- * are what let the core step aside without being deleted.
+ * <p>WHAT THE TABS ARE FOR (#159, #171). One provider per tab, and no `Tümü`:
+ * the all-of-them panel stacked every specialist into one column, which was the
+ * exact page the tabs were brought in to retire — and it was the tab the screen
+ * opened on. With it gone, every state this screen can show is one provider or
+ * the fixed core, and each of those fits 1440x900 without a scrollbar. The
+ * default is the first provider (in the fixed order) that actually has a
+ * member; a fresh workspace with no members falls through to the honest empty
+ * state rather than to a tab that opens blank.
  */
 
 const MODES: { key: PolicyMode; label: string; Icon: LucideIcon }[] = [
@@ -105,7 +105,7 @@ function markOf(member: CrewMember): Provider | null {
 }
 
 /**
- * `tumu`, a provider id, or `cekirdek`.
+ * A provider id, or `cekirdek`.
  *
  * <p>Not a union of five literals: the providers are whatever the registry
  * returned this morning, and a hand-written list here would be the one place on
@@ -113,7 +113,12 @@ function markOf(member: CrewMember): Provider | null {
  */
 export type CrewTab = string;
 
-const ALL: CrewTab = 'tumu';
+/**
+ * "Whatever the default is" — the address said nothing. Resolved against the
+ * data once it has loaded, because the first provider that has a member is not
+ * knowable from the hash alone.
+ */
+const DEFAULT: CrewTab = '';
 const CORE: CrewTab = 'cekirdek';
 
 /** The product's own word for each provider, short enough to be a tab. */
@@ -176,19 +181,19 @@ function providerLabel(provider: string, mark: Provider | null): string {
  */
 export function tabFromHash(hash: string): CrewTab {
   const query = hash.split('?')[1];
-  if (!query) return ALL;
+  if (!query) return DEFAULT;
   const value = new URLSearchParams(query).get('saglayici');
-  return value ? value : ALL;
+  return value ? value : DEFAULT;
 }
 
 export function hashForTab(tab: CrewTab): string {
-  return tab === ALL ? '#/ekip' : `#/ekip?saglayici=${encodeURIComponent(tab)}`;
+  return tab === DEFAULT ? '#/ekip' : `#/ekip?saglayici=${encodeURIComponent(tab)}`;
 }
 
 /** The tab the address asks for, kept in step with the back button. */
 function useTabInHash(): [CrewTab, (tab: CrewTab) => void] {
   const [tab, setTab] = useState<CrewTab>(() =>
-    typeof window === 'undefined' ? ALL : tabFromHash(window.location.hash),
+    typeof window === 'undefined' ? DEFAULT : tabFromHash(window.location.hash),
   );
 
   useEffect(() => {
@@ -259,16 +264,14 @@ export function CrewScreen() {
     nothing. It also means `Sabit çekirdek` carries no number at all — the fixed
     five hold no tools, and TabStrip does not draw a zero. That is the same fact
     the section's own head states ("araçsız"), reached by the same arithmetic.
+
+    No `Tümü` (#171). The all-of-them panel stacked every member into one
+    column — the page this screen's tabs exist to retire — and it was the
+    default. Every remaining tab shows one member or the core, so no state of
+    this screen is taller than its tallest provider.
   */
   const tabs = useMemo<TabDef<CrewTab>[]>(() => {
-    const out: TabDef<CrewTab>[] = [
-      {
-        id: ALL,
-        label: 'Tümü',
-        count: members.reduce((sum, member) => sum + member.toolCount, 0),
-        hint: 'kayıtlı araçtan türeyen bütün uzmanlar',
-      },
-    ];
+    const out: TabDef<CrewTab>[] = [];
     for (const member of members) {
       const mark = markOf(member);
       const label = providerLabel(member.provider, mark);
@@ -293,12 +296,18 @@ export function CrewScreen() {
   /*
     A tab the data does not have is not a tab. An address kept from a session
     where a Notion tool existed must not leave the screen showing an empty frame
-    and a selected tab nobody can see — it falls back to everyone.
+    and a selected tab nobody can see — it falls back to the default: the first
+    provider that actually has a member (the members are already in the fixed
+    order). No members at all leaves DEFAULT standing, which renders the
+    specialists section's own empty state — a tab that opens blank on a fresh
+    workspace would be the wrong kind of first impression.
   */
-  const tab = tabs.some((t) => t.id === wanted) ? wanted : ALL;
+  const fallback = members[0]?.provider ?? DEFAULT;
+  const tab =
+    wanted !== DEFAULT && tabs.some((t) => t.id === wanted) ? wanted : fallback;
 
   const shown = useMemo(
-    () => (tab === ALL ? members : members.filter((member) => member.provider === tab)),
+    () => members.filter((member) => member.provider === tab),
     [members, tab],
   );
   const totals = useMemo(() => {
