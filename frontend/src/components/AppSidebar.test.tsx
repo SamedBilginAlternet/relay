@@ -116,7 +116,16 @@ function parked(id: string, goal: string): RunSummary {
   };
 }
 
+/** The live list ships closed; a test that wants rows says so, like a user would. */
+async function openLive() {
+  const head = await screen.findByRole('button', { name: /Canlı akışlar/ });
+  expect(head.getAttribute('aria-expanded')).toBe('false');
+  fireEvent.click(head);
+  return head;
+}
+
 beforeEach(() => {
+  window.localStorage.clear();
   listRuns.mockReset();
   listRuns.mockResolvedValue([]);
   vi.stubGlobal('matchMedia', (query: string) => ({
@@ -290,6 +299,7 @@ it('a_flow_stopped_on_a_decision_is_on_screen_from_a_screen_that_is_not_sohbet',
   // the app's news, not one screen's.
   const { onNavigate } = show({ route: { name: 'policies' } });
 
+  await openLive();
   const row = await screen.findByTitle('Kararını bekleyen öteki iş');
   // The move kept the counts the rail was rebuilt for in #129: how far along, not just how
   // many steps there are.
@@ -322,6 +332,7 @@ it('the_row_marked_open_is_the_one_the_address_names', async () => {
 
   show({ route: { name: 'chat', runId: 'r-a' } });
 
+  await openLive();
   await screen.findByTitle('Açık olan iş');
   const marked = document.querySelectorAll('[aria-current="true"]');
   expect(marked).toHaveLength(1);
@@ -338,6 +349,7 @@ it('nothing_is_marked_open_while_you_are_looking_at_another_screen', async () =>
   // current from Panel would claim a flow is on screen when the screen is something else.
   show({ route: { name: 'panel' } });
 
+  await openLive();
   await screen.findByTitle('Açık olan iş');
   expect(document.querySelectorAll('[aria-current="true"]')).toHaveLength(0);
 });
@@ -350,6 +362,7 @@ it('a_collapsed_row_still_says_which_flow_it_is_and_how_far_along', async () => 
 
   show({ collapsed: true, onToggleCollapse: vi.fn() });
 
+  await openLive();
   // 68px cannot hold a goal, so the whole sentence — flow, status, progress — is in the
   // tooltip. Without it the collapsed rail is a column of coloured dots.
   const row = await screen.findByTitle('Kararını bekleyen iş — Onay bekliyor · 1/4 adım');
@@ -376,6 +389,71 @@ it('the_controls_above_the_live_list_never_give_up_their_height', () => {
 
   expect(rule('.sb__head')).toContain('flex: 0 0 auto');
   expect(rule('.sb__new')).toContain('flex: 0 0 auto');
-  // …and the list itself takes what is left rather than asking for what it holds.
-  expect(rule('.sb__live')).toContain('flex: 1 1 0');
+  // …and the list, once open, takes what is left rather than asking for what it holds.
+  expect(rule('.sb__live--open')).toContain('flex: 1 1 0');
+});
+
+it('the_live_list_starts_closed_and_still_says_how_many_are_running', async () => {
+  /*
+    It shipped open. On the live box that is 27 rows standing under four destinations —
+    the column stops reading as navigation and starts reading as a wall. Closing it keeps
+    the news and drops the detail: the section's own row carries the count at every state.
+  */
+  report.mockResolvedValue(panel(1));
+  listRuns.mockImplementation(async (options) =>
+    options?.status === 'awaiting_approval'
+      ? [parked('r-a', 'Kararını bekleyen iş'), parked('r-b', 'Öteki iş')]
+      : [],
+  );
+
+  show();
+
+  const head = await screen.findByRole('button', { name: /Canlı akışlar/ });
+  expect(head.getAttribute('aria-expanded')).toBe('false');
+  expect(head.textContent).toContain('2');
+  // Closed means closed: no rows in the document, not rows hidden with CSS this
+  // environment cannot see.
+  expect(document.querySelectorAll('.rail__row')).toHaveLength(0);
+
+  fireEvent.click(head);
+
+  expect(head.getAttribute('aria-expanded')).toBe('true');
+  await waitFor(() => expect(document.querySelectorAll('.rail__row')).toHaveLength(2));
+});
+
+it('a_list_left_open_is_still_open_on_the_next_visit', async () => {
+  report.mockResolvedValue(panel(1));
+  listRuns.mockImplementation(async (options) =>
+    options?.status === 'awaiting_approval' ? [parked('r-a', 'Kararını bekleyen iş')] : [],
+  );
+
+  const first = show();
+  fireEvent.click(await screen.findByRole('button', { name: /Canlı akışlar/ }));
+  await screen.findByTitle('Kararını bekleyen iş');
+  first.unmount();
+
+  // Opening it every time you come back would be the same wall, one click further away.
+  show();
+
+  expect(await screen.findByTitle('Kararını bekleyen iş')).not.toBeNull();
+  expect(
+    (await screen.findByRole('button', { name: /Canlı akışlar/ })).getAttribute('aria-expanded'),
+  ).toBe('true');
+});
+
+it('the_primary_action_is_a_row_and_not_a_filled_button', () => {
+  /*
+    The spec drew a solid violet block here. On screen it was the loudest thing in the
+    product, above six quiet rows, for an action taken once a session — and it broke the
+    rule the rest of this column keeps: violet means state, not decoration. It reads as
+    the first row of the list now, the way every sidebar this one is modelled on writes
+    "new".
+  */
+  const css = readFileSync(join(process.cwd(), 'src/styles/sidebar.css'), 'utf8');
+  const rule = css.slice(css.indexOf('.sb__new {')).split('}')[0];
+
+  expect(rule).toContain('background: transparent');
+  expect(rule).toContain('color: var(--accent)');
+  // Still a full-height target, whatever it looks like.
+  expect(rule).toContain('min-height: 44px');
 });

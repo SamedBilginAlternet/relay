@@ -1,5 +1,7 @@
 import {
+  Activity,
   BarChart3,
+  ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   ListChecks,
@@ -30,6 +32,9 @@ const WIDE = '(min-width: 1024px)';
 
 /** Remembered per browser: a rail someone collapsed must stay collapsed after a refresh. */
 const COLLAPSE_KEY = 'relay.sidebar.collapsed';
+
+/** Same, for the live list — which starts closed. See `readLiveOpen`. */
+const LIVE_KEY = 'relay.sidebar.live';
 
 function mediaQuery(): MediaQueryList | null {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return null;
@@ -72,6 +77,29 @@ export function writeCollapsed(collapsed: boolean): void {
     window.localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
   } catch {
     /* private mode, quota, a browser that says no — the rail still works */
+  }
+}
+
+/**
+ * Is the live list open? **Closed unless it was left open.**
+ *
+ * <p>It shipped open, and on the live box that is 27 rows standing under the destinations
+ * — a wall of text where a navigation should be. The count stays on the section's own row
+ * either way, so what closing costs is the detail, not the news.
+ */
+export function readLiveOpen(): boolean {
+  try {
+    return window.localStorage.getItem(LIVE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function writeLiveOpen(open: boolean): void {
+  try {
+    window.localStorage.setItem(LIVE_KEY, open ? '1' : '0');
+  } catch {
+    /* the list still opens and closes; it just forgets between visits */
   }
 }
 
@@ -159,6 +187,7 @@ export function AppSidebar({
   */
   const openRun = useRunStore((s) => s.run);
   const liveRuns = useLiveRuns(openRun);
+  const [liveOpen, setLiveOpen] = useState(readLiveOpen);
   const drawer = variant === 'drawer';
   // Icon-only is a rail affordance. A drawer that opened icon-only would be a drawer
   // holding a rail, which is nothing anybody asked to see.
@@ -212,6 +241,13 @@ export function AppSidebar({
   );
 
   const openFromRail = useCallback((runId: string) => go(`#/sohbet/${runId}`), [go]);
+
+  const toggleLive = useCallback(() => {
+    setLiveOpen((was) => {
+      writeLiveOpen(!was);
+      return !was;
+    });
+  }, []);
 
   /*
     Which row is the open one is a question about the ADDRESS, not about the store. The
@@ -317,6 +353,13 @@ export function AppSidebar({
       {/*
         The one primary action, alone above the destinations. It lands on `#/sohbet` with
         no run named — the screen there reads that as "start a new one".
+
+        A row, not a filled button. The spec drew a solid violet block here and it was
+        wrong on screen: it is the loudest thing in the product, sitting above six quiet
+        rows, for an action taken once a session. Every sidebar this one is modelled on
+        (Claude, Codex, Gemini) writes "new" as the first row of the list and lets the
+        accent say "primary" — which is also the rule this file already keeps everywhere
+        else: violet means state, not decoration.
       */}
       <button type="button" className="sb__new" onClick={() => go('#/sohbet')} data-tip="Yeni iş">
         <Plus size={17} aria-hidden />
@@ -334,21 +377,57 @@ export function AppSidebar({
       {/*
         Never rendered empty. An empty list under a heading is furniture: it says the same
         thing as no section at all and costs a rule and a line to say it.
+
+        A disclosure, and closed by default. Open, it is 27 rows under the navigation on
+        the live box — the column stops reading as a column. The number stays on the
+        header at every state, so the closed section still answers "is anything running";
+        opening it answers "which ones", which is a question you ask on purpose.
+
+        The count here is every live flow. The badge upstairs is the ones stopped on YOU.
+        Two different questions, so two numbers that are allowed to differ — the group
+        heads inside the list name the split.
       */}
-      {liveRuns.length > 0 ? (
-        <div className="sb__live">
+      {liveRuns.length > 0 && (
+        <div className={`sb__live${liveOpen ? ' sb__live--open' : ''}`}>
           <hr className="sb__rule" />
-          <h2 className="sb__section t-label">Canlı akışlar</h2>
-          <TaskRail
-            runs={liveRuns}
-            currentRunId={currentRunId}
-            onOpen={openFromRail}
-            tight={tight}
-          />
+          <button
+            type="button"
+            className="sb__section"
+            aria-expanded={liveOpen}
+            aria-controls="sb-live-list"
+            onClick={toggleLive}
+            data-tip="Canlı akışlar"
+          >
+            {tight ? (
+              <Activity size={17} aria-hidden />
+            ) : (
+              <ChevronRight size={14} aria-hidden className="sb__chev" />
+            )}
+            <span className="sb__label">Canlı akışlar</span>
+            <span className={tight ? 'sb__badge sb__badge--live' : 'sb__count t-mono'}>
+              {liveRuns.length}
+            </span>
+          </button>
+          {liveOpen && (
+            <div className="sb__livelist" id="sb-live-list">
+              <TaskRail
+                runs={liveRuns}
+                currentRunId={currentRunId}
+                onOpen={openFromRail}
+                tight={tight}
+              />
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="sb__spacer" />
       )}
+
+      {/*
+        Below the list, not above it: closed, this is what holds the account down at the
+        bottom; open, it is not rendered at all and the list takes the room instead. The
+        section's own top edge does not move between the two, so nothing jumps when it
+        opens.
+      */}
+      {!(liveOpen && liveRuns.length > 0) && <div className="sb__spacer" />}
 
       {/*
         Who is signed in sits at the bottom, and it is AccountMenu that draws it — a

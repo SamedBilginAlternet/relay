@@ -128,37 +128,44 @@ html[data-sidebar='tight'] {
 /* ------------------------------------------------------------------ */
 /* The one primary action                                              */
 /*                                                                     */
-/* Filled, alone, above the destinations — it is the only thing in the  */
-/* column that starts something rather than going somewhere.           */
+/* A row, not a filled button. It was a solid violet block: the loudest */
+/* thing in the product, above six quiet rows, for something done once  */
+/* a session — and it broke this file's own rule that violet means      */
+/* state. The accent stays, on the text and the mark, which is how      */
+/* every sidebar this one is modelled on writes "new".                 */
 /* ------------------------------------------------------------------ */
 
 .sb__new {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 10px;
   flex: 0 0 auto;
-  gap: var(--s-8);
-  min-height: 44px;
-  margin: var(--s-12) 0 var(--s-8);
-  padding: 0 var(--s-12);
+  width: 100%;
+  min-height: 44px; /* touch target — never shrink this */
+  margin: var(--s-8) 0 var(--s-12);
+  padding: 8px 10px;
   border: 0;
   border-radius: var(--r-btn);
-  background: var(--accent);
-  color: #fff;
+  background: transparent;
+  color: var(--accent);
   font: inherit;
   font-size: 14px;
   font-weight: 600;
+  text-align: left;
   cursor: pointer;
   transition: background-color 160ms ease-out;
 }
 
 .sb__new:hover {
-  background: #5b21b6;
+  background: var(--accent-soft);
 }
 
 .sb--tight .sb__new {
-  padding: 0;
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -279,8 +286,7 @@ html[data-sidebar='tight'] {
 /* hidden by a preference.                                             */
 /* ------------------------------------------------------------------ */
 
-.sb--tight .sb__item,
-.sb--tight .sb__new {
+.sb--tight .sb__item {
   justify-content: center;
   gap: 0;
   padding-left: 0;
@@ -302,10 +308,10 @@ html[data-sidebar='tight'] {
 
 .sb--tight .sb__badge {
   position: absolute;
-  top: 4px;
-  right: 6px;
-  min-width: 17px;
-  height: 17px;
+  top: 3px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
   margin: 0;
   padding: 0 4px;
   background: var(--warn);
@@ -368,14 +374,10 @@ html[data-sidebar='tight'] {
 .sb__item:focus-visible,
 .sb__new:focus-visible,
 .sb__brand:focus-visible,
+.sb__section:focus-visible,
 .sb__icon-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
-}
-
-.sb__spacer {
-  flex: 1 1 auto;
-  min-height: var(--s-12);
 }
 
 /* ------------------------------------------------------------------ */
@@ -389,45 +391,105 @@ html[data-sidebar='tight'] {
 /* stay put while 28 parked decisions scroll between them.             */
 /* ------------------------------------------------------------------ */
 
-.sb__live {
-  display: flex;
-  flex-direction: column;
-  /* Basis 0, not auto: it takes the height that is left over instead of asking
-     for the height of 27 rows and making the whole column overflow. */
-  flex: 1 1 0;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  /* The section head and the group heads inside it stick while the rows move. */
-  scrollbar-width: thin;
-}
-
-.sb__section {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  margin: 0;
-  padding: var(--s-8) 8px 4px;
-  background: var(--bg-subtle);
-  color: var(--fg-faint);
-}
-
-/* The rule above the section scrolls with it, which is right: it is the section's own
-   top edge, not a fixed line the rows pass under. */
-.sb__live .sb__rule {
+.sb__live > .sb__rule {
   flex: 0 0 auto;
   margin-top: 0;
 }
 
+.sb__live {
+  display: flex;
+  flex-direction: column;
+  /* Closed, it is one row and takes exactly that. */
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+/* Open, it takes the height that is left over — basis 0, not auto, or it would ask
+   for the height of 27 rows and make the whole column overflow. */
+.sb__live--open {
+  flex: 1 1 0;
+}
+
+.sb__livelist {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* The disclosure's own row: a heading you can press. */
+.sb__section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--r-btn);
+  background: transparent;
+  color: var(--fg-faint);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 160ms ease-out, color 160ms ease-out;
+}
+
+.sb__section:hover {
+  background: rgba(17, 17, 17, 0.05);
+  color: var(--fg-muted);
+}
+
+.sb__chev {
+  flex: 0 0 auto;
+  transition: transform 160ms ease-out;
+}
+
+.sb__live--open .sb__chev {
+  transform: rotate(90deg);
+}
+
+/* The count sits where the badge sits on a destination row, so the two read as the
+   same kind of fact at the same edge. */
+.sb__count {
+  margin-left: auto;
+  color: var(--fg-machine, var(--fg-faint));
+  font-size: var(--machine-size);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .sb--tight .sb__section {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+  min-height: 44px;
+}
+
+/*
+  Collapsed, the section keeps the shape of every other icon row and its count becomes a
+  chip like the waiting badge — but grey, and that is the whole point of the rule. Amber
+  in this product means "stopped on you". Two amber chips reading 26 and 26 in one column
+  is the #100 confusion drawn instead of computed: these count different things, so they
+  cannot look like the same thing. Two class names deep, or `.sb--tight .sb__badge` wins
+  on specificity and paints it amber again.
+*/
+.sb--tight .sb__badge--live {
+  background: var(--fg-faint);
+}
+
+.sb__spacer {
+  flex: 1 1 auto;
+  min-height: var(--s-12);
 }
 
 /* The account chip is fixed to the viewport (see below); this row is the space
@@ -590,7 +652,9 @@ html[data-sidebar='tight'] .account--loose .account__menu {
   }
   .sb__item,
   .sb__new,
-  .sb__icon-btn {
+  .sb__icon-btn,
+  .sb__section,
+  .sb__chev {
     transition: none;
   }
 }
