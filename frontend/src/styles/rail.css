@@ -128,7 +128,7 @@
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 2px 8px;
+  gap: 2px 7px;
   min-width: 0;
 }
 
@@ -154,7 +154,7 @@
 /* ------------------------------------------------------------------ */
 
 .workbench.workbench--railed {
-  grid-template-columns: clamp(208px, 18vw, 264px) minmax(0, 55fr) minmax(0, 45fr);
+  grid-template-columns: clamp(224px, 20vw, 288px) minmax(0, 55fr) minmax(0, 45fr);
 }
 
 /* Sohbet before a flow exists: the start screen keeps its own layout and the
@@ -166,11 +166,12 @@
 }
 
 .rail-start > .rail {
-  flex: 0 0 clamp(208px, 18vw, 264px);
+  flex: 0 0 clamp(224px, 20vw, 288px);
 }
 
 .rail-start > .page {
   flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -237,6 +238,8 @@
   .rail__item {
     flex: 0 0 auto;
     max-width: 62vw;
+    /* the same hairline that separated the rows vertically, turned on its side */
+    border-right: 1px solid var(--line-soft);
   }
 
   .rail__row {
@@ -252,10 +255,12 @@
     border-bottom-color: var(--accent);
   }
 
+  /* One line with an ellipsis — `-webkit-box` clips without one, and a goal that
+     stops mid-word reads as a rendering fault rather than as a truncation. */
   .rail__goal {
-    -webkit-line-clamp: 1;
-    line-clamp: 1;
+    display: block;
     white-space: nowrap;
+    text-overflow: ellipsis;
     overflow-wrap: normal;
   }
 
