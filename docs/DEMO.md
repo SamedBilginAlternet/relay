@@ -85,6 +85,13 @@ Cevaplar 15 saniyeyi geçmeyecek şekilde yazıldı. İlk cümle her zaman doğr
 **"Zapier'den farkı ne?"**
 > Zapier'de işi *önceden* kurarsın; kurmadığın iş yapılamaz. Relay'de işi *o an* tarif edersin — plan cümlenden çıkarılır. Zapier tekrarlayan boru hatları için; Relay bugünün doğaçlama işi için. Ayrıca Zapier zap'i kara kutuda koşturur; bizde her araç çağrısı parametresiyle görünür ve yazma adımı sana sorar.
 
+**"Bu herkes için mi, yoksa yazılım ekipleri için mi?"**
+> Ekranda gördüğünüz üç kaynak bizim demo hesabımızın verisi — ürünün kısıtı değil. Hazır
+> akışların ilki *"Maili işe çevir"*: gelen bir talebi okur, kayda çevirir, ilgili ekibe
+> haber verir. Bu akışta Jira'nın yerinde ne varsa o çalışır. Yazma yüzeyimiz bugün Jira,
+> Slack ve GitHub — çünkü işin **bittiği** yer orası; mail ve takvim okunuyor. Bir ekibi
+> yürüten kişinin günü, o kişi yazılımcı olsun ya da olmasın.
+
 **"n8n'den farkı ne?"** (Zapier'den ayrı bir soru — n8n'i bilen jüri üyesi teknik cevap bekler)
 > n8n'de akışı önceden kurarsın; kurmadığın iş yapılamaz. Relay'de işi o an tarif edersin, plan cümleden çıkar. Asıl fark şu: n8n bir akışı baştan sona koşturur, biz her **yazma** adımında duruyoruz — kim onayladı, neden reddetti, ne kadara mal oldu, hepsi iz kaydında. n8n tekrarlayan boru hatları için; Relay bugünün doğaçlama işi ve onun denetimi için.
 

@@ -25,7 +25,7 @@ public final class Playbooks {
 
     public static final Playbook MAIL_TO_TICKET = new Playbook(
             "maili-tickete-cevir",
-            "Maili tickete çevir",
+            "Maili işe çevir",
             "Bugünkü maillerime bak; iş talebi ya da hata bildirimi olanlar için Jira kaydı aç "
                     + "ve kaydı açtığımı ilgili kanaldan bildir.",
             "Gmail okunur, Jira kaydı ve Slack bildirimi ayrı ayrı onayına gelir",
@@ -36,7 +36,7 @@ public final class Playbooks {
 
     public static final Playbook BLOCKERS = new Playbook(
             "blocker-taramasi",
-            "Blocker taraması",
+            "Takılan işler",
             "Blocker etiketli açık kayıtları bul, hangileri kimde bekliyor çıkar ve ekibe "
                     + "kayıt anahtarlarıyla birlikte özet geç.",
             "Jira taranır, Slack özeti onayına gelir",
@@ -47,7 +47,7 @@ public final class Playbooks {
 
     public static final Playbook PR_REVIEW = new Playbook(
             "pr-durumu",
-            "PR durumu",
+            "Bekleyen incelemeler",
             "Review bekleyen pull request'lerimi listele ve iki günden uzun bekleyenleri "
                     + "ekibe hatırlat.",
             "GitHub okunur, Slack hatırlatması onayına gelir",
@@ -81,8 +81,13 @@ public final class Playbooks {
                     Move.optional("Toplantının konusuyla ilgili kayıtları ara", "jira.searchIssues", Map.of()),
                     Move.optional("Toplantının konusuyla ilgili mailleri ara", "gmail.search", Map.of())));
 
+    /**
+     * Order is the shelf's argument. The mail flow leads because it is the one job every
+     * desk has; the engineering-shaped ones follow. A shelf that opens with "Takılan işler"
+     * tells a first-time reader this is a tool for a sprint board.
+     */
     public static final List<Playbook> ALL =
-            List.of(MORNING, MEETING_PREP, BLOCKERS, PR_REVIEW, MAIL_TO_TICKET);
+            List.of(MAIL_TO_TICKET, MORNING, MEETING_PREP, BLOCKERS, PR_REVIEW);
 
     private Playbooks() {
     }

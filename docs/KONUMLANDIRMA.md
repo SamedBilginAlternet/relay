@@ -167,9 +167,20 @@ ekran mühendislik jargonundan çıkar. Bu, sorunun **%70'i**.
 |---|---|---|---|
 | B1 | **`/api/ask` için bir ekran** — "Posta kutuna sor". | Elimizdeki tek gerçekten rol-bağımsız özellik. "Kargolarım gelmiş mi", "Ahmet'ten teklif geldi mi", "faturalar geldi mi" — bunlar hiçbir yazılım ekibi işi değil, **herkesin işi**. Ve zaten çalışıyor: sorguyu gösteriyor, kaynak mailleri listeliyor, sonuç yoksa uydurmuyor. | Yeni `AskScreen.tsx` (~120 satır) + `data/AskSource.ts` (~30 satır) + `AppHeader.tsx`'e bir nav girdisi. **Yeni `Tool` yok, yeni bağlantı yok, yeni scope yok, migration yok.** |
 
-**B1, tek başına en yüksek getirili hamle.** "Bu bir developer ürünü mü?" sorusuna
-gösterilecek bir ekran veriyor ve sıfır backend riski taşıyor. Sunumda 10 saniyelik bir
-sekme geçişi bile "bu herkesin aracı" iddiasını kanıtlar.
+**B1 yapıldı, sonra üst bardan geri çekildi — ve bu değerlendirme yanlıştı.**
+
+Ekran yazıldı ve çalışıyor (`#/sor`, rota duruyor). Ama nav'a koymanın gerekçesi bir
+kullanıcı ihtiyacı değil, bir jüri itirazına verilmiş savunmaydı — ve ekranın kendi metni
+bunu itiraf ediyor: *"Okur, yazmaz: buradan hiçbir mail gitmez, hiçbir akış başlamaz."*
+Ürünün üç fiili **bitirir · yazar · sorar**; o ekran ilk ikisini yapmıyor, üstelik 3
+dakikalık sunumda yedi sekmeden biri olarak yer kaplıyordu ve demoda hiç açılmıyordu.
+Yeni bir soru da açıyor: "yani bu bir Gmail arama kutusu mu?"
+
+**Karar (#59):** `#/sor` hesap menüsünden erişilebilir kalsın, üst bardan çıksın.
+"Bu herkes için mi?" sorusuna cevap bir **ekran** değil, bir **akış** olsun: hazır akış
+rafının ilk sırasında artık *"Maili işe çevir"* duruyor — mail okur, kayıt açar, ekibe
+haber verir. Ekran gösterip "bakın herkes için" demek yerine, herkesin yaptığı işi yapıp
+göstermek.
 
 #### C. Yeni yetenek — hackathon içinde YAPMA, yol haritasında söyle
 
