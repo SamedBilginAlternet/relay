@@ -399,7 +399,10 @@ export function TodayScreen({ onNavigate }: Props) {
 
   return (
     <div className="page">
-      <div className="page__inner brief">
+      {/* `--app` as well as `brief`: both set the same 1040px, but only the modifier
+          brings `scrollbar-gutter: stable` (screens.css). Without it Bugün sat 5px
+          left of every other screen, and the nav wobbled on each click. */}
+      <div className="page__inner page__inner--app brief">
         <motion.div className="brief-top" {...enterProps(0, reduce)}>
           <div className="brief-top__text">
             <h1 className="t-title">

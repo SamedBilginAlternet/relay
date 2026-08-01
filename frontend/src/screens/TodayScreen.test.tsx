@@ -89,3 +89,18 @@ it('the_error_box_never_names_a_build_variable_the_reader_cannot_set', async () 
 
   expect(box.textContent ?? '').not.toMatch(/VITE_/);
 });
+
+/**
+ * Bugün is the only screen whose column is declared by its own class. Both
+ * classes set 1040px, but `scrollbar-gutter: stable` hangs off the modifier
+ * alone, so without it this screen sat 5px left of the other five and the nav
+ * moved every time you clicked into it (#69).
+ */
+it('the_column_is_declared_the_same_way_as_every_other_screen', async () => {
+  getBrief.mockRejectedValue(new ApiError('Brifing alınamadı (HTTP 502).', 502));
+  const { container } = render(<TodayScreen onNavigate={() => {}} />);
+  await screen.findByRole('alert');
+
+  const inner = container.querySelector('.page > .page__inner');
+  expect(inner?.classList.contains('page__inner--app')).toBe(true);
+});
