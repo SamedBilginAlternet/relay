@@ -244,6 +244,27 @@ it('a_provider_tab_wears_its_own_mark_and_a_tab_for_no_provider_wears_none', asy
   expect(screen.getByRole('tab', { name: /başka/ }).querySelector('svg')).toBeNull();
 });
 
+/**
+ * sheets.* used to be the hole in the split above: `providerOf` did not know the
+ * namespace, so both Sheets rules fell back to the server's `google` and stood
+ * under a tab with a raw id and no mark — while Gmail, Takvim and Doküman, on the
+ * exact same connection, wore theirs. Same publisher, same brand permission, same
+ * naming rule (the product's Turkish noun, like Takvim).
+ */
+it('a_sheets_rule_stands_under_its_own_named_tab_not_under_a_raw_google_one', async () => {
+  rows = [
+    tool({ provider: 'google', toolName: 'sheets.appendRow', risk: 'write', mode: 'ask' }),
+    tool({ provider: 'google', toolName: 'gmail.search' }),
+  ];
+
+  render(<PolicyScreen />);
+  await screen.findByText('sheets.appendRow');
+
+  const tab = screen.getByRole('tab', { name: /Tablo/ });
+  expect(tab.querySelector('svg')).toBeTruthy();
+  expect(screen.queryByRole('tab', { name: /google/i })).toBeNull();
+});
+
 it('the_all_tab_draws_every_rule_and_a_provider_tab_draws_only_its_own', async () => {
   rows = [
     tool(),

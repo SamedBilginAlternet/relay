@@ -123,6 +123,9 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   gmail: 'Gmail',
   calendar: 'Takvim',
   docs: 'Doküman',
+  // The same rule that named Takvim and Doküman: a Google sub-product gets the
+  // product's Turkish noun, matching "Tablo Uzmanı" in lib/agents.ts.
+  sheets: 'Tablo',
   github: 'GitHub',
   slack: 'Slack',
   notion: 'Notion',
@@ -149,6 +152,7 @@ const PROVIDER_ORDER: Provider[] = [
   'gmail',
   'calendar',
   'docs',
+  'sheets',
   'github',
   'slack',
   'notion',

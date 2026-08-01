@@ -242,6 +242,40 @@ it('a_provider_the_registry_returned_gets_a_tab_nobody_wrote_down', async () => 
   expect(screen.queryByRole('tab', { name: /Slack/ })).toBeNull();
 });
 
+/**
+ * sheets.* was the one shipped provider this screen still printed raw: no mark in
+ * BrandMark, no word in PROVIDER_LABEL, so the tab said `sheets` next to a Bot
+ * glyph while Gmail, Takvim and Doküman — the same Google connection — wore
+ * theirs. Same publisher, same brand permission, and the label follows the same
+ * rule that named the other two: the product's Turkish noun, `Tablo Uzmanı`'s.
+ */
+it('a_sheets_member_wears_its_own_mark_and_the_products_turkish_word', async () => {
+  crew = {
+    core: [],
+    members: [
+      member({
+        id: 'sheets-agent',
+        provider: 'sheets',
+        connectionProvider: 'google',
+        toolCount: 2,
+        auto: 1,
+        ask: 1,
+        tools: [
+          { name: 'sheets.readRange', risk: 'read', mode: 'auto', overridden: false },
+          { name: 'sheets.appendRow', risk: 'write', mode: 'ask', overridden: false },
+        ],
+      }),
+    ],
+  };
+
+  render(<CrewScreen />);
+
+  expect(await screen.findByText('Tablo Uzmanı')).toBeTruthy();
+  const tab = screen.getByRole('tab', { name: /Tablo/ });
+  expect(tab.textContent).toContain('Tablo');
+  expect(tab.querySelector('svg')).toBeTruthy();
+});
+
 it('tumu_lists_every_provider_and_a_provider_tab_lists_only_its_own', async () => {
   crew = {
     core: CORE,

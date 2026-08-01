@@ -27,7 +27,16 @@ type FieldDef = {
 };
 
 /** Which of `BrandMark`'s marks a provider is drawn with. Google and Atlassian are several products each. */
-type MarkName = 'jira' | 'confluence' | 'github' | 'gmail' | 'calendar' | 'docs' | 'slack' | 'notion';
+type MarkName =
+  | 'jira'
+  | 'confluence'
+  | 'github'
+  | 'gmail'
+  | 'calendar'
+  | 'docs'
+  | 'sheets'
+  | 'slack'
+  | 'notion';
 
 type ProviderDef = {
   provider: Provider;
@@ -54,7 +63,7 @@ export const PROVIDERS: ProviderDef[] = [
     title: 'Google',
     blurb:
       'Gmail, Takvim, Sheets ve Docs. Günün özetini okur; taslak cevap, takip toplantısı, tablo satırı ve doküman onayınla yazılır.',
-    marks: ['gmail', 'calendar', 'docs'],
+    marks: ['gmail', 'calendar', 'docs', 'sheets'],
     console: { href: 'https://myaccount.google.com/permissions', label: 'Google hesap izinleri' },
     oauth: true,
     settingsBlurb:
