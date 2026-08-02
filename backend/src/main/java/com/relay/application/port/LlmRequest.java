@@ -41,11 +41,19 @@ public record LlmRequest(String purpose, String system, String user, JsonNode sc
      * written summary and every row's "neden şimdi" sentence — which the backend then
      * correctly omitted rather than shipping filler, so the feature simply went dark.
      *
+     * <p>Raised again on 2026-08-02: the same signature (real tokens billed, a provider
+     * genuinely answered, {@code Planner.readable()} still rejects the content) showed up
+     * on DeepSeek once it started answering at all — a fix that had just landed for a
+     * different bug (the JDK HttpClient's HTTP/2 implementation failing every POST to
+     * DeepSeek's endpoint). Every step's title and params live inside one JSON array, and
+     * whether the model reasons before writing or simply writes at length, the failure
+     * looks identical: {@code readable()} sees no array at all.
+     *
      * <p>It is a ceiling, not a spend: the only cost of raising it is a model that decides
      * to fill it. Kept off the short answers — a verdict, a three-sentence summary, one
      * provider query — because those never came close to it.
      */
-    private static final int LONG_ROOM = 3600;
+    private static final int LONG_ROOM = 6000;
 
     /** The answers that are a structure: several items, each with fields of its own. */
     private static final Set<String> LONG = Set.of(
