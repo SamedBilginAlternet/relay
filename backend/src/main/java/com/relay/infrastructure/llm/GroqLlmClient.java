@@ -234,6 +234,14 @@ public class GroqLlmClient implements LlmClient {
      *
      * <p>Shown on {@code /api/health/details}, which is behind the session. The body carries
      * no credential, but anything key-shaped is masked before it goes anywhere.
+     *
+     * <p>A body that fails to parse as JSON is not a provider refusal — every provider here
+     * answers those in JSON — it is {@link HttpTransport}'s own transport-error text (a
+     * timeout, a reset connection), and it used to be discarded right here. Live, that turned
+     * a real bug (the JDK HttpClient's HTTP/2 implementation failing every POST to one
+     * provider) into an opaque "HTTP 599" with no detail behind it, which cost a whole
+     * debugging session curl could have shortened to a minute. The raw body is the only
+     * detail that exists in that case, so it is used as-is instead.
      */
     private static String hint(HttpTransport.Reply reply) {
         String message = "";
@@ -244,6 +252,14 @@ public class GroqLlmClient implements LlmClient {
         }
         if (message.isBlank() && reply.retryAfter() != null) {
             message = "retry-after " + reply.retryAfter().toSeconds() + "s";
+        }
+        if (message.isBlank() && reply.body() != null && !reply.body().isBlank()) {
+            // Neither a JSON refusal nor a Retry-After. Sometimes that is a provider error
+            // page (HTML, plain text) — not pretty, but still more than nothing. And it is
+            // exactly what HttpTransport's own transport-error text looks like (a timeout, a
+            // reset connection), which used to be discarded right here and cost a whole live
+            // debugging session an opaque "HTTP 599" with no detail behind it.
+            message = reply.body().trim();
         }
         if (message.isBlank()) {
             return "";

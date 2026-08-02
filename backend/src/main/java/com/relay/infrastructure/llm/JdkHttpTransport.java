@@ -6,7 +6,17 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 
-/** Plain JDK HTTP client. No secrets are ever logged here. */
+/**
+ * Plain JDK HTTP client. No secrets are ever logged here.
+ *
+ * <p>Forced to HTTP/1.1. Live, DeepSeek's endpoint (behind CloudFront) answered {@code
+ * curl}'s plain GET over HTTP/2 instantly, but every real POST from this client — body,
+ * bearer header, the actual shape a completion call takes — failed with a bare transport
+ * exception. That split (trivial request fine, real request never completes) is the
+ * signature of the JDK HttpClient's own HTTP/2 implementation, which has had long-standing
+ * issues with request bodies against exactly this kind of reverse-proxied endpoint. HTTP/1.1
+ * has no such history here and every provider in this chain speaks it fine.
+ */
 public class JdkHttpTransport implements HttpTransport {
 
     private final HttpClient client;
@@ -16,6 +26,7 @@ public class JdkHttpTransport implements HttpTransport {
         this.timeout = timeout;
         this.client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
+                .version(HttpClient.Version.HTTP_1_1)
                 .build();
     }
 
