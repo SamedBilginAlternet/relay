@@ -45,11 +45,8 @@ app:
   encryption:
     key: ${APP_ENCRYPTION_KEY:relay-dev-key-not-for-production}
   tools:
-    # Public deployments are fail-closed. The old TOOLS_MODE variable is deliberately
-    # ignored: this application still has workspace-global connections, so enabling it
-    # could let any signed-in visitor use the owner's credentials. Multi-tenant ownership
-    # must land before live tools are exposed again.
-    mode: replay
+    # Connections are user-owned; live mode can safely use only the signed-in user's token.
+    mode: ${TOOLS_MODE:replay}
   budget:
     default-usd: ${DEFAULT_BUDGET_USD:0.50}
   auth:
@@ -78,10 +75,8 @@ app:
     # Fallback project for a jira.createIssue suggestion when no Jira issue is in the brief.
     default-project-key: ${BRIEF_DEFAULT_PROJECT_KEY:RELAY}
   google:
-    # OAuth tokens are workspace-global in the current schema. Keep Google disabled even
-    # when old client credentials remain in Coolify; enabling it again requires explicit
-    # code/config work after per-user connection ownership exists.
-    enabled: false
+    # Consent is session-bound and its encrypted token is stored against that user.
+    enabled: ${GOOGLE_INTEGRATIONS_ENABLED:true}
     # Empty means "not configured": Gmail/Calendar report unavailable, everything else runs.
     client-id: ${GOOGLE_CLIENT_ID:}
     client-secret: ${GOOGLE_CLIENT_SECRET:}

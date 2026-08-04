@@ -24,6 +24,7 @@ import com.relay.application.port.LlmClient;
 import com.relay.application.port.PolicyRepository;
 import com.relay.application.port.RunRepository;
 import com.relay.application.port.ToolRegistry;
+import com.relay.application.port.UserScope;
 import com.relay.application.stats.PanelService;
 import com.relay.application.stats.PanelStatsRepository;
 import java.time.Duration;
@@ -31,6 +32,9 @@ import java.time.ZoneId;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -93,12 +97,22 @@ public class ApplicationConfig {
 
     /** Runs are driven off the request thread — POST /api/runs returns immediately. */
     @Bean(destroyMethod = "shutdown")
-    public Executor orchestratorExecutor() {
-        return Executors.newFixedThreadPool(4, runnable -> {
+    public ExecutorService orchestratorExecutor(UserScope users) {
+        ExecutorService delegate = Executors.newFixedThreadPool(4, runnable -> {
             Thread thread = new Thread(runnable, "relay-run");
             thread.setDaemon(true);
             return thread;
         });
+        return new AbstractExecutorService() {
+            @Override public void shutdown() { delegate.shutdown(); }
+            @Override public List<Runnable> shutdownNow() { return delegate.shutdownNow(); }
+            @Override public boolean isShutdown() { return delegate.isShutdown(); }
+            @Override public boolean isTerminated() { return delegate.isTerminated(); }
+            @Override public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+                return delegate.awaitTermination(timeout, unit);
+            }
+            @Override public void execute(Runnable command) { delegate.execute(users.capture(command)); }
+        };
     }
 
     @Bean
@@ -135,9 +149,10 @@ public class ApplicationConfig {
                                      @Value("${app.brief.tool-timeout-seconds:8}") long timeoutSeconds,
                                      @Value("${app.brief.cache-seconds:180}") long cacheSeconds,
                                      @Value("${app.brief.timezone:Europe/Istanbul}") String timezone,
-                                     @Value("${app.brief.default-project-key:RELAY}") String projectKey) {
+                                     @Value("${app.brief.default-project-key:RELAY}") String projectKey,
+                                     UserScope users) {
         return new BriefService(tools, connections, insights, digests, llm, clock, briefExecutor,
-                Duration.ofSeconds(timeoutSeconds), Duration.ofSeconds(cacheSeconds), timezone, projectKey);
+                Duration.ofSeconds(timeoutSeconds), Duration.ofSeconds(cacheSeconds), timezone, projectKey, users);
     }
 
     @Bean

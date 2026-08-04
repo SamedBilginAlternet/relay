@@ -110,9 +110,7 @@ class AuthFilterTest {
                 "/api/auth/me",
                 "/api/auth/login",
                 "/api/auth/register",
-                "/api/auth/google/callback",
-                // Google redirects the browser here; it cannot be asked to prove a session first.
-                "/api/oauth/google/callback");
+                "/api/auth/google/callback");
 
         for (String path : open) {
             assertThat(run(rig.filter(), get(path)).getStatus())
@@ -126,6 +124,7 @@ class AuthFilterTest {
         Rig rig = rig();
         // Handing out Gmail/Calendar consent is not something a stranger gets to start.
         assertThat(run(rig.filter(), get("/api/oauth/google/start")).getStatus()).isEqualTo(401);
+        assertThat(run(rig.filter(), get("/api/oauth/google/callback")).getStatus()).isEqualTo(401);
     }
 
     @Test

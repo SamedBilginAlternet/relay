@@ -1,6 +1,7 @@
 package com.relay.infrastructure.auth;
 
 import com.relay.application.auth.AuthService;
+import com.relay.application.port.UserScope;
 import com.relay.domain.User;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -20,8 +21,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * {@code fetch()} and show up as an unreadable parse error instead of "sign in".
  *
  * <p>Exempt: {@code /api/health} exactly (uptime checks), {@code /api/auth/**} (you cannot
- * sign in through a door that requires being signed in) and {@code /api/oauth/google/callback}
- * (Google redirects the browser there and cannot carry our cookie policy). Everything
+ * sign in through a door that requires being signed in). Everything
  * else — including the SSE stream and {@code /api/health/details} — needs a session.
  */
 public class AuthFilter extends OncePerRequestFilter {
@@ -34,18 +34,23 @@ public class AuthFilter extends OncePerRequestFilter {
      * would hand that to anyone who guessed the path.
      */
     private static final List<String> EXEMPT_PREFIXES = List.of(
-            "/api/auth/",
-            "/api/oauth/google/callback");
+            "/api/auth/");
 
     private static final String UNAUTHORIZED_BODY =
             "{\"error\":\"unauthorized\",\"message\":\"Oturum bulunamadı. Lütfen giriş yap.\"}";
 
     private final AuthService auth;
     private final boolean enabled;
+    private final UserScope users;
 
     public AuthFilter(AuthService auth, boolean enabled) {
+        this(auth, enabled, new UserScope());
+    }
+
+    public AuthFilter(AuthService auth, boolean enabled, UserScope users) {
         this.auth = auth;
         this.enabled = enabled;
+        this.users = users;
     }
 
     @Override
@@ -54,8 +59,12 @@ public class AuthFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         if (!enabled || !path.startsWith("/api") || isExempt(path) || "OPTIONS".equalsIgnoreCase(request.getMethod())) {
             // Attach the user when there is one even on exempt paths: /api/auth/me needs it.
-            attachIfPresent(request);
-            chain.doFilter(request, response);
+            Optional<User> user = attachIfPresent(request);
+            if (user.isPresent()) {
+                withUser(user.get(), request, response, chain);
+            } else {
+                chain.doFilter(request, response);
+            }
             return;
         }
 
@@ -67,14 +76,24 @@ public class AuthFilter extends OncePerRequestFilter {
             response.getWriter().write(UNAUTHORIZED_BODY);
             return;
         }
-        request.setAttribute(USER_ATTRIBUTE, user.get());
-        chain.doFilter(request, response);
+        withUser(user.get(), request, response, chain);
     }
 
-    private void attachIfPresent(HttpServletRequest request) {
+    private Optional<User> attachIfPresent(HttpServletRequest request) {
         String token = SessionCookies.token(request);
         if (token != null && !token.isBlank()) {
-            auth.authenticate(token).ifPresent(user -> request.setAttribute(USER_ATTRIBUTE, user));
+            Optional<User> user = auth.authenticate(token);
+            user.ifPresent(value -> request.setAttribute(USER_ATTRIBUTE, value));
+            return user;
+        }
+        return Optional.empty();
+    }
+
+    private void withUser(User user, HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+        request.setAttribute(USER_ATTRIBUTE, user);
+        try (UserScope.Scope ignored = users.enter(user.id())) {
+            chain.doFilter(request, response);
         }
     }
 

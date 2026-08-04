@@ -8,6 +8,7 @@ import com.relay.application.port.LlmClient;
 import com.relay.application.port.Tool;
 import com.relay.application.port.ToolRegistry;
 import com.relay.application.port.ToolResult;
+import com.relay.application.port.UserScope;
 import com.relay.domain.Connection;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
@@ -26,7 +27,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -68,8 +70,10 @@ public class BriefService {
     private final Duration cacheTtl;
     private final ZoneId zone;
     private final String defaultProjectKey;
+    private final UserScope users;
 
-    private final AtomicReference<Cached> cache = new AtomicReference<>();
+    private final Map<UUID, Cached> cache = new ConcurrentHashMap<>();
+    private static final UUID ANONYMOUS = new UUID(0, 0);
 
     /**
      * The generation that is already running, if there is one.
@@ -80,13 +84,20 @@ public class BriefService {
      * the two answers were stamped one millisecond apart. Tokens are the scarcest thing
      * this product has (§10), which makes doing the work twice worse than doing it slowly.
      */
-    private final AtomicReference<CompletableFuture<Map<String, Object>>> inFlight =
-            new AtomicReference<>();
+    private final Map<UUID, CompletableFuture<Map<String, Object>>> inFlight = new ConcurrentHashMap<>();
 
     public BriefService(ToolRegistry tools, ConnectionRepository connections, InsightService insights,
                         DigestService digests, LlmClient llm, Clock clock, Executor executor,
                         Duration toolTimeout, Duration cacheTtl, String timezone,
                         String defaultProjectKey) {
+        this(tools, connections, insights, digests, llm, clock, executor, toolTimeout, cacheTtl,
+                timezone, defaultProjectKey, new UserScope());
+    }
+
+    public BriefService(ToolRegistry tools, ConnectionRepository connections, InsightService insights,
+                        DigestService digests, LlmClient llm, Clock clock, Executor executor,
+                        Duration toolTimeout, Duration cacheTtl, String timezone,
+                        String defaultProjectKey, UserScope users) {
         this.tools = tools;
         this.connections = connections;
         this.insights = insights;
@@ -99,6 +110,7 @@ public class BriefService {
         this.zone = zoneOf(timezone);
         this.defaultProjectKey = defaultProjectKey == null || defaultProjectKey.isBlank()
                 ? "RELAY" : defaultProjectKey.trim().toUpperCase(Locale.ROOT);
+        this.users = users;
     }
 
     private record Cached(Map<String, Object> body, Instant at) {
@@ -132,11 +144,12 @@ public class BriefService {
      * and answering it out of the cache would be answering a different question.
      */
     public Map<String, Object> brief(boolean refresh) {
-        Cached cached = cache.get();
+        UUID userId = cacheKey();
+        Cached cached = cache.get(userId);
         if (!refresh && cached != null) {
             boolean fresh = Duration.between(cached.at(), clock.now()).compareTo(cacheTtl) < 0;
             if (!fresh) {
-                revalidate();
+                revalidate(userId);
             }
             Map<String, Object> body = new LinkedHashMap<>(cached.body());
             body.put("cached", true);
@@ -144,7 +157,7 @@ public class BriefService {
             body.put("stale", !fresh);
             return body;
         }
-        return await(generation());
+        return await(generation(userId));
     }
 
     /**
@@ -155,19 +168,19 @@ public class BriefService {
      * build either way. The executor is a virtual-thread-per-task pool, so this borrows no
      * thread from anything the reader is waiting on.
      */
-    private void revalidate() {
-        if (inFlight.get() != null) {
+    private void revalidate(UUID userId) {
+        if (inFlight.containsKey(userId)) {
             return;
         }
-        executor.execute(() -> {
+        executor.execute(users.capture(() -> {
             try {
-                generation();
+                generation(userId);
             } catch (RuntimeException | Error e) {
                 // The reader already has an answer. A failed rebuild leaves the last good
                 // brief standing and the next request tries again.
                 LOG.log(Level.WARNING, "brief revalidation failed: " + e);
             }
-        });
+        }));
     }
 
     /**
@@ -179,22 +192,22 @@ public class BriefService {
      * so both answers carry the same {@code generatedAt}, which is what makes it visible
      * from outside that only one generation happened.
      */
-    private CompletableFuture<Map<String, Object>> generation() {
+    private CompletableFuture<Map<String, Object>> generation(UUID userId) {
         CompletableFuture<Map<String, Object>> mine = new CompletableFuture<>();
-        CompletableFuture<Map<String, Object>> running = inFlight.compareAndExchange(null, mine);
+        CompletableFuture<Map<String, Object>> running = inFlight.putIfAbsent(userId, mine);
         if (running != null) {
             return running;
         }
         try {
             Map<String, Object> body = build();
-            cache.set(new Cached(body, clock.now()));
+            cache.put(userId, new Cached(body, clock.now()));
             mine.complete(body);
         } catch (RuntimeException | Error e) {
             // Everyone waiting on this build fails with it, rather than hanging until the
             // request times out.
             mine.completeExceptionally(e);
         } finally {
-            inFlight.compareAndSet(mine, null);
+            inFlight.remove(userId, mine);
         }
         return mine;
     }
@@ -213,7 +226,11 @@ public class BriefService {
 
     /** Drops the cache — used by {@code POST /api/brief/refresh} and by tests. */
     public void invalidate() {
-        cache.set(null);
+        cache.remove(cacheKey());
+    }
+
+    private UUID cacheKey() {
+        return users.currentUserId().orElse(ANONYMOUS);
     }
 
     // ---- assembly ---------------------------------------------------------

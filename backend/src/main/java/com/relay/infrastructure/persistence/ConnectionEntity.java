@@ -15,7 +15,10 @@ public class ConnectionEntity {
     @Id
     private UUID id;
 
-    @Column(nullable = false, unique = true, length = 32)
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
+
+    @Column(nullable = false, length = 32)
     private String provider;
 
     @Column(nullable = false, columnDefinition = "text")
@@ -30,6 +33,14 @@ public class ConnectionEntity {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public UUID getUserId() {
+        return userId;
+    }
+
+    public void setUserId(UUID userId) {
+        this.userId = userId;
     }
 
     public String getProvider() {

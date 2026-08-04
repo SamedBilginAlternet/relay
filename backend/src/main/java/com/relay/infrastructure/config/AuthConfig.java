@@ -6,6 +6,7 @@ import com.relay.application.port.PasswordHasher;
 import com.relay.application.port.SessionListener;
 import com.relay.application.port.SessionRepository;
 import com.relay.application.port.UserRepository;
+import com.relay.application.port.UserScope;
 import com.relay.infrastructure.auth.AuthFilter;
 import com.relay.infrastructure.auth.BCryptPasswordHasher;
 import com.relay.infrastructure.auth.SessionCookies;
@@ -53,11 +54,17 @@ public class AuthConfig {
     }
 
     @Bean
+    public UserScope userScope() {
+        return new UserScope();
+    }
+
+    @Bean
     public FilterRegistrationBean<AuthFilter> authFilterRegistration(
             AuthService authService,
+            UserScope userScope,
             @Value("${app.auth.enabled:true}") boolean enabled) {
         FilterRegistrationBean<AuthFilter> registration =
-                new FilterRegistrationBean<>(new AuthFilter(authService, enabled));
+                new FilterRegistrationBean<>(new AuthFilter(authService, enabled, userScope));
         registration.addUrlPatterns("/api/*");
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 50);
         registration.setName("relayAuthFilter");
