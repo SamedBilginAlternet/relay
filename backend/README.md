@@ -7,7 +7,8 @@ coordinator → tool agents → verifier), enforces a per-tool policy, meters co
 streams every transition over SSE.
 
 > **It always runs.** With no Groq keys it uses the deterministic `StubLlmClient`, and with
-> no Jira/Slack credentials the tools answer from recorded fixtures (`TOOLS_MODE=replay`).
+> provider tools answer from recorded fixtures. Live provider access is code-locked off
+> while connections are workspace-global.
 > No accounts, no network, no excuses on demo day.
 
 ---
@@ -52,7 +53,7 @@ Flyway applies `src/main/resources/db/migration/V1__init.sql` at startup; Hibern
 | `GROQ_MODEL` | `llama-3.3-70b-versatile` | |
 | `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | |
 | `GROQ_PRICE_INPUT` / `GROQ_PRICE_OUTPUT` | `0.59` / `0.79` | USD per million tokens, used by the cost meter |
-| `TOOLS_MODE` | `replay` | `live` \| `replay` |
+| Tool mode | `replay` | Code-locked until connections have per-user ownership |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:4173` | Comma separated |
 | `DEFAULT_BUDGET_USD` | `0.50` | Used when `POST /api/runs` omits `budgetUsd` |
 | `GOOGLE_CLIENT_ID` | *(empty)* | Gmail + Calendar OAuth. Empty ⇒ those tools report `unavailable`, everything else still runs |
@@ -88,15 +89,12 @@ cooling down the call falls back to the stub and `GET /api/health` says so:
 
 Keys are only ever printed masked.
 
-## 4. Switching live ↔ replay
+## 4. Provider safety mode
 
-```bash
-export TOOLS_MODE=replay   # recorded fixtures, no network (default)
-export TOOLS_MODE=live     # real Jira/Slack calls
-```
-
-In `live` mode a provider with **no connection configured** still falls back to its fixture
-(`mode: "replay (no connection)"` in the step result) instead of failing the run.
+Provider tools are code-locked to replay. The current schema stores one connection per
+provider for the whole workspace; exposing live mode on a public deployment would let a
+visitor use the account connected by somebody else. Live access must not return until
+connections, runs and brief caches have per-user ownership.
 
 Fixtures live in `src/main/resources/fixtures/<tool>.json`. `{{param}}` placeholders are
 substituted from the actual call, so a replayed `slack.postMessage` echoes the real text the

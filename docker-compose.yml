@@ -16,7 +16,7 @@
 # one. Differences on purpose:
 #   * postgres IS published here (psql/DataGrip), never in production
 #   * weak, hardcoded dev defaults for the password and the encryption key
-#   * TOOLS_MODE=stub so a local run can never post to a real Slack channel
+#   * public-demo replay mode so a local run can never post to a real Slack channel
 #   * its own project name, so the dev volume can never collide with prod's
 #
 # The `${VAR:?message}` ban applies here too — same Coolify parser, and keeping
@@ -90,8 +90,7 @@ services:
       # Dev-only key. Long enough to pass the entrypoint check, worthless as a
       # secret — never reuse it anywhere that stores a real Jira/Slack token.
       APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-dev-only-insecure-encryption-key-0123456789}
-      # stub by default: a local run must not be able to write to real Jira.
-      TOOLS_MODE: ${TOOLS_MODE:-stub}
+      # Provider access is locked to replay in application.yml while connections are global.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:${WEB_PORT:-8086},http://127.0.0.1:${WEB_PORT:-8086}}
       # Sign-in. Locally the SPA (:8086) and the API (:8087) are different
       # origins, so the cookie travels cross-site and the browser must be told

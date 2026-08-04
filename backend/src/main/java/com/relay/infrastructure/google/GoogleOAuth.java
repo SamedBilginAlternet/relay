@@ -149,26 +149,29 @@ public class GoogleOAuth {
     private final String clientId;
     private final String clientSecret;
     private final String redirectUri;
+    private final boolean enabled;
 
     public GoogleOAuth(ConnectionRepository connections, Clock clock,
                        @Value("${app.google.client-id:}") String clientId,
                        @Value("${app.google.client-secret:}") String clientSecret,
-                       @Value("${app.google.redirect-uri:}") String redirectUri) {
+                       @Value("${app.google.redirect-uri:}") String redirectUri,
+                       @Value("${app.google.enabled:false}") boolean enabled) {
         this.connections = connections;
         this.clock = clock;
         this.clientId = clientId == null ? "" : clientId.trim();
         this.clientSecret = clientSecret == null ? "" : clientSecret.trim();
         this.redirectUri = redirectUri == null ? "" : redirectUri.trim();
+        this.enabled = enabled;
         LOG.log(Level.INFO, "google oauth configured: {0}", configured());
     }
 
     /** False when the env vars are absent — the tools then report unavailable. */
     public boolean configured() {
-        return !clientId.isBlank() && !clientSecret.isBlank() && !redirectUri.isBlank();
+        return enabled && !clientId.isBlank() && !clientSecret.isBlank() && !redirectUri.isBlank();
     }
 
     public boolean connected() {
-        return connections.findByProvider(PROVIDER)
+        return configured() && connections.findByProvider(PROVIDER)
                 .map(c -> notBlank(c.get("refreshToken")) || notBlank(c.get("accessToken")))
                 .orElse(false);
     }
@@ -271,18 +274,18 @@ public class GoogleOAuth {
         // Whether the *stored* grant still matches the asked-for one. A connection made
         // before gmail.compose reads connected=true and canCompose=false — which is the
         // whole difference between "reconnect" and "nothing to do".
-        out.put("canCompose", connections.findByProvider(PROVIDER)
+        out.put("canCompose", configured() && connections.findByProvider(PROVIDER)
                 .map(connection -> granted(connection, COMPOSE_SCOPE))
                 .orElse(false));
         // Same question, one scope over: a connection made before calendar.events reads
         // connected=true and canCreateEvent=false, and the screen can say which button to press.
-        out.put("canCreateEvent", connections.findByProvider(PROVIDER)
+        out.put("canCreateEvent", configured() && connections.findByProvider(PROVIDER)
                 .map(connection -> granted(connection, CALENDAR_EVENTS_SCOPE))
                 .orElse(false));
-        out.put("canAppendRow", connections.findByProvider(PROVIDER)
+        out.put("canAppendRow", configured() && connections.findByProvider(PROVIDER)
                 .map(connection -> granted(connection, SPREADSHEETS_SCOPE))
                 .orElse(false));
-        out.put("canCreateDocument", connections.findByProvider(PROVIDER)
+        out.put("canCreateDocument", configured() && connections.findByProvider(PROVIDER)
                 .map(connection -> granted(connection, DOCUMENTS_SCOPE))
                 .orElse(false));
         out.put("redirectUri", redirectUri);

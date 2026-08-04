@@ -12,7 +12,7 @@ import java.lang.System.Logger.Level;
  * Shared plumbing for every integration: timing, schema gate, error mapping and the
  * live↔replay switch.
  *
- * <p>Replay is used when {@code TOOLS_MODE=replay} <em>or</em> when the provider has no
+ * <p>Replay is used when {@code app.tools.mode=replay} <em>or</em> when the provider has no
  * connection configured — so a fresh install (and demo day without accounts) still runs
  * the whole workflow end to end.
  */

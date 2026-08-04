@@ -78,12 +78,6 @@ fi
 [ -n "${GROQ_MODEL:-}" ] || warn "GROQ_MODEL is empty — the application default will be used."
 
 # --- tools / cors ----------------------------------------------------------
-case "${TOOLS_MODE:-}" in
-    live|stub) log "TOOLS_MODE=${TOOLS_MODE}" ;;
-    "")        warn "TOOLS_MODE is empty — the application default will be used." ;;
-    *)         warn "TOOLS_MODE='${TOOLS_MODE}' is not one of live|stub; passing it through anyway." ;;
-esac
-
 [ -n "${CORS_ALLOWED_ORIGINS:-}" ] \
     || warn "CORS_ALLOWED_ORIGINS is empty. In production the SPA is same-origin behind Caddy so this is usually harmless, but a browser calling the API from another host will be blocked."
 

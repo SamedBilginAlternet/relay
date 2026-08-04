@@ -128,7 +128,7 @@ Minimum edits:
 | `CORS_ALLOWED_ORIGINS` | `https://<APP_DOMAIN>` |
 | `GROQ_API_KEYS` | comma-separated Groq keys. Empty = the API runs on `StubLlmClient`. Groq counts tokens per **organisation**, so extra keys from the same account add no quota — see `docs/INTEGRATIONS.md` §5.1 |
 | `GROQ_MODEL` | e.g. `llama-3.3-70b-versatile` |
-| `TOOLS_MODE` | `replay` for a side-effect-free demo, `live` for real Jira/Slack calls. Those are the only two values `ToolsMode.parse` knows — **anything else, including `stub`, silently becomes `replay`** |
+| Tool/Google data access | Code-locked to replay/off while connections are workspace-global; no Coolify variable can enable it |
 | `WEB_PORT` / `API_PORT` | only if 8086/8087 were taken in §1 |
 | `VITE_RUN_SOURCE` | `api` — `mock` ships the fixture demo and looks deceptively fine |
 | `VITE_API_BASE_URL` | leave **empty** — production is same-origin behind Caddy |
@@ -611,7 +611,7 @@ fallback for the one case that decision does not cover: an evaluation process
 that *requires* hands-on access.
 
 **What it is.** A second, independent deployment of the same images with no
-connections configured and `TOOLS_MODE=replay`. Every tool call is answered from
+connections configured and code-locked replay mode. Every tool call is answered from
 `backend/src/main/resources/fixtures/<toolName>.json`, so the plan, the policy
 engine, the approval gate, the cost meter and the audit trail all behave
 identically — only the provider responses are recorded ones. Nothing reaches
@@ -627,7 +627,7 @@ Start from a copy of the production `.env` and change exactly these:
 |---|---|---|
 | `APP_DOMAIN` | a second hostname, e.g. `relay-demo.samedbilgin.com` | Its own Caddy site block (§6) and its own certificate |
 | `CORS_ALLOWED_ORIGINS` | `https://<that hostname>` | — |
-| `TOOLS_MODE` | `replay` | The whole point. Verify after deploy, do not assume |
+| Tool mode | code-locked `replay` | The whole point. Verify after deploy, do not assume |
 | `WEB_PORT` / `API_PORT` | a free pair, e.g. `8088` / `8089` | §1's port check applies again — the production pair is taken |
 | `POSTGRES_PASSWORD` | a **new** value | Separate database; never point this at the production volume |
 | `APP_ENCRYPTION_KEY` | a **new** value | It encrypts nothing here, but sharing the production key across a public-facing box is free risk |
@@ -655,7 +655,7 @@ Register a single reviewer account through `#/kayit` and note it in the delivery
 text as an **evaluation account on an evaluation environment** — never as "the
 app". One line is enough:
 
-> Değerlendirme ortamı: `https://relay-demo.…` — bağlantısız ve `TOOLS_MODE=replay`
+> Değerlendirme ortamı: `https://relay-demo.…` — bağlantısız ve kod-kilitli replay modunda
 > ile koşuyor. Akış, onay kapısı, politika motoru ve iz kaydı canlıdakiyle birebir
 > aynı; araç yanıtları kayıtlı yanıtlardır, kimsenin gerçek verisi değildir.
 > Canlı ortam sunum sırasında sunucunun ekranından gösterilir.

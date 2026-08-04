@@ -148,8 +148,7 @@ services:
       # AES-GCM key for Connection.config (Jira/Slack tokens) at rest.
       # No default on purpose — the entrypoint fails fast when it is missing.
       APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
-      # live = real Jira/Slack calls, stub = deterministic offline tools.
-      TOOLS_MODE: ${TOOLS_MODE:-stub}
+      # Provider access is code-locked to replay while connections are workspace-global.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://${APP_DOMAIN:-localhost}}
       # Google OAuth. The same client serves two DIFFERENT consents: data access
       # (/api/oauth/google/callback) and sign-in (/api/auth/google/callback).

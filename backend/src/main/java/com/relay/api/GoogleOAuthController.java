@@ -74,7 +74,7 @@ public class GoogleOAuthController {
     private ResponseEntity<Map<String, Object>> notConfigured() {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", "google_not_configured");
-        body.put("message", "GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET ve GOOGLE_REDIRECT_URI tanımlı değil");
+        body.put("message", "Google entegrasyonu bu dağıtımda güvenlik nedeniyle kapalı");
         body.put("status", "unavailable");
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(body);
     }
